@@ -1,0 +1,171 @@
+<mujoco model="lbr_iiwa">
+    <compiler angle="radian" meshdir="" />
+    <!--size njmax="500" nconmax="100" /-->
+    <asset>
+        <mesh name="link_0" file="meshes/link_0.stl" />
+        <mesh name="link_1" file="meshes/link_1.stl" />
+        <mesh name="link_2" file="meshes/link_2.stl" />
+        <mesh name="link_3" file="meshes/link_3.stl" />
+        <mesh name="link_4" file="meshes/link_4.stl" />
+        <mesh name="link_5" file="meshes/link_5.stl" />
+        <mesh name="link_6" file="meshes/link_6.stl" />
+        <mesh name="link_7" file="meshes/link_7.stl" />
+    </asset>
+    <option timestep="0.001" solver="PGS" cone="pyramidal"/>
+    <option>
+        <flag gravity="enable"/>
+<!--        <flag integrator="RK4"/>-->
+<!--        <flag timestep="0.001"/>-->
+<!--        <flag contact="enable"/>-->
+<!--        <flag cone="pyramidal"/>-->
+<!--        <flag solver="PGS"/>-->
+    </option>
+
+  <include file="allegro_all/allegro_preloads.xml"/>
+  <include file="YCB_objects/ycb_preloads.xml"/>
+
+    <visual>
+        <map force="10" />
+        <scale forcewidth = "0.02"  contactwidth = "0.05" contactheight = "0.05" />
+    </visual>
+
+  <default>
+    <joint damping="0.01" frictionloss="0"/>
+<!--    <default class="visual">-->
+<!--      <geom contype="0" conaffinity="0"/>-->
+<!--    </default>-->
+    <default class="collision0">
+      <geom contype="1" conaffinity="1" friction="0.1 0 0.001" solref="-100000 -200" />
+    </default>
+      <default class="obj">
+      <geom condim="6" friction="1 0.5 0.01" solimp="1.1 1.2 0.001 0.5 2" solref="0.02 2"/>
+    </default>
+     <default class="hand_joint">
+      <joint solimplimit="0.9 0.95 0.001 0.5 2"/>
+    </default>
+      <default class="fingers">
+      <geom friction="1 0.5 0.2"  solref="0.02 2"/>
+    </default>
+      <default class="visual1">
+      <geom contype="1" conaffinity="1"/>
+    </default>
+        <default class="visual2">
+     <geom contype="1" conaffinity="1"/>
+    </default>
+        <default class="visual3">
+     <geom contype="1" conaffinity="1"/>
+    </default>
+        <default class="visual4">
+     <geom contype="1" conaffinity="1"/>
+    </default>
+        <default class="visual5">
+      <geom contype="1" conaffinity="1" friction="1 0.8 0.8" solimp="0.8 0.95 0.002 0.8 2" solref="0.02 2"/>
+    </default>
+      <default class="thumb_test">
+      <geom condim="3" contype="1" conaffinity="1" friction="1 0.8 0.8" solimp="0.8 0.95 0.002 0.8 2" solref="0.02 2"/>
+    </default>
+
+    <site rgba="1 0 0 .5"/>
+
+        <default class="visual">
+          <geom  type="mesh" contype="0" conaffinity="0" />
+        </default>
+        <default class="collision">
+          <geom group="3" type="mesh"  contype="1" conaffinity="1" />
+        </default>
+  </default>
+
+    <worldbody>
+        <light pos="0 0 1000" castshadow="false"/>
+        <geom name="floor" class="collision0" type="plane" size="0 0 1" rgba=".8 .8 .8 1"/>
+<!--        <geom pos="0 0 0" quat="0 0 1 -1" name="background" class="collision0" type="plane" size="10 10 0.1" rgba="1 1 1 1"/>-->
+        <body name="kuka_table" pos="0 0 0.42">
+          <geom name="kuka_table" class="collision0" type="box" size=".45 .45 .42" pos="0 0 0"/>
+          <body name="kuka_base" pos="0 0 0.42">
+            <geom type="mesh" contype="0" conaffinity="0" group="1" rgba="0.4 0.4 0.4 1" mesh="link_0" />
+            <geom name="kuka_base" type="mesh" rgba="0.4 0.4 0.4 1" mesh="link_0" />
+              <site name="kuka_base_site" pos="0 0 0" euler="0 0 0" size="0.001 0.001 0.001"/>
+
+            <body name="lbr_iiwa_link_1" pos="0 0 0.1575">
+                <inertial pos="0 -0.03 0.12" quat="0.428904 0.562175 -0.562175 0.428904" mass="3.4525" diaginertia="0.0218946 0.02183 0.00663837" />
+                <joint name="lbr_iiwa_joint_1" pos="0 0 0" axis="0 0 1" limited="true" range="-2.96706 2.96706" damping="0.5" />
+                <geom type="mesh" rgba="0.5 0.7 1 1" mesh="link_1" />
+                <body name="lbr_iiwa_link_2" pos="0 0 0.2025" quat="0 0 0.707107 0.707107">
+                    <inertial pos="0.0003 0.059 0.042" quat="0.701371 0.0898824 0.0898824 0.701371" mass="3.4821" diaginertia="0.02179 0.0217049 0.00684512" />
+                    <joint name="lbr_iiwa_joint_2" pos="0 0 0" axis="0 0 1" limited="true" range="-2.0944 2.0944" damping="0.5" />
+                    <geom type="mesh" rgba="0.5 0.7 1 1" mesh="link_2" />
+                    <body name="lbr_iiwa_link_3" pos="0 0.2045 0" quat="0 0 0.707107 0.707107">
+                        <inertial pos="0 0.03 0.13" quat="0.56292 0.427927 -0.427927 0.56292" mass="4.05623" diaginertia="0.0321488 0.03204 0.00799117" />
+                        <joint name="lbr_iiwa_joint_3" pos="0 0 0" axis="0 0 1" limited="true" range="-2.96706 2.96706" damping="0.5" />
+                        <geom type="mesh" rgba="1 0.423529 0.0392157 1" mesh="link_3" />
+                        <body name="lbr_iiwa_link_4" pos="0 0 0.2155" quat="0.707107 0.707107 0 0">
+                            <inertial pos="0 0.067 0.034" quat="0.991887 -0.127124 0 0" mass="3.4822" diaginertia="0.02178 0.0216947 0.00684029" />
+                            <joint name="lbr_iiwa_joint_4" pos="0 0 0" axis="0 0 1" limited="true" range="-2.0944 2.0944" damping="0.5" />
+                            <geom type="mesh" rgba="0.5 0.7 1 1" mesh="link_4" />
+                            <body name="lbr_iiwa_link_5" pos="0 0.1845 0" quat="0 0 0.707107 0.707107">
+                                <inertial pos="0.0001 0.021 0.076" quat="0.365352 0.605407 -0.605407 0.365352" mass="2.1633" diaginertia="0.0131987 0.01287 0.0036293" />
+                                <joint name="lbr_iiwa_joint_5" pos="0 0 0" axis="0 0 1" limited="true" range="-2.96706 2.96706" damping="0.5" />
+                                <geom type="mesh" rgba="0.5 0.7 1 1" mesh="link_5" />
+                                <body name="lbr_iiwa_link_6" pos="0 0 0.2155" quat="0.707107 0.707107 0 0">
+                                    <inertial pos="0 0.0006 0.0004" quat="0.996112 0.088097 0 0" mass="2.3466" diaginertia="0.006509 0.00631585 0.00447015" />
+                                    <joint name="lbr_iiwa_joint_6" pos="0 0 0" axis="0 0 1" limited="true" range="-2.0944 2.0944" damping="0.5" />
+                                    <geom type="mesh" rgba="1 0.423529 0.0392157 1" mesh="link_6" />
+                                    <body name="lbr_iiwa_link_7" pos="0 0.081 0" quat="0 0 0.707107 0.707107">
+                                        <inertial pos="0 0 0.02" quat="0.923068 0 0 0.384636" mass="3.129" diaginertia="1.01524 1.01405 1.00287" />
+                                        <joint name="lbr_iiwa_joint_7" pos="0 0 0" axis="0 0 1" limited="true" range="-3.05433 3.05433" damping="0.5" />
+                                        <geom type="mesh" rgba="0.2 0.2 0.2 1" mesh="link_7" />
+                                        <site name="ee_site" pos="0 0 0.0445" euler="0 0 0" size="0.001 0.001 0.001"/>
+                                        <body name="allegro_base" euler="0 0 0" pos="0 0 0.0445">
+                                                <include file="allegro_all/allegro_left_bodies.xml"/>
+                                        </body>
+                                            <camera pos="0.1 0 0" euler="3.14159265359 0 -1.57079632679"/>
+                                    </body>
+                            </body>
+                        </body>
+                    </body>
+                </body>
+            </body>
+        </body>
+         </body>
+         </body>
+        <include file="YCB_objects/ycb_bodies_real.xml"/>
+
+        <include file="real_env.xml"/>
+<!--        <include file="real_env_updated.xml"/>-->
+<!--        <include file="point_cloud_env_real.xml"/>-->
+         <include file="point_cloud.xml"/>
+<!--        <include file="point_cloud_env_real_fullspace.xml"/>-->
+
+<!--        <include file="basic_obj.xml"/>-->
+    </worldbody>
+
+  <actuator>
+      <motor name="lbr_iiwa_joint_1" ctrllimited="true" ctrlrange="-300.0 300.0" joint="lbr_iiwa_joint_1"/>
+      <motor name="lbr_iiwa_joint_2" ctrllimited="true" ctrlrange="-300.0 300.0" joint="lbr_iiwa_joint_2"/>
+      <motor name="lbr_iiwa_joint_3" ctrllimited="true" ctrlrange="-300.0 300.0" joint="lbr_iiwa_joint_3"/>
+      <motor name="lbr_iiwa_joint_4" ctrllimited="true" ctrlrange="-300.0 300.0" joint="lbr_iiwa_joint_4"/>
+      <motor name="lbr_iiwa_joint_5" ctrllimited="true" ctrlrange="-300.0 300.0" joint="lbr_iiwa_joint_5"/>
+      <motor name="lbr_iiwa_joint_6" ctrllimited="true" ctrlrange="-300.0 300.0" joint="lbr_iiwa_joint_6"/>
+      <motor name="lbr_iiwa_joint_7" ctrllimited="true" ctrlrange="-300.0 300.0" joint="lbr_iiwa_joint_7"/>
+      <motor name="index_joint_0" ctrllimited="true" ctrlrange="-15 15" joint="index_joint_0"/>
+      <motor name="index_joint_1" ctrllimited="true" ctrlrange="-15 15" joint="index_joint_1"/>
+      <motor name="index_joint_2" ctrllimited="true" ctrlrange="-15 15" joint="index_joint_2"/>
+      <motor name="index_joint_3" ctrllimited="true" ctrlrange="-15 15" joint="index_joint_3"/>
+      <motor name="middle_joint_0" ctrllimited="true" ctrlrange="-15 15" joint="middle_joint_0"/>
+      <motor name="middle_joint_1" ctrllimited="true" ctrlrange="-15 15" joint="middle_joint_1"/>
+      <motor name="middle_joint_2" ctrllimited="true" ctrlrange="-15 15" joint="middle_joint_2"/>
+      <motor name="middle_joint_3" ctrllimited="true" ctrlrange="-15 15" joint="middle_joint_3"/>
+      <motor name="ring_joint_0" ctrllimited="true" ctrlrange="-15 15" joint="ring_joint_0"/>
+      <motor name="ring_joint_1" ctrllimited="true" ctrlrange="-15 15" joint="ring_joint_1"/>
+      <motor name="ring_joint_2" ctrllimited="true" ctrlrange="-15 15" joint="ring_joint_2"/>
+      <motor name="ring_joint_3" ctrllimited="true" ctrlrange="-15 15" joint="ring_joint_3"/>
+      <motor name="thumb_joint_0" ctrllimited="true" ctrlrange="-15 15" joint="thumb_joint_0"/>
+      <motor name="thumb_joint_1" ctrllimited="true" ctrlrange="-15 15" joint="thumb_joint_1"/>
+      <motor name="thumb_joint_2" ctrllimited="true" ctrlrange="-15 15" joint="thumb_joint_2"/>
+      <motor name="thumb_joint_3" ctrllimited="true" ctrlrange="-15 15" joint="thumb_joint_3"/>
+  </actuator>
+    <contact>
+		<exclude body1="kuka_base" body2="lbr_iiwa_link_1"/>
+	</contact>
+
+</mujoco>

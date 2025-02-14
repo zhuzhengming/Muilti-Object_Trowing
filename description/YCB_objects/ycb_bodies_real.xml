@@ -1,0 +1,68 @@
+<ycb>a
+
+    <body name="banana" pos="0.75 -0.25 1.44">
+        <inertial pos="-0.009936102440002158 0.004072679186328214 0.01712688923116843" mass="0.001" fullinertia="2.1845116025836455e-06 4.5160641943036086e-07 2.486640869788388e-06 -6.454664859043533e-07 1.5460056391352563e-08 -1.2944548120843963e-08" />
+        <include file="YCB_objects/banana/bodies.xml"/>
+        <freejoint/>
+    </body>
+
+    <body name="bottle" pos="0.75 0.23 1.445">
+        <inertial pos="-0.015054346191835743 -0.02310937838026133 0.07504230732494276" mass="0.01" fullinertia="2.4304640422371926e-05 2.674859531816691e-05 7.015112534062742e-06 1.2578584266485865e-06 -8.248848177586826e-08 -1.1689986877112398e-07"/>
+        <include file="YCB_objects/bottle/bodies.xml"/>
+        <freejoint/>
+    </body>
+
+<!--    <body name="chip_can" pos="0.8 -0.15 1.07">-->
+<!--        <inertial pos="-8.963122858409468e-09 0.09432490407944878 -3.18747072778518e-05" mass="0.01" fullinertia="5.3633229670599616e-05 7.067600217671682e-06 5.363261224796618e-05 -5.546109067138381e-12 -1.6654768074641885e-10 -3.740678106916932e-12"/>-->
+<!--        <geom mesh="chip_can" material="chip_can" class="visual"/>-->
+<!--        <geom mesh="chip_can" class="collision"/>-->
+<!--        <freejoint/>-->
+<!--    </body>-->
+
+    <body name="soft_scrub" pos="0.7 -0.0 1.08">
+        <inertial pos="0.0017924722957241 0.002753642732538933 0.10017792382013364" mass="0.01" fullinertia="4.3579424193027943e-05 4.202119339652286e-05 8.495566990904455e-06 -1.703482644884809e-06 -1.3917221189191577e-06 -2.1107725486661356e-06"/>
+        <include file="YCB_objects/soft_scrub/bodies.xml"/>
+        <freejoint/>
+    </body>
+
+    <body name="sugar_box" pos="0.65 -0.2 0.95">
+        <inertial pos="-0.007698415494577894 -0.017078163162294522 0.08602381422432334" mass="0.01" fullinertia="3.153023918996844e-05 2.6445760217216182e-05 7.937980467936385e-06 -1.8465549320520982e-07 9.373965782143753e-07 -3.1918628230472196e-07" />
+        <geom mesh="sugar_box" material="sugar_box" class="visual"/>
+        <geom mesh="sugar_box" class="collision"/>
+        <freejoint/>
+    </body>
+
+    <body name="strawberry" pos="0.7 0 1.44" quat="0.52654078 0.43938504 0.62750687 0.36868783">
+        <inertial pos="-0.00168203  0.01536836  0.02115739" mass="0.005" diaginertia="5e-4 5e-4 5e-4"/>
+        <geom mesh="strawberry" material="strawberry" class="visual" friction="1 0.8 0.8"/>
+        <geom mesh="strawberry" class="collision"/>
+        <geom name="skey1" class="visual" type="sphere" size="0.004" pos="0.001535 0.034092 0.036387" rgba="1 1 1 1"/>
+        <geom name="skey2" class="visual" type="sphere" size="0.004" pos="-0.018034 0.007280 0.037118" rgba="1 1 1 1"/>
+        <freejoint/>
+    </body>
+
+<!--    <body name="soap" pos="0.75 0.22 0.99">-->
+<!--        <inertial pos="-8.963122858409468e-09 0.09432490407944878 -3.18747072778518e-05" mass="0.005" diaginertia="8e-5 2e-4 2e-4"/>-->
+<!--        <geom mesh="soap" material="soap" class="visual" friction="1 0.8 0.8"/>-->
+<!--        <geom mesh="soap" class="collision"/>-->
+<!--        <freejoint/>-->
+<!--    </body>-->
+
+    <body name="lemon" pos="0.65 -0.1 1.432" quat="0.6683156  0.29313973 0.63344535 0.25723598">
+        <inertial pos="-0.01090003  0.02097672  0.02624774" mass="0.001" diaginertia="5e-4 5e-4 5e-4"/>
+        <geom mesh="lemon" material="lemon" class="visual" friction="1 0.8 0.8"/>
+        <geom mesh="lemon" class="collision"/>
+        <geom name="lkey1" class="visual" type="sphere" size="0.004" pos="-0.005 0.008 0.002" rgba="1 1 1 1"/>
+        <geom name="lkey2" class="visual" type="sphere" size="0.004" pos="-0.005 0.005 0.008" rgba="1 1 1 1"/>
+        <freejoint/>
+    </body>
+
+    <body name="lipton_tea" pos="0.75 0.22 1">
+        <inertial pos="-8.98506742e-05  1.58955205e-04 -1.06488911e-04" mass="0.005" diaginertia="2e-4 2e-4 2e-4"/>
+        <geom mesh="lipton_tea" material="lipton_tea" class="visual" friction="1 0.8 0.8"/>
+        <geom mesh="lipton_tea" class="collision"/>
+        <freejoint/>
+    </body>
+
+<!--x-->
+</ycb>

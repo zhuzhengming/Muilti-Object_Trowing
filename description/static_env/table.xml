@@ -1,0 +1,20 @@
+<objects>
+
+    <body name="table" pos="0.5 -0.4 0">
+              <geom name="table_1" class="collision0" type="box" size="0.35 0.6 0.01" pos="0.3 0.5 0.8" mass="10" rgba="0.5 0.5 0.5 1"/>
+              <geom name="leg_1" class="collision0" type="box" size="0.01 0.01 0.4" pos="0.6 0 0.4" mass="10" rgba="0.5 0.5 0.5 1"/>
+              <geom name="leg_2" class="collision0" type="box" size="0.01 0.01 0.4" pos="0 1 0.4" mass="10" rgba="0.5 0.5 0.5 1"/>
+              <geom name="leg_3" class="collision0" type="box" size="0.01 0.01 0.4" pos="0.6 1 0.4" mass="10" rgba="0.5 0.5 0.5 1"/>
+              <geom name="leg_4" class="collision0" type="box" size="0.01 0.01 0.4" pos="0 0 0.4" mass="10" rgba="0.5 0.5 0.5 1"/>
+    </body>
+
+
+        <body name="bookshelf" pos="0.5 -0.4 0">
+              <geom name="bookshelf_1" class="collision0" type="box" size="0.12 0.42 0.01" pos="0.4 0.4 1.2" mass="10" rgba="0.0 0.5 0.5 1"/>
+              <geom name="bookshelf_2" class="collision0" type="box" size="0.01 0.01 0.2" pos="0.5 0 1" mass="10" rgba="0.0 0.5 0.5 1"/>
+              <geom name="bookshelf_3" class="collision0" type="box" size="0.01 0.01 0.2" pos="0.5 0.8 1" mass="10" rgba="0.0 0.5 0.5 1"/>
+              <geom name="bookshelf_4" class="collision0" type="box" size="0.01 0.01 0.2" pos="0.3 0 1" mass="10" rgba="0. 0.5 0.5 1"/>
+              <geom name="bookshelf_5" class="collision0" type="box" size="0.01 0.01 0.2" pos="0.3 0.8 1" mass="10" rgba="0.0 0.5 0.5 1"/>
+    </body>
+
+</objects>

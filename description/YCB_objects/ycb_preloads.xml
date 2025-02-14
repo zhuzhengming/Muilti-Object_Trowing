@@ -1,0 +1,35 @@
+<ycb>
+
+
+    <include file="YCB_objects/banana/preloads.xml"/>
+    <include file="YCB_objects/bottle/preloads.xml"/>
+    <include file="YCB_objects/soft_scrub/preloads.xml"/>
+
+    <asset>
+        <mesh file="YCB_objects/chip_can/textured.obj" name="chip_can" />
+        <texture type="2d" name="chip_can" file="YCB_objects/chip_can/texture_map.png"/>
+        <material name="chip_can" texture="chip_can" specular="0.5" shininess="0.5" />
+
+        <texture type="2d" name="sugar_box" file="YCB_objects/sugar_box/texture_map.png"/>
+        <material name="sugar_box" texture="sugar_box" specular="0.5" shininess="0.5"/>
+        <mesh file="YCB_objects/sugar_box/textured.obj" name="sugar_box"/>
+
+         <mesh file="YCB_objects/strawberry/textured.obj" name="strawberry" />
+        <texture type="2d" name="strawberry" file="YCB_objects/strawberry/texture_map.png"/>
+        <material name="strawberry" texture="strawberry" specular="0.5" shininess="0.5" />
+
+        <mesh file="YCB_objects/soap/textured.obj" name="soap" />
+        <texture type="2d" name="soap" file="YCB_objects/soap/texture_map.png"/>
+        <material name="soap" texture="soap" specular="0.5" shininess="0.5" />
+
+           <mesh file="YCB_objects/lemon/textured.obj" name="lemon" />
+        <texture type="2d" name="lemon" file="YCB_objects/lemon/texture_map.png"/>
+        <material name="lemon" texture="lemon" specular="0.5" shininess="0.5" />
+
+        <mesh file="YCB_objects/lipton_tea/textured.obj" name="lipton_tea" />
+        <texture type="2d" name="lipton_tea" file="YCB_objects/lipton_tea/texture_map.png"/>
+        <material name="lipton_tea" texture="lipton_tea" specular="0.5" shininess="0.5" />
+
+    </asset>
+
+</ycb>

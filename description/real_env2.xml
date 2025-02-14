@@ -1,0 +1,22 @@
+<objects>
+
+<!--    <body name="table" pos="-0.82 0 0">-->
+<!--              <geom name="table_1" class="collision0" type="box" size="0.35 0.6 0.02" pos="0.0 0.0 0.82" mass="10" rgba="0.5 0.5 0.5 0.7"/>-->
+<!--              <geom name="leg_1" class="collision0" type="box" size="0.01 0.01 0.4" pos="0.34 0.59 0.4" mass="10" rgba="0.5 0.5 0.5 1"/>-->
+<!--              <geom name="leg_2" class="collision0" type="box" size="0.01 0.01 0.4" pos="-0.34 0.69 0.4" mass="10" rgba="0.5 0.5 0.5 1"/>-->
+<!--              <geom name="leg_3" class="collision0" type="box" size="0.01 0.01 0.4" pos="-0.34 -0.59 0.4" mass="10" rgba="0.5 0.5 0.5 1"/>-->
+<!--              <geom name="leg_4" class="collision0" type="box" size="0.01 0.01 0.4" pos="0.34 -0.59 0.4" mass="10" rgba="0.5 0.5 0.5 1"/>-->
+<!--    </body>-->
+
+    <body name="bookshelf" pos="-1.57940107e-02 6.62893222e-01 0" quat="7.13887016e-01 -5.23372512e-05  2.46199673e-03  7.00256570e-01">
+        <geom name="shelf_leg_1" class="collision0" type="box" size="0.015 0.02 0.9" pos="-0.13 -0.42 0.9" mass="10" rgba="0.67 0.37 0 0.7"/>
+        <geom name="shelf_leg_2" class="collision0" type="box" size="0.015 0.02 0.9" pos="-0.13 0.42 0.9" mass="10" rgba="0.67 0.37 0 0.7"/>
+        <geom name="shelf_leg_3" class="collision0" type="box" size="0.015 0.02 0.9" pos="0.13 0.42 0.9" mass="10" rgba="0.67 0.37 0 0.7"/>
+        <geom name="shelf_leg_4" class="collision0" type="box" size="0.015 0.02 0.9" pos="0.13 -0.42 0.9" mass="10" rgba="0.67 0.37 0 0.7"/>
+        <geom name="shelf_1" class="collision0" type="box" size="0.13 0.4 0.02" pos="0.0 0.0 1.77" mass="10" rgba="0.67 0.37 0 0.7"/>
+        <geom name="shelf_2" class="collision0" type="box" size="0.13 0.4 0.02" pos="0.0 0.0 1.41" mass="10" rgba="0.67 0.37 0 0.7"/>
+        <geom name="shelf_3" class="collision0" type="box" size="0.13 0.4 0.02" pos="0.0 0.0 0.93" mass="10" rgba="0.67 0.37 0 0.7"/>
+        <geom name="shelf_4" class="collision0" type="box" size="0.13 0.4 0.02" pos="0.0 0.0 0.25" mass="10" rgba="0.67 0.37 0 0.7"/>
+    </body>
+
+</objects>
