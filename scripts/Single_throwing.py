@@ -24,10 +24,19 @@ envelop_pose = np.array([ 0.07941064,  1.77857954,  0.44877399,  0.62444235,  0.
 
 def singleObject_throwing():
     target_pose = r.x
-    target_pose[0] -= 0.2
-    target_pose[2] -= 0.2
-    r.iiwa_cartesion_impedance_control(target_pose, vel=1.0)
-    r.move_to_joints(home_pose, vel=[0.2, 8.0])
+    # target_pose[0] += 0.15
+    target_pose[2] += 0.25
+
+    r.iiwa_cartesion_impedance_control(target_pose, vel=1.5)
+
+    threshold = 0.1
+    reach = False
+    while not reach:
+        if np.linalg.norm(r.x[:3] - target_pose[:3]) < threshold:
+            r.move_to_joints(home_pose, vel=[0.2, 8.0])
+            reach = True
+        else:
+            continue
 
 def go_home(iiwa_home_pose):
     r.iiwa_cartesion_impedance_control(iiwa_home_pose, vel=1.0)
@@ -41,7 +50,7 @@ if __name__ == '__main__':
 
     while True:
         print("\n Choose an action:")
-        print("1 , Go home")
+        print("1: Go home")
         print("2: Throwing")
 
         user_input = input("Enter your choice: ")
