@@ -12,7 +12,7 @@ from functools import partial
 import tools.rotations as rot
 import kinematics.allegro_hand_sym as allegro
 # from iiwa_tools.srv import GetIK, GetFK
-from trac_ik_python.trac_ik import IK
+# from trac_ik_python.trac_ik import IK
 from urdf_parser_py.urdf import URDF  # need to install it under py3
 import kinematics.kdl_parser as kdl_parser
 
@@ -133,10 +133,10 @@ class Robot():
         # self._urdf_str = rospy.get_param('/robot_description')
         # print(self._urdf_str)
         # # relax_ik
-        self._ik_solver = IK(self.iiwa_start_link, self.iiwa_end_link, solve_type="distance", timeout=0.005, epsilon=5e-4)
-        lower_bound, upper_bound = self._ik_solver.get_joint_limits()
+        # self._ik_solver = IK(self.iiwa_start_link, self.iiwa_end_link, solve_type="distance", timeout=0.005, epsilon=5e-4)
+        # lower_bound, upper_bound = self._ik_solver.get_joint_limits()
         # print(lower_bound, upper_bound)
-        self._ik_solver.set_joint_limits(lower_bound, upper_bound)
+        # self._ik_solver.set_joint_limits(lower_bound, upper_bound)
 
         # self._iiwa_urdf = URDF.from_xml_string(self._urdf_str)
         self._iiwa_urdf = URDF.from_xml_file(path_prefix + 'description/iiwa_description/urdf/iiwa7_lasa.urdf')
