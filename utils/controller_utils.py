@@ -12,7 +12,7 @@ from functools import partial
 import tools.rotations as rot
 import kinematics.allegro_hand_sym as allegro
 # from iiwa_tools.srv import GetIK, GetFK
-# from trac_ik_python.trac_ik import IK
+from trac_ik_python.trac_ik import IK 
 from urdf_parser_py.urdf import URDF  # need to install it under py3
 import kinematics.kdl_parser as kdl_parser
 

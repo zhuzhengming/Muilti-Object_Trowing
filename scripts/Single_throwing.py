@@ -57,8 +57,10 @@ if __name__ == '__main__':
 
         if user_input == '1':
             go_home(iiwa_home_pose)
+            continue
         elif user_input == '2':
             singleObject_throwing()
+            continue
         else:
             print("Invalid input")
             continue
