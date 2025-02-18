@@ -3,8 +3,6 @@ control interface for iiwa and allegro hand
 """
 import sys
 
-from transformers import pipeline
-
 sys.path.append("../")
 import time
 import rospy
@@ -39,22 +37,12 @@ class Robot():
         sys.exit()
 
     def __init__(self, optitrack_frame_names=None, position_control=True, calibration=False, camera=False,
-                 camera_object_name=None, ):
+                 camera_object_name=None):
 
         rospy.init_node('iiwa_impedance', anonymous=True)
 
-        self.optitrack_frame_names = optitrack_frame_names
-
-        # recalibration should be done if the relative pose between the marker and iiwa base changes
-        # self.iiwa_base2m = np.loadtxt(
-        #     'description/config/iwwa_link_0_2_iiwabase7_calibration.txt')  # iiwa_link_0 to iiwa_base7
-        self.base2world = None
-        self.base2world_b_ = True
-        if self.optitrack_frame_names is not None:
-            self._x_obj = {}
 
         # for iiwa
-        # self.control_mode =
         self.iiwa_bounds = np.array([[-2.96705972839, -2.09439510239, -2.96705972839, -2.09439510239, -2.96705972839,
                                       -2.09439510239, -3.05432619099],
                                      [2.96705972839, 2.09439510239, 2.96705972839, 2.09439510239, 2.96705972839,
@@ -77,37 +65,22 @@ class Robot():
             self._iiwa_torque_pub = rospy.Publisher("/iiwa/TorqueController/command", Float64MultiArray,
                                                     queue_size=10)
             self._joint_kp = np.array([800, 800, 800, 800, 300, 50, 10.]) * 2
-            # self._joint_kp = np.array([400, 400, 400, 400, 200, 50, 10.])
             self._joint_kd = np.array([80, 100, 80, 80, 10, 1, 1.])
             self.q_cmd = None
-            # self.x_cmd = None
             self._x_cmd = None
 
             # for torque control in Cartesian space
-            # iiwa_cmd_ = rospy.Publisher('/iiwa_impedance_pose', PoseStamped, queue_size=10)
             rospy.Subscriber('/iiwa_impedance_pose', PoseStamped, self.iiwa_impedance_pose_callback)
 
 
-        self.fk_service = '/iiwa/iiwa_fk_server'
-        # self.get_fk = rospy.ServiceProxy(self.fk_service, GetFK)
-
         self.freq = 200
         self.dt = 1. / self.freq
-
 
 
         # iiwa ik
         self.iiwa_start_link = "iiwa_link_0"
         self.iiwa_end_link = "iiwa_link_ee"
 
-        # self._urdf_str = rospy.get_param('/robot_description')
-        # print(self._urdf_str)
-        # self._ik_solver = IK(self.iiwa_start_link, self.iiwa_end_link)
-        # lower_bound, upper_bound = self._ik_solver.get_joint_limits()
-        # # print(lower_bound, upper_bound)
-        # self._ik_solver.set_joint_limits(lower_bound, upper_bound)
-
-        # self._iiwa_urdf = URDF.from_xml_string(self._urdf_str)
         self._iiwa_urdf = URDF.from_xml_file('../description/iiwa_description/urdf/iiwa7_lasa.urdf')
 
         self._iiwa_urdf_tree = kdl_parser.kdl_tree_from_urdf_model(self._iiwa_urdf)
@@ -118,28 +91,26 @@ class Robot():
         time.sleep(1)
         signal.signal(signal.SIGINT, Robot.clean_up)
 
+    # used
     def _iiwa_joint_state_cb(self, data):
         self._q = np.copy(np.array(data.position))
         self._dq = np.copy(np.array(data.velocity))
         self._effort = np.copy(np.array(data.effort))
 
+    # used
     def iiwa_impedance_pose_callback(self, state: PoseStamped):
         pose = np.array([state.pose.position.x, state.pose.position.y, state.pose.position.z,
                          state.pose.orientation.w, state.pose.orientation.x, state.pose.orientation.y,
                          state.pose.orientation.z])
         self._x_cmd = pose
-        # print(pose)
 
+    #used
     def iiwa_impedance(self, pose: np.ndarray, d_pose=None):
         # pose is the target
         if d_pose is None:
             d_pose = np.zeros(6)
         kp = np.array([300, 40.])
         kd = np.sqrt(kp) * 2
-        # kd[1] = 0.1
-        # kd = np.sqrt(kp) * 1
-        # pos_error = pose[:3] - self.x[:3]
-        # vel_error = d_pose[:3] - self.dx[:3]
         Fx = kp[0] * (pose[:3] - self.x[:3]) + kd[0] * (d_pose[:3] - self.dx[:3])
         q = self.x[3:]  # [w x y z]
         qd = pose[3:]
@@ -151,12 +122,10 @@ class Robot():
         # d_theta = quaternion.as_float_array(d_theta)[1:]
         axis, angle = rot.quat2axisangle(rot.quat_mul(qd, rot.quat_conjugate(q)))
         d_theta = np.array(axis) * angle
-        # if np.linalg.norm(d_theta) >1:
-        #     print(d_theta)
         Fr = kp[1] * d_theta + kd[1] * (d_pose[3:] - self.dx[3:6])
         F = np.concatenate([Fx, Fr])
         J = self.J
-        impedance_acc_des0 = J.T.dot(np.linalg.solve(J.dot(J.T) + 1e-10 * np.eye(6), F))
+        # impedance_acc_des0 = J.T.dot(np.linalg.solve(J.dot(J.T) + 1e-10 * np.eye(6), F))
         impedance_acc_des1 = J.T @ F # tau = J^T @ F
 
         # Add stiffness and damping in the null space of the the Jacobian
@@ -172,9 +141,10 @@ class Robot():
 
         impedance_acc_des = impedance_acc_des1 + tau_null_c
 
-        # self.send_torque(impedance_acc_des + self.C)
+
         self._send_iiwa_torque(impedance_acc_des)
 
+    # used
     def _send_iiwa_torque(self, torques: np.ndarray) -> None:
 
         iiwa_torque_cmd = Float64MultiArray()
@@ -193,41 +163,7 @@ class Robot():
 
         self._iiwa_torque_pub.publish(iiwa_torque_cmd)
 
-    def _iiwa_joint_space_impedance(self, qd, d_qd=None):
-        """
-        directly sending torque
-        :param qd:
-        :return:
-        """
-        if d_qd is None:
-            d_qd = np.zeros(7)
-        error_q = qd - self.q
-        if np.max(np.abs(error_q)) > 0.1:
-            print("error")
-        assert np.max(np.abs(error_q)) < 0.1
-        error_dq = d_qd - self.dq
-
-        qacc_des = self._joint_kp * error_q + self._joint_kd * error_dq
-
-        self._send_iiwa_torque(qacc_des)
-
-    def _iiwa_joint_control(self, qd, vel=0.05):
-        """
-        joint space control by linear interpolation
-        :param qd:
-        :param vel:
-        :return:
-        """
-        error = self.q - qd
-        t = np.max(np.abs(error)) / vel
-        NTIME = int(t / self.dt)
-        print("Linear interpolation by", NTIME, "joints")
-        q_list = np.linspace(self.q, qd, NTIME)
-        for i in range(NTIME):
-            self._iiwa_joint_space_impedance(q_list[i, :])
-            time.sleep(self.dt)
-        self.q_cmd = q_list[-1, :]
-
+    # used
     def forward_kine(self, q, quat=True, return_jac=True):
         """
         forward kinematics for all fingers
@@ -308,9 +244,7 @@ if __name__ == "__main__":
     while not rospy.is_shutdown():
         if r.x_cmd is not None:
             x_cmd = r.x_cmd
-            # print()
         r.iiwa_impedance(x_cmd)
-        # print(r.x_cmd)
         time.sleep(0.002)
 
 
