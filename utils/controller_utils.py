@@ -590,8 +590,8 @@ class Robot():
             q = np.concatenate([q, qh])
 
         tau = self.iiwa_joint_space_impedance_PD(q[:7])
-        tau_hand = self.hand_move_torque(q[7:23], kh_scale=[0.2, 0.2, 0.2, 0.2])
-        self.send_torque(np.concatenate([tau, tau_hand]))
+        # tau_hand = self.hand_move_torque(q[7:23], kh_scale=[0.2, 0.2, 0.2, 0.2])
+        # self.send_torque(np.concatenate([tau, tau_hand]))
 
 
     def iiwa_joint_space_reaching(self, q, qh=None, vel=[1., 1], coupling=False):
