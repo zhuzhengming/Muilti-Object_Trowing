@@ -1,1 +1,1 @@
-# Muilti-Object_Trowing
+# Multi-Object_Trowing

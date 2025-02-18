@@ -122,7 +122,7 @@ if __name__ == '__main__':
         z_list.append(current_pose[2])
         time.sleep(r.dt)
 
-    #
+
     plt.figure(1)
     robot_x = [pos[0] for pos in robot_positions]
     robot_y = [pos[1] for pos in robot_positions]

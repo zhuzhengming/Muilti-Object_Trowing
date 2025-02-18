@@ -2,6 +2,9 @@
 control interface for iiwa and allegro hand
 """
 import sys
+
+from transformers import pipeline
+
 sys.path.append("../")
 import time
 import rospy
@@ -163,10 +166,10 @@ class Robot():
         projection_matrix = J.T.dot(np.linalg.solve(J.dot(J.T) + 1e-10 * np.eye(6), J))
         projection_matrix = np.eye(projection_matrix.shape[0]) - projection_matrix
         null_space_control = -null_space_damping * self.dq
-        null_space_control += -null_space_stiffness * (
-                self.q - nominal_qpos)
+        null_space_control += -null_space_stiffness * (self.q - nominal_qpos)
         tau_null = projection_matrix.dot(null_space_control)
         tau_null_c = np.clip(tau_null, -5, 5)  # set the torque limit for null space control
+
         impedance_acc_des = impedance_acc_des1 + tau_null_c
 
         # self.send_torque(impedance_acc_des + self.C)
