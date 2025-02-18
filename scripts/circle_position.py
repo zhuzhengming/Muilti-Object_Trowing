@@ -83,27 +83,53 @@ if __name__ == '__main__':
               calibration=True, position_control=True)
 
     #  test for position control in cartesian space
-    time.sleep(0.3)
-    target_pose = np.copy(r.x)
-    target_pose[2] -= 0.1
-    q = r.trac_ik_solver(target_pose)
-    r.move_to_joints(q, vel=[0.1, 1.0])
-    print(r.q - q)
+    # target_pose = np.copy(r.x)
+    # target_pose[2] += 0.1
+    # q = r.trac_ik_solver(target_pose)
+    # r.move_to_joints(q, vel=[0.1, 1.0])
     # r.move_to_target_cartesian_pose(target_pose)
+    # r.iiwa_go_home()
 
 
     #  circle position control in cartesian_pose
-    # via_points = generate_circle_via_points(current_pose_0, radius=0.15, num_points=20)
+    current_pose_0 = r.x
+    via_points = generate_circle_via_points(current_pose_0, radius=0.15, num_points=50)
+
+    errors = []
+    robot_positions = []
+    inte_q_list = []
+    last_joint_list = []
+    last_joint = r.q
+    z_list = []
+
+    for target_pose in via_points:
+        q_list_tmp = r.move_to_target_cartesian_pose(target_pose, run=False, last_joint=last_joint)
+        if len(q_list_tmp) == 0:
+            continue
+        inte_q_list.extend(q_list_tmp)
+        last_joint = q_list_tmp[-1]
+
+    inte_q_list = np.array(inte_q_list)
+    via_points = np.array(via_points)
+
+
+    for i in range(len(inte_q_list)-1):
+        r._send_iiwa_position(inte_q_list[i,:])
+        current_pose = r.x
+        # error = calculate_error(current_pose, via_points[i])
+        # errors.append(error)
+        robot_positions.append(current_pose[:3])
+        z_list.append(current_pose[2])
+        time.sleep(r.dt)
+
     #
-    # errors = []
-    # robot_positions = []
-    #
-    # for target_pose in via_points:
-    #     r.move_to_target_cartesian_pose(target_pose)
-    #     current_pose = r.x
-    #     error = calculate_error(current_pose, target_pose)
-    #     errors.append(error)
-    #     robot_positions.append(current_pose[:3])
-    #
-    #
+    plt.figure(1)
+    robot_x = [pos[0] for pos in robot_positions]
+    robot_y = [pos[1] for pos in robot_positions]
+    plt.plot(robot_x, robot_y, 'g-', label='Robot Trajectory')
+
+
+    plt.figure(2)
+    plt.plot(z_list, 'b-', label='Robot z Trajectory')
+    plt.show()
     # plot_trajectory_and_error(via_points, errors, robot_positions)

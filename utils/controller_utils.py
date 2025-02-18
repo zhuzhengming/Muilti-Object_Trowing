@@ -12,7 +12,7 @@ from functools import partial
 import tools.rotations as rot
 import kinematics.allegro_hand_sym as allegro
 # from iiwa_tools.srv import GetIK, GetFK
-# from trac_ik_python.trac_ik import IK
+from trac_ik_python.trac_ik import IK
 from urdf_parser_py.urdf import URDF  # need to install it under py3
 import kinematics.kdl_parser as kdl_parser
 
@@ -130,13 +130,13 @@ class Robot():
         self.iiwa_start_link = "iiwa_link_0"
         self.iiwa_end_link = "iiwa_link_ee"
 
-        # self._urdf_str = rospy.get_param('/robot_description')
+        self._urdf_str = rospy.get_param('/robot_description')
         # print(self._urdf_str)
         # # relax_ik
-        # self._ik_solver = IK(self.iiwa_start_link, self.iiwa_end_link, solve_type="distance", timeout=0.005, epsilon=5e-4)
-        # lower_bound, upper_bound = self._ik_solver.get_joint_limits()
+        self._ik_solver = IK(self.iiwa_start_link, self.iiwa_end_link, solve_type="distance", timeout=0.005, epsilon=5e-4)
+        lower_bound, upper_bound = self._ik_solver.get_joint_limits()
         # print(lower_bound, upper_bound)
-        # self._ik_solver.set_joint_limits(lower_bound, upper_bound)
+        self._ik_solver.set_joint_limits(lower_bound, upper_bound)
 
         # self._iiwa_urdf = URDF.from_xml_string(self._urdf_str)
         self._iiwa_urdf = URDF.from_xml_file(path_prefix + 'description/iiwa_description/urdf/iiwa7_lasa.urdf')
@@ -450,7 +450,8 @@ class Robot():
             time.sleep(self.dt)
         self.q_cmd = q_list[-1, :]
 
-    def move_to_joints(self, joints: np.ndarray, vel=[0.2, 1], fix_fingers=None):
+    def move_to_joints(self, joints: np.ndarray, vel=[0.2, 1],
+                       fix_fingers=None, run=True, last_joint=None):
         """
         linear interpolation in joint space
         :param joints:
@@ -475,10 +476,17 @@ class Robot():
 
         print("Linear interpolation by", NTIME, "joints")
         if len(joints) == 7:
-            q_list = np.linspace(self.q, joints, NTIME)
-            for i in range(NTIME):
-                self._send_iiwa_position(q_list[i, :])
-                time.sleep(self.dt)
+            if not run:
+                # interpolate from last joints but do not run
+                q_list = np.linspace(last_joint, joints, NTIME)
+                return q_list
+            else:
+                # interpolate from current position
+                q_list = np.linspace(self.q, joints, NTIME)
+                for i in range(NTIME):
+                    self._send_iiwa_position(q_list[i, :])
+                    time.sleep(self.dt)
+
         elif len(joints) == 16:
             q_list = np.linspace(self.qh, joints, NTIME)
             for i in range(NTIME):
@@ -529,15 +537,23 @@ class Robot():
 
         return np.array(next_joint_positions)
 
-    def move_to_target_cartesian_pose(self, target_pose: np.ndarray):
+    def move_to_target_cartesian_pose(self, target_pose: np.ndarray,
+                                      run=True, last_joint=None):
         """
 
         :param target_pose: [x,y,z,qw,qx,qy,qz]
         :return:
         """
-        desired_joints = self.trac_ik_solver(target_pose)
-        assert len(desired_joints) == 7
-        self.move_to_joints(desired_joints, vel=[0.1, 1])
+        if not run:
+            # IK from last joint configuration
+            desired_joints = self.trac_ik_solver(target_pose, seed=last_joint)
+            assert len(desired_joints) == 7
+            return self.move_to_joints(desired_joints,vel=[0.2, 1], run=run, last_joint=last_joint)
+        else:
+            desired_joints = self.trac_ik_solver(target_pose)
+            assert len(desired_joints) == 7
+            self.move_to_joints(desired_joints, vel=[0.1, 1])
+
 
     def motion_generation(self, poses, vel=0.05, intepolation='linear', cartesian=False):
         # poses : (n,7) array, n: num of viapoints. [position, quaternion]
