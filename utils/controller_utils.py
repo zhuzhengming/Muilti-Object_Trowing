@@ -100,8 +100,8 @@ class Robot():
             self._iiwa_torque_pub = rospy.Publisher("/iiwa/TorqueController/command", Float64MultiArray,
                                                     queue_size=10)
             # parameters of PID
-            self._joint_kp = np.array([800, 800, 800, 800, 300, 50, 10.])
-            self._joint_kd = np.array([80, 100, 80, 80, 10, 1, 1.])
+            self._joint_kp = np.array([200, 0, 0, 0, 0, 0, 0])
+            self._joint_kd = np.array([80, 0, 0, 0, 0, 0, 0])
             self.q_cmd = None
             self.x_cmd = None
 
@@ -333,41 +333,43 @@ class Robot():
         self._iiwa_torque_pub.publish(iiwa_torque_cmd)
 
     # joint space PID control
-    def _iiwa_joint_space_PID(self, qd, d_qd=None):
+    # gravity complementation
+    # tau = (kp * error_q + kd * error_dq) + J^{t} F_{ext}
+
+    def _iiwa_joint_space_PD(self, q_target, d_qd=None):
         """
         directly sending torque
-        :param qd:
+        :param q_target:
         :return:
         """
         if d_qd is None:
             d_qd = np.zeros(7)
-        error_q = qd - self.q
+        error_q = q_target - self.q
         if np.max(np.abs(error_q)) > 0.1:
             print("error")
-        # assert np.max(np.abs(error_q)) < 0.1
         error_dq = d_qd - self.dq
 
         qacc_des = self._joint_kp * error_q + self._joint_kd * error_dq
 
         self._send_iiwa_torque(qacc_des)
 
-    # joint space PID control
-    def _iiwa_joint_control(self, qd, vel=0.05):
+    # joint space PD control
+    def _iiwa_joint_control(self, q_target, vel=0.1):
         """
         joint space control by linear interpolation
-        :param qd:
+        :param q_target:
         :param vel:
         :return:
         """
-        error = self.q - qd
+        error = self.q - q_target
         t = np.max(np.abs(error)) / vel
         NTIME = int(t / self.dt)
         print("Linear interpolation by", NTIME, "joints")
-        q_list = np.linspace(self.q, qd, NTIME)
+        q_list = np.linspace(self.q, q_target, NTIME)
         for i in range(NTIME):
-            self._iiwa_joint_space_PID(q_list[i, :])
+            self._iiwa_joint_space_PD(q_list[i, :])
             time.sleep(self.dt)
-        self.q_cmd = q_list[-1, :]
+        # self.q_cmd = q_list[-1, :]
 
 
     def move_to_joints(self, joints: np.ndarray, vel=[0.2, 1],
@@ -581,7 +583,7 @@ class Robot():
 
         # M, C?
         tau = self.M @ (kp * error_q + kd * error_dq) + self.C
-        # tau = (kp * error_q + kd * error_dq) + self.C
+        # tau = (kp * error_q + kd * error_dq) + J^{t} F_{ext}
         return tau
 
     def full_joint_space_control(self, q, qh=None):

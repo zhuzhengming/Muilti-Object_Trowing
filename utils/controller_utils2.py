@@ -66,7 +66,7 @@ class Robot():
                                                     queue_size=10)
             self._joint_kp = np.array([800, 800, 800, 800, 300, 50, 10.]) * 2
             self._joint_kd = np.array([80, 100, 80, 80, 10, 1, 1.])
-            self.q_cmd = None
+            self._q_cmd = None
             self._x_cmd = None
 
             # for torque control in Cartesian space
@@ -219,6 +219,10 @@ class Robot():
         return self._x_cmd
 
     @property
+    def q_cmd(self):
+        return self._q_cmd
+
+    @property
     def J(self):
         x, jac = self.forward_kine(self.q, return_jac=True)
         return jac
@@ -237,15 +241,28 @@ class Robot():
 if __name__ == "__main__":
     r = Robot(camera=False, position_control=False)
 
-    while np.linalg.norm(r.q) < 1e-5:
-        time.sleep(0.1)
-    x_cmd = np.copy(r.x)
-    print("ready, start torque control")
-    while not rospy.is_shutdown():
-        if r.x_cmd is not None:
-            x_cmd = r.x_cmd
-        r.iiwa_impedance(x_cmd)
-        time.sleep(0.002)
+
+    mode = "position"
+    if mode == "position":
+        while np.linalg.norm(r.q) < 1e-5:
+            time.sleep(0.1)
+        x_cmd = np.copy(r.x)
+        print("ready, start torque control")
+        while not rospy.is_shutdown():
+            if r.x_cmd is not None:
+                x_cmd = r.x_cmd
+            r.iiwa_impedance(x_cmd)
+            time.sleep(0.002)
+
+    if mode == "joint":
+        while np.linalg.norm(r.q) < 1e-5:
+            time.sleep(0.1)
+        q_cmd = np.copy(r.q)
+        print("ready, start torque control")
+        while not rospy.is_shutdown():
+            if r.q_cmd is not None:
+                q_cmd = r.q_cmd
+            r._send_iiwa_torque(q_cmd)
 
 
 
