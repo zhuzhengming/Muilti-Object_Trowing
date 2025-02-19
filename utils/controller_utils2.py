@@ -105,8 +105,6 @@ class Robot():
         self._x_cmd = pose
 
     def iiwa_impedance_joint_callback(self, state: Float64MultiArray):
-
-
         self._q_cmd = np.array(state.data)
 
     def iiwa_impedance(self, pose: np.ndarray, d_pose=None):
@@ -257,11 +255,12 @@ if __name__ == "__main__":
             r.iiwa_impedance(x_cmd)
             time.sleep(0.002)
 
-    if mode == "joint":
+    elif mode == "joint":
         while np.linalg.norm(r.q) < 1e-5:
             time.sleep(0.1)
         q_cmd = np.copy(r.q)
         print("ready, start torque control in Joint space")
+
         while not rospy.is_shutdown():
             if r.q_cmd is not None:
                 q_cmd = r.q_cmd

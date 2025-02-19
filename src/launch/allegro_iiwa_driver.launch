@@ -5,6 +5,9 @@
     <arg name="controller" default="TorqueController" />
     <arg name ="VISUALIZE" default="false" />
 
+    <rosparam file="$(find Multi-object_Throwing)/config/config.yaml" command="load"/>
+
+
     <!-- Launch the Allegro Hand Controller based on the 'hand' argument -->
     <include file="$(find allegro_hand_controllers)/launch/allegro_hand.launch">
         <arg name="HAND" value="$(arg hand)" />

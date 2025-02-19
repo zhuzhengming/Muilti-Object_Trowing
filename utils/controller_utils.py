@@ -100,8 +100,8 @@ class Robot():
             self._iiwa_torque_pub = rospy.Publisher("/iiwa/TorqueController/command", Float64MultiArray,
                                                     queue_size=10)
             # parameters of PID
-            self._joint_kp = np.array([200, 0, 0, 0, 0, 0, 0])
-            self._joint_kd = np.array([80, 0, 0, 0, 0, 0, 0])
+            self._joint_kp = np.array(rospy.get_param('/PD/joint_kp'))
+            self._joint_kd = np.array(rospy.get_param('/PD/joint_kd'))
             self.q_cmd = None
             self.x_cmd = None
 
@@ -115,12 +115,10 @@ class Robot():
         # self.get_fk = rospy.ServiceProxy(self.fk_service, GetFK)
 
         # pre-defined home position of hand and iiwa
-        self.freq = 200 # max frequency of iiwa
+        self.freq = rospy.get_param('/freq')# max frequency of iiwa
         self.dt = 1. / self.freq
-        self._iiwa_home = np.array(
-            [-0.32032434, 0.02706913, -0.22881953, -1.42621454, 1.3862661, 0.55966738, 1.79477984 - np.pi])
-        self._iiwa_home_pose = np.array(
-            [0.47769025, -0.21113556, 0.78239543, 0.70487697, 0.00342266, 0.70931291, 0.0034541])
+        self._iiwa_home = np.array(rospy.get_param('_iiwa_home'))
+        self._iiwa_home_pose = np.array(rospy.get_param('_iiwa_home_pose'))
         self._hand_home = np.zeros(16)
         self._hand_home[12] = 0.7
 
@@ -345,6 +343,9 @@ class Robot():
         :param q_target:
         :return:
         """
+
+        qacc_max = 10.0
+
         if d_qd is None:
             d_qd = np.zeros(7)
         error_q = q_target - self.q
@@ -352,11 +353,17 @@ class Robot():
             print("error")
         error_dq = d_qd - self.dq
 
-        qacc_des = self._joint_kp * error_q + self._joint_kd * error_dq
+        if np.max(np.abs(error_q)) < 1e-3 and np.max(np.abs(error_dq)) < 1e-3:
+            qacc_des = np.zeros(7)
+        else:
+            qacc_des = self._joint_kp * error_q + self._joint_kd * error_dq
+
+        qacc_des = np.clip(qacc_des, -qacc_max, qacc_max)
 
         pub_vector = Float64MultiArray()
         pub_vector.data = qacc_des
-        self.iiwa_cmd_pub_joint(pub_vector)
+
+        self.iiwa_cmd_pub_joint.publish(pub_vector)
 
     # joint space PD control
     def _iiwa_joint_control(self, q_target, vel=0.1):
