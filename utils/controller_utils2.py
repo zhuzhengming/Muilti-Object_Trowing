@@ -72,6 +72,8 @@ class Robot():
             # for torque control in Cartesian space
             rospy.Subscriber('/iiwa_impedance_pose', PoseStamped, self.iiwa_impedance_pose_callback)
 
+            # for torque control in joint space
+            rospy.Subscriber('/iiwa_impedance_joint', Float64MultiArray, self.iiwa_impedance_joint_callback)
 
         self.freq = 200
         self.dt = 1. / self.freq
@@ -91,20 +93,22 @@ class Robot():
         time.sleep(1)
         signal.signal(signal.SIGINT, Robot.clean_up)
 
-    # used
     def _iiwa_joint_state_cb(self, data):
         self._q = np.copy(np.array(data.position))
         self._dq = np.copy(np.array(data.velocity))
         self._effort = np.copy(np.array(data.effort))
 
-    # used
     def iiwa_impedance_pose_callback(self, state: PoseStamped):
         pose = np.array([state.pose.position.x, state.pose.position.y, state.pose.position.z,
                          state.pose.orientation.w, state.pose.orientation.x, state.pose.orientation.y,
                          state.pose.orientation.z])
         self._x_cmd = pose
 
-    #used
+    def iiwa_impedance_joint_callback(self, state: Float64MultiArray):
+
+
+        self._q_cmd = np.array(state.data)
+
     def iiwa_impedance(self, pose: np.ndarray, d_pose=None):
         # pose is the target
         if d_pose is None:
@@ -144,7 +148,6 @@ class Robot():
 
         self._send_iiwa_torque(impedance_acc_des)
 
-    # used
     def _send_iiwa_torque(self, torques: np.ndarray) -> None:
 
         iiwa_torque_cmd = Float64MultiArray()
@@ -163,7 +166,6 @@ class Robot():
 
         self._iiwa_torque_pub.publish(iiwa_torque_cmd)
 
-    # used
     def forward_kine(self, q, quat=True, return_jac=True):
         """
         forward kinematics for all fingers
@@ -242,12 +244,13 @@ if __name__ == "__main__":
     r = Robot(camera=False, position_control=False)
 
 
-    mode = "position"
+    mode = "joint"
+
     if mode == "position":
         while np.linalg.norm(r.q) < 1e-5:
             time.sleep(0.1)
         x_cmd = np.copy(r.x)
-        print("ready, start torque control")
+        print("ready, start torque control in Cartesian space")
         while not rospy.is_shutdown():
             if r.x_cmd is not None:
                 x_cmd = r.x_cmd
@@ -258,11 +261,12 @@ if __name__ == "__main__":
         while np.linalg.norm(r.q) < 1e-5:
             time.sleep(0.1)
         q_cmd = np.copy(r.q)
-        print("ready, start torque control")
+        print("ready, start torque control in Joint space")
         while not rospy.is_shutdown():
             if r.q_cmd is not None:
                 q_cmd = r.q_cmd
             r._send_iiwa_torque(q_cmd)
+            time.sleep(0.002)
 
 
 

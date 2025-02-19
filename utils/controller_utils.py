@@ -106,8 +106,11 @@ class Robot():
             self.x_cmd = None
 
             # For torque control in Cartesian space, send to another sricpt not iiwa driver
-            self.iiwa_cmd_pub = rospy.Publisher('/iiwa_impedance_pose', PoseStamped, queue_size=10)
+            self.iiwa_cmd_pub_pose = rospy.Publisher('/iiwa_impedance_pose', PoseStamped, queue_size=10)
 
+            # For torque control in Joint space, send to another sricpt not iiwa driver
+            self.iiwa_cmd_pub_joint = rospy.Publisher('/iiwa_impedance_joint', Float64MultiArray,
+                                                      queue_size=10)
         # self.fk_service = '/iiwa/iiwa_fk_server'
         # self.get_fk = rospy.ServiceProxy(self.fk_service, GetFK)
 
@@ -251,7 +254,7 @@ class Robot():
         p.pose.orientation.y = x[5]
         p.pose.orientation.z = x[6]
 
-        self.iiwa_cmd_pub.publish(p)
+        self.iiwa_cmd_pub_pose.publish(p)
 
     def hand_go_home(self):
         self.move_to_joints(self._hand_home)
@@ -351,7 +354,9 @@ class Robot():
 
         qacc_des = self._joint_kp * error_q + self._joint_kd * error_dq
 
-        self._send_iiwa_torque(qacc_des)
+        pub_vector = Float64MultiArray()
+        pub_vector.data = qacc_des
+        self.iiwa_cmd_pub_joint(pub_vector)
 
     # joint space PD control
     def _iiwa_joint_control(self, q_target, vel=0.1):
