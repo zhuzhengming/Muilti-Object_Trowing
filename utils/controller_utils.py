@@ -15,6 +15,8 @@ import kinematics.allegro_hand_sym as allegro
 from trac_ik_python.trac_ik import IK
 from urdf_parser_py.urdf import URDF  # need to install it under py3
 import kinematics.kdl_parser as kdl_parser
+import matplotlib.pyplot as plt
+matplotlib.use('Qt5Agg')
 
 import PyKDL as kdl
 # https://bitbucket.org/traclabs/trac_ik/src/master/trac_ik_python/, install it by `pip install -e .` under the cond env
@@ -640,7 +642,55 @@ class Robot():
             for i in range(nums_h):
                 self.full_joint_space_control(q, qh_list[i, :])  # iiwa keeps static, move the hand only
 
+    # test function
+    def sin_test_joint_space(self, i=2, a=0.1):
+        t0 = time.time()
+        q0 = copy.deepcopy(self.q)
+        self._sending_torque = True
+        while 1:
+            t = time.time() - t0
+            qd = np.copy(q0)
+            qd[i] += a * np.sin(2 * np.pi * 0.2 * t)
+            self.iiwa_joint_space_impedance_PD(qd)
+            print(t, self.q[i] - qd[i])
+            time.sleep(self.dt)
+            if t > 10:
+                break
 
+        self._sending_torque = False
+        print("Finish test.")
+
+    def iiwa_step_test(self, i=6, a=0.2):
+        """
+        :return:
+        """
+
+        q_record = []
+        t0 = time.time()
+        while 1:
+
+            # generate sin wave
+            t = time.time() - t0
+            qd = np.copy(self.q)
+            qd[i] += a * np.sin(2 * np.pi * 0.2 * t)
+
+            self._iiwa_joint_control(qd)
+
+            error = qd[i] - self.q[i]
+            q_record.append([t, error])
+            if t > 10:
+                break
+
+        q_record = np.array(q_record)
+
+        # plot the figure of step response, try to avoid overshooting
+        plt.plot(q_record[:, 0], q_record[:, 1])
+        plt.xlabel('Time (s)')
+        plt.ylabel('Error (rad)')
+        plt.title('iiwa joint ' + str(i))
+        plt.xlim([0, np.max(q_record[:, 0])])
+        plt.ylim([None, np.max(q_record[:, 1])])
+        plt.show()
 
     @property
     def xh(self) -> list:
@@ -706,4 +756,6 @@ if __name__ == "__main__":
     r = Robot(camera=False, optitrack_frame_names=['iiwa_base7', 'realsense_m'],
               camera_object_name=['cross_part', 'bottle'], position_control=True)
 
-    r.iiwa_go_home()
+    # r.iiwa_go_home()
+
+    r.sin_test_joint_space(i=0, a=0.1)
