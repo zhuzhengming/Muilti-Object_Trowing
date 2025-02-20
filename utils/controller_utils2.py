@@ -52,6 +52,7 @@ class Robot():
         self._q = np.zeros(7)
         self._dq = np.zeros(7)
         self._effort = np.zeros(7)
+        self.max_torque = np.array(rospy.get_param("/max_torque"))
 
         if position_control:
             self.control_mode = "position"
@@ -64,9 +65,12 @@ class Robot():
             self._torque_cmd = np.zeros(7)
             self._iiwa_torque_pub = rospy.Publisher("/iiwa/TorqueController/command", Float64MultiArray,
                                                     queue_size=10)
-            self._joint_kp = np.array([800, 800, 800, 800, 300, 50, 10.]) * 2
-            self._joint_kd = np.array([80, 100, 80, 80, 10, 1, 1.])
+            self._joint_kp = np.array(rospy.get_param('/PD/joint_kp_joint_impedance'))
+            self._joint_kd = np.array(rospy.get_param('/PD/joint_kd_joint_impedance'))
+
+
             self._q_cmd = None
+            self._dq_cmd = None
             self._x_cmd = None
 
             # for torque control in Cartesian space
@@ -106,6 +110,7 @@ class Robot():
 
     def iiwa_impedance_joint_callback(self, state: JointState):
         self._q_cmd = np.copy(np.array(state.position))
+        self._dq_cmd = np.copy(np.array(state.velocity))
 
     def iiwa_joint_impedance(self, q_target, d_qd=None):
         """
@@ -113,18 +118,14 @@ class Robot():
         :param q_target:
         :return:
         """
-        qacc_max = 10.0
         if d_qd is None:
             d_qd = np.zeros(7)
 
         error_q = q_target - self.q
         error_dq = d_qd - self.dq
 
-        # if np.max(np.abs(error_q)) < 1e-2 and np.max(np.abs(error_dq)) < 1e-2:
-        #     break
-
         qacc_des = self._joint_kp * error_q + self._joint_kd * error_dq
-        qacc_des = np.clip(qacc_des, -qacc_max, qacc_max)
+        qacc_des = np.clip(qacc_des, -self.max_torque, self.max_torque)
 
         self._send_iiwa_torque(qacc_des)
 
@@ -244,6 +245,10 @@ class Robot():
         return self._q_cmd
 
     @property
+    def dq_cmd(self):
+        return self._dq_cmd
+
+    @property
     def J(self):
         x, jac = self.forward_kine(self.q, return_jac=True)
         return jac
@@ -280,12 +285,14 @@ if __name__ == "__main__":
         while np.linalg.norm(r.q) < 1e-5:
             time.sleep(0.1)
         q_cmd = copy.deepcopy(r.q)
+        qd_cmd = None
         print("ready, start torque control in Joint space")
 
         while not rospy.is_shutdown():
             if r.q_cmd is not None:
                 q_cmd = r.q_cmd
-            r.iiwa_joint_impedance(q_cmd)
+                qd_cmd = r.dq_cmd
+            r.iiwa_joint_impedance(q_cmd, d_qd=qd_cmd)
             time.sleep(0.002)
 
 

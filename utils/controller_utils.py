@@ -8,7 +8,7 @@ import time
 import rospy
 import numpy as np
 from functools import partial
-
+import matplotlib
 import tools.rotations as rot
 import kinematics.allegro_hand_sym as allegro
 # from iiwa_tools.srv import GetIK, GetFK
@@ -363,27 +363,32 @@ class Robot():
             self._send_iiwa_torque(qacc_des)
 
     # joint space PD control
-    def _iiwa_joint_control(self, q_target, vel=0.05):
+    def _iiwa_joint_control(self, q_target, qd_target=None, vel=0.05, interpolate=True):
         """
         joint space control by linear interpolation
         :param q_target:
         :param vel:
         :return:
         """
-        error = self.q - q_target
-        t = np.max(np.abs(error)) / vel
-        NTIME = int(t / self.dt)
-        print("Linear interpolation by", NTIME, "joints")
-        q_list = np.linspace(self.q, q_target, NTIME)
-        for i in range(NTIME):
-            # self._iiwa_joint_space_impedance(q_list[i, :])
+        if interpolate:
+            error = self.q - q_target
+            t = np.max(np.abs(error)) / vel
+            NTIME = int(t / self.dt)
+            print("Linear interpolation by", NTIME, "joints")
+            q_list = np.linspace(self.q, q_target, NTIME)
+            for i in range(NTIME):
+                # self._iiwa_joint_space_impedance(q_list[i, :])
 
-            # send to controller_utils2.py
+                # send to controller_utils2.py
+                pub_msg = JointState()
+                pub_msg.position = q_list[i, :].tolist()
+
+                self.iiwa_cmd_pub_joint.publish(pub_msg)
+        else:
             pub_msg = JointState()
-            pub_msg.position = q_list[i, :].tolist()
-
+            pub_msg.position = q_target
+            pub_msg.velocity = qd_target
             self.iiwa_cmd_pub_joint.publish(pub_msg)
-            time.sleep(self.dt)
         # self.q_cmd = q_list[-1, :]
 
 
@@ -651,8 +656,7 @@ class Robot():
             t = time.time() - t0
             qd = np.copy(q0)
             qd[i] += a * np.sin(2 * np.pi * 0.2 * t)
-            self.iiwa_joint_space_impedance_PD(qd)
-            print(t, self.q[i] - qd[i])
+            self._iiwa_joint_control(qd)
             time.sleep(self.dt)
             if t > 10:
                 break
@@ -660,36 +664,60 @@ class Robot():
         self._sending_torque = False
         print("Finish test.")
 
-    def iiwa_step_test(self, i=6, a=0.2):
+    def iiwa_step_test(self, i=6, a=0.1, exe_time=10):
         """
         :return:
         """
 
         q_record = []
-        t0 = time.time()
-        while 1:
+        qd_record = []
+        q_actual_record = []
+        qd_actual_record = []
 
+        t0 = time.time()
+        q0 = np.copy(self.q)
+        qd = np.copy(self.q)
+        while 1:
             # generate sin wave
             t = time.time() - t0
-            qd = np.copy(self.q)
-            qd[i] += a * np.sin(2 * np.pi * 0.2 * t)
+            qd_dot = np.zeros_like(self.q)
 
-            self._iiwa_joint_control(qd)
+            qd[i] = q0[i] + a * np.sin(2 * np.pi * 0.2 * t)
+            qd_dot[i] = a * 2 * np.pi * 0.2 * np.cos(2 * np.pi * 0.2 * t)
 
-            error = qd[i] - self.q[i]
-            q_record.append([t, error])
-            if t > 10:
+            self._iiwa_joint_control(qd, qd_dot, vel=0.05, interpolate=False)
+            time.sleep(self.dt)
+
+            q_actual_record.append([t, self.q[i]])
+            q_record.append([t, qd[i] - self.q[i]])
+
+            if t > exe_time:
                 break
 
-        q_record = np.array(q_record)
+        timestamp = np.array([entry[0] for entry in q_actual_record])
+        position = np.array([entry[1] for entry in q_actual_record])
+        error = np.array([entry[1] for entry in q_record])
 
-        # plot the figure of step response, try to avoid overshooting
-        plt.plot(q_record[:, 0], q_record[:, 1])
-        plt.xlabel('Time (s)')
-        plt.ylabel('Error (rad)')
-        plt.title('iiwa joint ' + str(i))
-        plt.xlim([0, np.max(q_record[:, 0])])
-        plt.ylim([None, np.max(q_record[:, 1])])
+        # write into file
+        filename = '../output/sin_test_{}.npy'.format(i)
+        np.save(filename, {'timestamp': timestamp, 'position': position, 'error': error})
+
+        fig, axs = plt.subplots(2, 1, figsize=(10, 8))
+
+        axs[0].plot(timestamp, position, label='Actual Position (q)', linestyle='-')
+        axs[0].set_xlabel('Timestamp')
+        axs[0].set_ylabel('Position')
+        axs[0].set_title('Trajectory of Joint {}'.format(i))
+        axs[0].grid(True)
+
+        axs[1].plot(timestamp, error, label='Position Error', linestyle='-')
+        axs[1].set_xlabel('Time (s)')
+        axs[1].set_ylabel('Error')
+        axs[1].set_title('Position Error for Joint {}'.format(i))
+        axs[1].grid(True)
+
+        plt.tight_layout()
+
         plt.show()
 
     @property
@@ -754,8 +782,14 @@ class Robot():
 
 if __name__ == "__main__":
     r = Robot(camera=False, optitrack_frame_names=['iiwa_base7', 'realsense_m'],
-              camera_object_name=['cross_part', 'bottle'], position_control=True)
+              camera_object_name=['cross_part', 'bottle'], position_control=False)
 
     # r.iiwa_go_home()
 
-    r.sin_test_joint_space(i=0, a=0.1)
+    # cur_q = r.q
+    # cur_q[0] += 0.05
+    # r._iiwa_joint_control(cur_q, vel=0.01)
+    r.iiwa_step_test(i=2, a=0.2, exe_time=5)
+
+    # 2
+
