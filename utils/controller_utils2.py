@@ -73,7 +73,7 @@ class Robot():
             rospy.Subscriber('/iiwa_impedance_pose', PoseStamped, self.iiwa_impedance_pose_callback)
 
             # for torque control in joint space
-            rospy.Subscriber('/iiwa_impedance_joint', Float64MultiArray, self.iiwa_impedance_joint_callback)
+            rospy.Subscriber('/iiwa_impedance_joint', JointState, self.iiwa_impedance_joint_callback)
 
         self.freq = 200
         self.dt = 1. / self.freq
@@ -104,8 +104,29 @@ class Robot():
                          state.pose.orientation.z])
         self._x_cmd = pose
 
-    def iiwa_impedance_joint_callback(self, state: Float64MultiArray):
-        self._q_cmd = np.array(state.data)
+    def iiwa_impedance_joint_callback(self, state: JointState):
+        self._q_cmd = np.copy(np.array(state.position))
+
+    def iiwa_joint_impedance(self, q_target, d_qd=None):
+        """
+        directly sending torque
+        :param q_target:
+        :return:
+        """
+        qacc_max = 10.0
+        if d_qd is None:
+            d_qd = np.zeros(7)
+
+        error_q = q_target - self.q
+        error_dq = d_qd - self.dq
+
+        # if np.max(np.abs(error_q)) < 1e-2 and np.max(np.abs(error_dq)) < 1e-2:
+        #     break
+
+        qacc_des = self._joint_kp * error_q + self._joint_kd * error_dq
+        qacc_des = np.clip(qacc_des, -qacc_max, qacc_max)
+
+        self._send_iiwa_torque(qacc_des)
 
     def iiwa_impedance(self, pose: np.ndarray, d_pose=None):
         # pose is the target
@@ -247,7 +268,7 @@ if __name__ == "__main__":
     if mode == "position":
         while np.linalg.norm(r.q) < 1e-5:
             time.sleep(0.1)
-        x_cmd = np.copy(r.x)
+        x_cmd = copy.deepcopy(r.x)
         print("ready, start torque control in Cartesian space")
         while not rospy.is_shutdown():
             if r.x_cmd is not None:
@@ -258,13 +279,13 @@ if __name__ == "__main__":
     elif mode == "joint":
         while np.linalg.norm(r.q) < 1e-5:
             time.sleep(0.1)
-        q_cmd = np.copy(r.q)
+        q_cmd = copy.deepcopy(r.q)
         print("ready, start torque control in Joint space")
 
         while not rospy.is_shutdown():
             if r.q_cmd is not None:
                 q_cmd = r.q_cmd
-            r._send_iiwa_torque(q_cmd)
+            r.iiwa_joint_impedance(q_cmd)
             time.sleep(0.002)
 
 

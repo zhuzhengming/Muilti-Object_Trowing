@@ -109,7 +109,7 @@ class Robot():
             self.iiwa_cmd_pub_pose = rospy.Publisher('/iiwa_impedance_pose', PoseStamped, queue_size=10)
 
             # For torque control in Joint space, send to another sricpt not iiwa driver
-            self.iiwa_cmd_pub_joint = rospy.Publisher('/iiwa_impedance_joint', Float64MultiArray,
+            self.iiwa_cmd_pub_joint = rospy.Publisher('/iiwa_impedance_joint', JointState,
                                                       queue_size=10)
         # self.fk_service = '/iiwa/iiwa_fk_server'
         # self.get_fk = rospy.ServiceProxy(self.fk_service, GetFK)
@@ -337,7 +337,7 @@ class Robot():
     # gravity complementation
     # tau = (kp * error_q + kd * error_dq) + J^{t} F_{ext}
 
-    def _iiwa_joint_space_PD(self, q_target, d_qd=None):
+    def _iiwa_joint_space_impedance(self, q_target, d_qd=None):
         """
         directly sending torque
         :param q_target:
@@ -345,28 +345,23 @@ class Robot():
         """
 
         qacc_max = 10.0
-
         if d_qd is None:
             d_qd = np.zeros(7)
-        error_q = q_target - self.q
-        if np.max(np.abs(error_q)) > 0.1:
-            print("error")
-        error_dq = d_qd - self.dq
+        while not rospy.is_shutdown():
+            error_q = q_target - self.q
+            error_dq = d_qd - self.dq
 
-        if np.max(np.abs(error_q)) < 1e-3 and np.max(np.abs(error_dq)) < 1e-3:
-            qacc_des = np.zeros(7)
-        else:
+            print(np.max(np.abs(error_q)))
+            if np.max(np.abs(error_q)) < 1e-2 and np.max(np.abs(error_dq)) < 1e-2:
+                break
+
             qacc_des = self._joint_kp * error_q + self._joint_kd * error_dq
+            qacc_des = np.clip(qacc_des, -qacc_max, qacc_max)
 
-        qacc_des = np.clip(qacc_des, -qacc_max, qacc_max)
-
-        pub_vector = Float64MultiArray()
-        pub_vector.data = qacc_des
-
-        self.iiwa_cmd_pub_joint.publish(pub_vector)
+            self._send_iiwa_torque(qacc_des)
 
     # joint space PD control
-    def _iiwa_joint_control(self, q_target, vel=0.1):
+    def _iiwa_joint_control(self, q_target, vel=0.05):
         """
         joint space control by linear interpolation
         :param q_target:
@@ -379,7 +374,13 @@ class Robot():
         print("Linear interpolation by", NTIME, "joints")
         q_list = np.linspace(self.q, q_target, NTIME)
         for i in range(NTIME):
-            self._iiwa_joint_space_PD(q_list[i, :])
+            # self._iiwa_joint_space_impedance(q_list[i, :])
+
+            # send to controller_utils2.py
+            pub_msg = JointState()
+            pub_msg.position = q_list[i, :].tolist()
+
+            self.iiwa_cmd_pub_joint.publish(pub_msg)
             time.sleep(self.dt)
         # self.q_cmd = q_list[-1, :]
 
