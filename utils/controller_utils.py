@@ -677,26 +677,35 @@ class Robot():
         t0 = time.time()
         q0 = np.copy(self.q)
         qd = np.copy(self.q)
+        smoothing_duration = 0.5
         while 1:
             # generate sin wave
             t = time.time() - t0
             qd_dot = np.zeros_like(self.q)
 
-            qd[i] = q0[i] + a * np.sin(2 * np.pi * 0.2 * t)
-            qd_dot[i] = a * 2 * np.pi * 0.2 * np.cos(2 * np.pi * 0.2 * t)
+            if t < smoothing_duration:
+                transition_factor = np.sin(np.pi * t / smoothing_duration)  # 使用sin函数做平滑过渡
+                qd[i] = q0[i] + a * np.sin(2 * np.pi * 0.2 * t) * transition_factor
+                qd_dot[i] = a * 2 * np.pi * 0.2 * np.cos(2 * np.pi * 0.2 * t) * transition_factor
+            else:
+                qd[i] = q0[i] + a * np.sin(2 * np.pi * 0.2 * t)
+                qd_dot[i] = a * 2 * np.pi * 0.2 * np.cos(2 * np.pi * 0.2 * t)
 
             self._iiwa_joint_control(qd, qd_dot, vel=0.05, interpolate=False)
             time.sleep(self.dt)
 
+            error = qd[i] - self.q[i]
+            error_percent = (error / a) * 100
+
             q_actual_record.append([t, self.q[i]])
-            q_record.append([t, qd[i] - self.q[i]])
+            q_record.append([t, error_percent])
 
             if t > exe_time:
                 break
 
         timestamp = np.array([entry[0] for entry in q_actual_record])
         position = np.array([entry[1] for entry in q_actual_record])
-        error = np.array([entry[1] for entry in q_record])
+        error_percent = np.array([entry[1] for entry in q_record])
 
         # write into file
         filename = '../output/sin_test_{}.npy'.format(i)
@@ -710,7 +719,7 @@ class Robot():
         axs[0].set_title('Trajectory of Joint {}'.format(i))
         axs[0].grid(True)
 
-        axs[1].plot(timestamp, error, label='Position Error', linestyle='-')
+        axs[1].plot(timestamp, error_percent, label='Position Error', linestyle='-')
         axs[1].set_xlabel('Time (s)')
         axs[1].set_ylabel('Error')
         axs[1].set_title('Position Error for Joint {}'.format(i))
