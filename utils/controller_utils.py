@@ -376,13 +376,14 @@ class Robot():
             NTIME = int(t / self.dt)
             print("Linear interpolation by", NTIME, "joints")
             q_list = np.linspace(self.q, q_target, NTIME)
+            qd_list = np.linspace(self.dq, qd_target, NTIME)
             for i in range(NTIME):
                 # self._iiwa_joint_space_impedance(q_list[i, :])
 
                 # send to controller_utils2.py
                 pub_msg = JointState()
                 pub_msg.position = q_list[i, :].tolist()
-
+                pub_msg.velocity = qd_list[i, :].tolist()
                 self.iiwa_cmd_pub_joint.publish(pub_msg)
         else:
             pub_msg = JointState()
@@ -684,15 +685,15 @@ class Robot():
             qd_dot = np.zeros_like(self.q)
 
             if t < smoothing_duration:
-                transition_factor = np.sin(np.pi * t / smoothing_duration)  # 使用sin函数做平滑过渡
-                qd[i] = q0[i] + a * np.sin(2 * np.pi * 0.2 * t) * transition_factor
-                qd_dot[i] = a * 2 * np.pi * 0.2 * np.cos(2 * np.pi * 0.2 * t) * transition_factor
+                qd[i] = q0[i] + a * np.sin(2 * np.pi * 0.2 * t)
+                qd_dot[i] = a * 2 * np.pi * 0.2 * np.cos(2 * np.pi * 0.2 * t)
+                self._iiwa_joint_control(qd, qd_dot, vel=0.2)
+                time.sleep(self.dt)
             else:
                 qd[i] = q0[i] + a * np.sin(2 * np.pi * 0.2 * t)
                 qd_dot[i] = a * 2 * np.pi * 0.2 * np.cos(2 * np.pi * 0.2 * t)
-
-            self._iiwa_joint_control(qd, qd_dot, vel=0.05, interpolate=False)
-            time.sleep(self.dt)
+                self._iiwa_joint_control(qd, qd_dot, vel=0.05, interpolate=False)
+                time.sleep(self.dt)
 
             error = qd[i] - self.q[i]
             error_percent = (error / a) * 100
@@ -798,7 +799,7 @@ if __name__ == "__main__":
     # cur_q = r.q
     # cur_q[0] += 0.05
     # r._iiwa_joint_control(cur_q, vel=0.01)
-    r.iiwa_step_test(i=2, a=0.2, exe_time=5)
+    r.iiwa_step_test(i=6, a=0.2, exe_time=10)
 
     # 2
 
