@@ -36,8 +36,7 @@ class Robot():
             rospy.signal_shutdown("User requested shutdown")
         sys.exit()
 
-    def __init__(self, optitrack_frame_names=None, position_control=True, calibration=False, camera=False,
-                 camera_object_name=None):
+    def __init__(self):
 
         rospy.init_node('iiwa_impedance', anonymous=True)
 
@@ -54,30 +53,25 @@ class Robot():
         self._effort = np.zeros(7)
         self.max_torque = np.array(rospy.get_param("/max_torque"))
 
-        if position_control:
-            self.control_mode = "position"
-            self._iiwa_position_pub = rospy.Publisher("/iiwa/PositionController/command", Float64MultiArray,
-                                                      queue_size=10)
-            self._sending_torque = False
-        else:
-            self.control_mode = "torque"
-            self._sending_torque = False
-            self._torque_cmd = np.zeros(7)
-            self._iiwa_torque_pub = rospy.Publisher("/iiwa/TorqueController/command", Float64MultiArray,
-                                                    queue_size=10)
-            self._joint_kp = np.array(rospy.get_param('/PD/joint_kp_joint_impedance'))
-            self._joint_kd = np.array(rospy.get_param('/PD/joint_kd_joint_impedance'))
+        self.control_mode = "torque"
+        self._sending_torque = False
+        self._torque_cmd = np.zeros(7)
+        self._iiwa_torque_pub = rospy.Publisher("/iiwa/TorqueController/command", Float64MultiArray,
+                                                queue_size=10)
+        self._joint_kp = np.array(rospy.get_param('/PD/joint_kp_joint_impedance'))
+        self._joint_kd = np.array(rospy.get_param('/PD/joint_kd_joint_impedance'))
 
+        self.tau_end = rospy.get_param("/tau_end")
 
-            self._q_cmd = None
-            self._dq_cmd = None
-            self._x_cmd = None
+        self._q_cmd = None
+        self._dq_cmd = None
+        self._x_cmd = None
 
-            # for torque control in Cartesian space
-            rospy.Subscriber('/iiwa_impedance_pose', PoseStamped, self.iiwa_impedance_pose_callback)
+        # for torque control in Cartesian space
+        rospy.Subscriber('/iiwa_impedance_pose', PoseStamped, self.iiwa_impedance_pose_callback)
 
-            # for torque control in joint space
-            rospy.Subscriber('/iiwa_impedance_joint', JointState, self.iiwa_impedance_joint_callback)
+        # for torque control in joint space
+        rospy.Subscriber('/iiwa_impedance_joint', JointState, self.iiwa_impedance_joint_callback)
 
         self.freq = 200
         self.dt = 1. / self.freq
@@ -126,6 +120,10 @@ class Robot():
 
         qacc_des = self._joint_kp * error_q + self._joint_kd * error_dq
         qacc_des = np.clip(qacc_des, -self.max_torque, self.max_torque)
+
+        # gravity compensation
+        tau_torque_joint = np.dot(self.J.T, self.tau_end)
+        qacc_des += tau_torque_joint
 
         self._send_iiwa_torque(qacc_des)
 
@@ -265,7 +263,7 @@ class Robot():
 
 
 if __name__ == "__main__":
-    r = Robot(camera=False, position_control=False)
+    r = Robot()
 
 
     mode = "joint"
