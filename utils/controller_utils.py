@@ -380,7 +380,7 @@ class Robot():
             for i in range(NTIME):
                 # self._iiwa_joint_space_impedance(q_list[i, :])
 
-                # send to controller_utils2.py
+                # send to torque_service.py
                 pub_msg = JointState()
                 pub_msg.position = q_list[i, :].tolist()
                 pub_msg.velocity = qd_list[i, :].tolist()

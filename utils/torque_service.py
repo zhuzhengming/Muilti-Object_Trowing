@@ -122,6 +122,7 @@ class Robot():
         qacc_des = np.clip(qacc_des, -self.max_torque, self.max_torque)
 
         # gravity compensation
+        gravity_torque = np.array([0, 0, self.tau_end, 0, 0, 0])
         tau_torque_joint = np.dot(self.J.T, self.tau_end)
         qacc_des += tau_torque_joint
 
