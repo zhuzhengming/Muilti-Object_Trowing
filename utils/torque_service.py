@@ -1,23 +1,19 @@
 """
 control interface for iiwa and allegro hand
 """
-import sys
 
+import sys
 sys.path.append("../")
+
 import time
 import rospy
 import numpy as np
 from functools import partial
 
 import tools.rotations as rot
-import kinematics.allegro_hand_sym as allegro
-# from iiwa_tools.srv import GetIK, GetFK
-# from trac_ik_python.trac_ik import IK
-from urdf_parser_py.urdf import URDF  # need to install it under py3
+from urdf_parser_py.urdf import URDF
 import kinematics.kdl_parser as kdl_parser
-
 import PyKDL as kdl
-# https://bitbucket.org/traclabs/trac_ik/src/master/trac_ik_python/, install it by `pip install -e .` under the cond env
 
 
 from sensor_msgs.msg import JointState
@@ -122,7 +118,8 @@ class Robot():
         qacc_des = np.clip(qacc_des, -self.max_torque, self.max_torque)
 
         # gravity compensation
-        tau_torque_joint = np.dot(self.J.T, self.tau_end)
+        gravity_torque = np.array([0, 0, self.tau_end, 0, 0, 0])
+        tau_torque_joint = np.dot(self.J.T, gravity_torque)
         qacc_des += tau_torque_joint
 
         self._send_iiwa_torque(qacc_des)
@@ -291,7 +288,7 @@ if __name__ == "__main__":
                 q_cmd = r.q_cmd
                 qd_cmd = r.dq_cmd
             r.iiwa_joint_impedance(q_cmd, d_qd=qd_cmd)
-            time.sleep(0.002)
+            time.sleep(0.001)
 
 
 
