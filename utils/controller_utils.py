@@ -670,15 +670,17 @@ class Robot():
         :return:
         """
 
-        q_record = []
+        v_record = []
+        v_actual_record = []
         qd_record = []
         q_actual_record = []
-        qd_actual_record = []
+        v_error_record = []
+        error_record = []
 
         t0 = time.time()
         q0 = np.copy(self.q)
         qd = np.copy(self.q)
-        smoothing_duration = 0.5
+        smoothing_duration = 0.3
         while 1:
             # generate sin wave
             t = time.time() - t0
@@ -697,38 +699,59 @@ class Robot():
 
             error = qd[i] - self.q[i]
             error_percent = (error / a) * 100
+            v_error = qd_dot[i] - self.dq[i]
+            v_error_percent = (v_error / (a * 2 * np.pi * 0.2 )) * 100
 
+
+            # position tracking
+            qd_record.append([t, qd[i]])
             q_actual_record.append([t, self.q[i]])
-            q_record.append([t, error_percent])
+            error_record.append([t, error_percent])
+
+            # velocity tracking
+            v_record.append([t, qd_dot[i]])
+            v_actual_record.append([t, self.dq[i]])
+            v_error_record.append([t, v_error_percent])
 
             if t > exe_time:
                 break
 
         timestamp = np.array([entry[0] for entry in q_actual_record])
-        position = np.array([entry[1] for entry in q_actual_record])
-        error_percent = np.array([entry[1] for entry in q_record])
+        actual_position = np.array([entry[1] for entry in q_actual_record])
+        target_position = np.array([entry[1] for entry in qd_record])
+        error_percent = np.array([entry[1] for entry in error_record])
+
+        actual_velocity = np.array([entry[1] for entry in v_actual_record])
+        target_velocity = np.array([entry[1] for entry in v_record])
+        error_velocity_percent = np.array([entry[1] for entry in v_error_record])
 
         # write into file
         filename = '../output/sin_test_{}.npy'.format(i)
-        np.save(filename, {'timestamp': timestamp, 'position': position, 'error': error})
+        np.save(filename, {'timestamp': timestamp,
+                                'actual_position': actual_position,
+                                'target_position': target_position,
+                                'error_position_percent': error_percent,
+                                'actual_velocity': actual_velocity,
+                                'target_velocity': target_velocity,
+                                'error_velocity_percent': error_velocity_percent})
 
-        fig, axs = plt.subplots(2, 1, figsize=(10, 8))
-
-        axs[0].plot(timestamp, position, label='Actual Position (q)', linestyle='-')
-        axs[0].set_xlabel('Timestamp')
-        axs[0].set_ylabel('Position')
-        axs[0].set_title('Trajectory of Joint {}'.format(i))
-        axs[0].grid(True)
-
-        axs[1].plot(timestamp, error_percent, label='Position Error', linestyle='-')
-        axs[1].set_xlabel('Time (s)')
-        axs[1].set_ylabel('Error')
-        axs[1].set_title('Position Error for Joint {}'.format(i))
-        axs[1].grid(True)
-
-        plt.tight_layout()
-
-        plt.show()
+        # fig, axs = plt.subplots(2, 1, figsize=(10, 8))
+        #
+        # axs[0].plot(timestamp, position, label='Actual Position (q)', linestyle='-')
+        # axs[0].set_xlabel('Timestamp')
+        # axs[0].set_ylabel('Position')
+        # axs[0].set_title('Trajectory of Joint {}'.format(i))
+        # axs[0].grid(True)
+        #
+        # axs[1].plot(timestamp, error_percent, label='Position Error', linestyle='-')
+        # axs[1].set_xlabel('Time (s)')
+        # axs[1].set_ylabel('Error')
+        # axs[1].set_title('Position Error for Joint {}'.format(i))
+        # axs[1].grid(True)
+        #
+        # plt.tight_layout()
+        #
+        # plt.show()
 
     @property
     def xh(self) -> list:
@@ -794,12 +817,7 @@ if __name__ == "__main__":
     r = Robot(camera=False, optitrack_frame_names=['iiwa_base7', 'realsense_m'],
               camera_object_name=['cross_part', 'bottle'], position_control=False)
 
-    # r.iiwa_go_home()
-
-    # cur_q = r.q
-    # cur_q[0] += 0.05
-    # r._iiwa_joint_control(cur_q, vel=0.01)
-    r.iiwa_step_test(i=6, a=0.2, exe_time=10)
-
-    # 2
-
+    for i in range(7):
+        r.iiwa_step_test(i=i, a=0.2, exe_time=10)
+        print("over")
+        time.sleep(1)
