@@ -820,4 +820,4 @@ if __name__ == "__main__":
     for i in range(7):
         r.iiwa_step_test(i=i, a=0.2, exe_time=10)
         print("over")
-        time.sleep(1)
+        time.sleep(5)
