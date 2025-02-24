@@ -726,7 +726,7 @@ class Robot():
         error_velocity_percent = np.array([entry[1] for entry in v_error_record])
 
         # write into file
-        filename = '../output/sin_test_{}.npy'.format(i)
+        filename = '../output/data/sin_test_{}.npy'.format(i)
         np.save(filename, {'timestamp': timestamp,
                                 'actual_position': actual_position,
                                 'target_position': target_position,
