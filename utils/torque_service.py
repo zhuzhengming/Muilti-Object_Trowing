@@ -119,11 +119,7 @@ class Robot():
 
         # gravity compensation
         gravity_torque = np.array([0, 0, self.tau_end, 0, 0, 0])
-<<<<<<< HEAD
-        tau_torque_joint = np.dot(self.J.T, self.tau_end)
-=======
         tau_torque_joint = np.dot(self.J.T, gravity_torque)
->>>>>>> f1430a2afc1f5208dc0e3244765c3c9a99674d07
         qacc_des += tau_torque_joint
 
         self._send_iiwa_torque(qacc_des)
