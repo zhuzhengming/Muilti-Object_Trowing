@@ -25,7 +25,7 @@ def plot_arm_data():
         axs1[i, 0].plot(timestamp, actual_position, label=f'Actual Position (q) for Joint {i}', linestyle='-', color='blue')
         axs1[i, 0].plot(timestamp, target_position, label=f'Target Position for Joint {i}', linestyle='--', color='green')  # Target position curve
         axs1[i, 0].set_ylabel('Position')
-        axs1[i, 0].set_title(f'Trajectory of Joint {i}')
+        axs1[i, 0].set_title(f'Trajectory of Joint {i} with gravity compensation')
         axs1[i, 0].legend()
         axs1[i, 0].grid(True)
 
@@ -39,7 +39,7 @@ def plot_arm_data():
         axs2[i, 0].plot(timestamp, actual_velocity, label=f'Actual Velocity (qd) for Joint {i}', linestyle='-', color='green')
         axs2[i, 0].plot(timestamp, target_velocity, label=f'Target Velocity for Joint {i}', linestyle='--', color='purple')  # Target velocity curve
         axs2[i, 0].set_ylabel('Velocity')
-        axs2[i, 0].set_title(f'Actual Velocity of Joint {i}')
+        axs2[i, 0].set_title(f'Actual Velocity of Joint {i} with gravity compensation')
         axs2[i, 0].legend()
         axs2[i, 0].grid(True)
 
