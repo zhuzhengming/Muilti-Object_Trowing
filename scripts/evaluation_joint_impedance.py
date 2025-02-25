@@ -43,7 +43,6 @@ def plot_arm_data():
         axs2[i, 0].legend()
         axs2[i, 0].grid(True)
 
-
         # Plot the velocity error for joint i
         axs2[i, 1].plot(timestamp, error_velocity_percent, label=f'Velocity Error for Joint {i}', linestyle='-', color='orange')
         axs2[i, 1].set_ylabel('Error (%)')
