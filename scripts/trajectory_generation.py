@@ -1,7 +1,5 @@
-import argparse
 import time
 import math
-import pickle
 import rospy
 import copy
 import numpy as np
@@ -15,101 +13,49 @@ from std_msgs.msg import Int64
 
 from pathlib import Path
 from sys import path
-from ruckig import InputParameter, Ruckig, Trajectory, Result
+from ruckig import InputParameter, Ruckig, Trajectory
 
 from std_srvs.srv import Trigger
 import threading
 
-
-def deactivate_gripper():
-    rospy.wait_for_service('/franka_control/gripper_deactivate')
-    try:
-        gripper_deactivate = rospy.ServiceProxy('/franka_control/gripper_deactivate', Trigger)
-        gripper_deactivate()
-    except rospy.ServiceException as e:
-        rospy.logerr("Service call failed: %s", e)
-
-
+# global variables
 SIMULATION = True  # Set to True to run the simulation before commanding the real robot
 REAL_ROBOT_STATE = True  # Set to True to use the real robot state to start the simulation
-ERROR_THRESHOLD = 0.5  # Threshold to switch from homing to throwing state
-GRIPPER_DELAY = 350e-3
-
-# Ruckig margins for throwing
-MARGIN_VELOCITY = 1.2
-MARGIN_ACCELERATION = 0.6
-MARGIN_JERK = 0.01
-# Path to the build directory including a file similar to 'ruckig.cpython-37m-x86_64-linux-gnu'.
-build_path = Path(__file__).parent.absolute().parent / 'build'
-path.insert(0, str(build_path))
-
-
-def get_traj_from_ruckig(q0, q0_dot, q0_dotdot, qd, qd_dot, qd_dotdot, margin_velocity=1.0, margin_acceleration=0.7,
-                         margin_jerk=MARGIN_JERK):
-    inp = InputParameter(3)
-    inp.current_position = q0
-    inp.current_velocity = q0_dot
-    inp.current_acceleration = q0_dotdot
-
-    inp.target_position = qd
-    inp.target_velocity = qd_dot
-    inp.target_acceleration = qd_dotdot
-
-    inp.max_velocity = np.array([5.0, 5.0, 5.0]) * margin_velocity
-    inp.max_acceleration = np.array([15, 7.5, 10]) * margin_acceleration
-    inp.max_jerk = np.array([7500, 3750, 5000]) * margin_jerk
-
-    otg = Ruckig(3)
-    trajectory = Trajectory(3)
-    _ = otg.calculate(inp, trajectory)
-    return trajectory
-
-
-# set the boundary states
-# qs for the initial state and qd for the throwing state
-qs = np.zeros(3)
-qs[1] = -0.5
-# qs[1] = -math.pi# -0.5*math.pi
-qs_dot = np.zeros(3)
-qs_dotdot = np.zeros(3)
-qd = np.array([0.0, 1.5 - 2.0 * math.pi, 1.0])
-# qd = np.array([0.0,1.5,1.0])
-
-qd_dot = np.array([0.0, -4.0, -4.0]) * MARGIN_VELOCITY
-qd_dotdot = np.array([0.0, 0.0, 0.0])
-
-# compute the nominal throwing and slowing trajectory
-trajectory = get_traj_from_ruckig(qs, qs_dot, qs_dotdot, qd, qd_dot, qd_dotdot, margin_velocity=MARGIN_VELOCITY,
-                                  margin_acceleration=MARGIN_ACCELERATION)
-trajectory_back = get_traj_from_ruckig(qd, qd_dot, qd_dotdot, qs, qs_dot, qs_dotdot, margin_velocity=MARGIN_VELOCITY,
-                                       margin_acceleration=MARGIN_ACCELERATION * 0.5)
-
-traj_time = trajectory.duration
-traj_back_time = trajectory_back.duration
-
 
 ## ---- ROS conversion and callbacks functions ---- ##
 class Throwing_controller:
     def __init__(self):
-        # Init ROS and subscribers/publishers
-        rospy.init_node("throwing_controller_elastic_arm", anonymous=True)
+        rospy.init_node("throwing_controller", anonymous=True)
         # Run simulation once for visualization
         if SIMULATION:
             self.run_simulation()
         while True:
-            self.robot_state = rospy.wait_for_message("/franka_state_controller/joint_states", JointState)
-            print("Got robot state", self.robot_state.position[-3:])
+            self.robot_state = rospy.wait_for_message("/iiwa/joint_states", JointState)
+            print("Got robot state")
             break
-        self.fsm_state_pub = rospy.Publisher('fsm_state', String, queue_size=1)
-        # self.command_pub = rospy.Publisher('/robot/arm/computed_torque_controller/command', JointState, queue_size=1)
-        self.target_state_pub = rospy.Publisher('/robot/arm/computed_torque_controller/target_state', JointState,
-                                                queue_size=1)
-        self.command_pub = rospy.Publisher('/joint_velocity_controller_darko/command', JointState, queue_size=1)
-        # rospy.Subscriber('/robot/arm/computed_torque_controller/robot_state', JointState, self.joint_states_callback, queue_size=1)
-        rospy.Subscriber('/franka_state_controller/joint_states', JointState, self.joint_states_callback, queue_size=1)
 
+        # initialize ROS subscriber/publisher
+        self.fsm_state_pub = rospy.Publisher('fsm_state', String, queue_size=1)
+        self.target_state_pub = rospy.Publisher('/computed_torque_controller/target_state', JointState, queue_size=10) # for debug
+        self.command_pub = rospy.Publisher('/iiwa_impedance_joint', JointState, queue_size=10)
+
+        rospy.Subscriber('/iiwa/joint_states', JointState, self.joint_states_callback, queue_size=1)
         rospy.Subscriber('/throw_node/throw_state', Int64, self.scheduler_callback)
-        rospy.wait_for_service('/franka_control/gripper_deactivate')
+        # rospy.wait_for_service('/franka_control/gripper_deactivate')
+
+        # get parameters and initialization
+        self.ERROR_THRESHOLD = rospy.get_param('/ERROR_THRESHOLD')  # Threshold to switch from homing to throwing state
+        self.GRIPPER_DELAY = rospy.get_param('/GRIPPER_DELAY')
+
+        # Ruckig margins for throwing
+        self.MARGIN_VELOCITY = rospy.get_param('/MARGIN_VELOCITY')
+        self.MARGIN_ACCELERATION = rospy.get_param('/MARGIN_ACCELERATION')
+        self.MARGIN_JERK = rospy.get_param('/MARGIN_JERK')
+
+        # constraints of iiwa 7
+        self.max_velocity = np.array(rospy.get_param('/max_velocity'))
+        self.max_acceleration = np.array(rospy.get_param('/max_acceleration'))
+        self.max_jerk = np.array(rospy.get_param('/max_jerk'))
 
         self.time_throw = np.inf  # Planned time of throwing
         self.fsm_state = "IDLE"
@@ -131,7 +77,30 @@ class Throwing_controller:
         self.tracking_error_vel = []
         self.joint_velo_his = []
 
-    def simulate_trajectory(self, trajectory):
+        # qs for the initial state and qd for the throwing state
+        self.qs = np.zeros(3)
+        self.qs[1] = -0.5
+        self.qs_dot = np.zeros(3)
+        self.qs_dotdot = np.zeros(3)
+
+        self.qd = np.array([0.0, 1.5 - 2.0 * math.pi, 1.0])
+        self.qd_dot = np.array([0.0, -4.0, -4.0]) * self.MARGIN_VELOCITY
+        self.qd_dotdot = np.array([0.0, 0.0, 0.0])
+
+        # compute the nominal throwing and slowing trajectory
+        self.trajectory = self.get_traj_from_ruckig(self.qs, self.qs_dot, self.qs_dotdot, self.qd, self.qd_dot, self.qd_dotdot,
+                                                    margin_velocity=self.MARGIN_VELOCITY,
+                                                    margin_acceleration=self.MARGIN_ACCELERATION)
+        self.trajectory_back = self.get_traj_from_ruckig(self.qd, self.qd_dot, self.qd_dotdot, self.qs, self.qs_dot, self.qs_dotdot,
+                                               margin_velocity=self.MARGIN_VELOCITY,
+                                               margin_acceleration=self.MARGIN_ACCELERATION * 0.5)
+
+        self.traj_time = self.trajectory.duration
+        self.traj_back_time = self.trajectory_back.duration
+
+
+    # simulation in Pybullet
+    def simulate_trajectory(self, trajectory=None):
         clid = p.connect(p.GUI)
         p.configureDebugVisualizer(p.COV_ENABLE_GUI, 0)
         p.resetDebugVisualizerCamera(cameraDistance=2.5, cameraYaw=145, cameraPitch=-45,
@@ -142,25 +111,19 @@ class Throwing_controller:
         p.setGravity(0, 0, -9.81)
         delta_t = 0.002
         p.setTimeStep(delta_t)
-        robotId = p.loadURDF("descriptions/URDF_Assembly_Arm_v0_1_SLDASM/urdf/TUMArm_v0_1_SLDASM_Robotiq.urdf",
+        robotId = p.loadURDF("../description/iiwa_description/urdf/iiwa7_lasa.urdf",
                              [0.0, 0.0, 0.0], useFixedBase=True, flags=p.URDF_USE_INERTIA_FROM_FILE)
-        controlled_joints = [0, 1, 2]
-        robotEndEffectorIndex = 15
-        planeId = p.loadURDF("plane.urdf", [0, 0, 0.0])
-        soccerballId = p.loadURDF("soccerball.urdf", [-3.0, 0, 3], globalScaling=0.05)
-        # move the ball away from the robot at the beginning
-        p.resetBasePositionAndOrientation(soccerballId, [100, 100, 100], [0, 0, 0, 1])
-
+        controlled_joints = [0, 1, 2, 3, 4, 5, 6]
         # reset the robot to the initial configuration of the trajectory
-        q0 = trajectory.at_time(0)[0]
+        q0 = self.trajectory.at_time(0)[0]
         p.resetJointStatesMultiDof(robotId, controlled_joints, [[q0_i] for q0_i in q0],
-                                   targetVelocities=[[q0_i] for q0_i in np.zeros(3)])
+                                   targetVelocities=[[q0_i] for q0_i in np.zeros(7)])
 
         # play the trajectory twice
         tt = 0
         counter = 0
         while (True):
-            ref = trajectory.at_time(tt)
+            ref = self.trajectory.at_time(tt)
             p.resetJointStatesMultiDof(robotId, controlled_joints, [[q0_i] for q0_i in ref[0]],
                                        targetVelocities=[[q0_i] for q0_i in ref[1]])
             p.stepSimulation()
@@ -179,53 +142,49 @@ class Throwing_controller:
         p.configureDebugVisualizer(p.COV_ENABLE_GUI, 0)
         p.resetDebugVisualizerCamera(cameraDistance=2.5, cameraYaw=145, cameraPitch=-45,
                                      cameraTargetPosition=[0.8, 0, 0])
-
         p.setAdditionalSearchPath(pybullet_data.getDataPath())
-
         p.setGravity(0, 0, -9.81)
         delta_t = 0.002
         p.setTimeStep(delta_t)
-        robotId = p.loadURDF("descriptions/URDF_Assembly_Arm_v0_1_SLDASM/urdf/TUMArm_v0_1_SLDASM_Robotiq.urdf",
+        robotId = p.loadURDF("../description/iiwa_description/urdf/iiwa7_lasa.urdf",
                              [0.0, 0.0, 0.0], useFixedBase=True, flags=p.URDF_USE_INERTIA_FROM_FILE)
-        controlled_joints = [0, 1, 2]
-        robotEndEffectorIndex = 15
-        planeId = p.loadURDF("plane.urdf", [0, 0, 0.0])
-        soccerballId = p.loadURDF("soccerball.urdf", [-3.0, 0, 3], globalScaling=0.05)
-        # move the ball away from the robot at the beginning
-        p.resetBasePositionAndOrientation(soccerballId, [100, 100, 100], [0, 0, 0, 1])
-
-        eef_state = p.getLinkState(robotId, robotEndEffectorIndex, computeLinkVelocity=1)
+        controlled_joints = [0, 1, 2, 3, 4, 5, 6]
+        robotEndEffectorIndex = 6
 
         if REAL_ROBOT_STATE:
             # get initial robot state from ROS message
-            robot_state = rospy.wait_for_message("/franka_state_controller/joint_states", JointState)
-            print("initial robot state", robot_state.position[-3:], robot_state.velocity[-3:])
-            q0 = np.array(robot_state.position)[-3:]
-            q0_dot = np.array(robot_state.velocity)[-3:]
-            qs[0] = q0[0]
+            robot_state = rospy.wait_for_message("/iiwa/joint_states", JointState)
+            print("initial robot state")
+
+            q0 = np.array(robot_state.position)
+            q0_dot = np.array(robot_state.velocity)
+            self.qs[0] = q0[0]
             # compute the nominal throwing and slowing trajectory
-            trajectory = get_traj_from_ruckig(qs, qs_dot, qs_dotdot, qd, qd_dot, qd_dotdot,
-                                              margin_velocity=MARGIN_VELOCITY, margin_acceleration=MARGIN_ACCELERATION)
-            trajectory_back = get_traj_from_ruckig(qd, qd_dot, qd_dotdot, qs, qs_dot, qs_dotdot,
-                                                   margin_velocity=MARGIN_VELOCITY,
-                                                   margin_acceleration=MARGIN_ACCELERATION * 0.5)
+            trajectory = self.get_traj_from_ruckig(self.qs, self.qs_dot, self.qs_dotdot,
+                                                   self.qd, self.qd_dot, self.qd_dotdot,
+                                                   margin_velocity=self.MARGIN_VELOCITY,
+                                                   margin_acceleration=self.MARGIN_ACCELERATION)
+            trajectory_back = self.get_traj_from_ruckig(self.qd, self.qd_dot, self.qd_dotdot,
+                                                        self.qs, self.qs_dot, self.qs_dotdot,
+                                                   margin_velocity=self.MARGIN_VELOCITY,
+                                                   margin_acceleration=self.MARGIN_ACCELERATION * 0.5)
 
             traj_time = trajectory.duration
             traj_back_time = trajectory_back.duration
         else:
             # sample a random starting configuration
             np.random.seed(0)
-            q0 = np.random.uniform(0.0, 2.0, 3)
+            q0 = np.random.uniform(0.0, 1.5, 7)
         # reset the robot to the random configuration
         p.resetJointStatesMultiDof(robotId, controlled_joints, [[q0_i] for q0_i in q0],
-                                   targetVelocities=[[q0_i] for q0_i in np.zeros(3)])
+                                   targetVelocities=[[q0_i] for q0_i in np.zeros(7)])
         pdb.set_trace(header="PDB PAUSE: Press C to start simulation...")
 
         # generate the trajectory to go to qs
-        trajectory_to_qs = get_traj_from_ruckig(q0, np.zeros(3), np.zeros(3), qs, qs_dot, qs_dotdot,
-                                                margin_velocity=0.2, margin_acceleration=0.1)
+        trajectory_to_qs = self.get_traj_from_ruckig(q0, np.zeros(7), np.zeros(7),
+                                                     self.qs, self.qs_dot, self.qs_dotdot,
+                                                    margin_velocity=0.2, margin_acceleration=0.1)
 
-        recordind_flag = True
         flag = True
         landing_pos = None
         video_path = None
@@ -257,8 +216,6 @@ class Throwing_controller:
                 p.resetJointStatesMultiDof(robotId, controlled_joints, [[q0_i] for q0_i in ref[0]],
                                            targetVelocities=[[q0_i] for q0_i in ref[1]])
                 eef_state = p.getLinkState(robotId, robotEndEffectorIndex, computeLinkVelocity=1)
-                p.resetBasePositionAndOrientation(soccerballId, eef_state[0], [0, 0, 0, 1])
-                p.resetBaseVelocity(soccerballId, linearVelocity=eef_state[-2])
             else:
                 # slow down the robot
                 ref_full = trajectory_back.at_time(tt - traj_time)
@@ -286,18 +243,11 @@ class Throwing_controller:
                 #     p.stopStateLogging(logId)
                 #     recordind_flag = False
                 break
-        ball_state = p.getBasePositionAndOrientation(soccerballId)
-        # get landing point
-        if ball_state[0][2] < 0.025 and landing_pos is None:
-            landing_pos = ball_state[0]
-        print("Ball has landed", ball_state[0])
-        # if not (video_path is None):
-        #     p.stopStateLogging(logId)
         p.disconnect()
 
     def run(self):
         # ------------ Control Loop ------------ #
-        dT = 2e-3
+        dT = 5e-3
         rate = rospy.Rate(1.0 / dT)
         while not rospy.is_shutdown():
             # Publish state and fsm for debug
@@ -307,10 +257,10 @@ class Throwing_controller:
             if self.fsm_state == "THROWING" or self.fsm_state == "RELEASE":
                 if (self.time_throw - rospy.get_time()) < 10e-3:
                     self.tracking_error_pos.append(
-                        np.array(self.target_state.position) - np.array(self.robot_state.position)[-3:])
+                        np.array(self.target_state.position) - np.array(self.robot_state.position))
                     self.tracking_error_vel.append(
-                        np.array(self.target_state.velocity) - np.array(self.robot_state.velocity)[-3:])
-                    self.joint_velo_his.append(np.array(self.robot_state.velocity)[-3:])
+                        np.array(self.target_state.velocity) - np.array(self.robot_state.velocity))
+                    self.joint_velo_his.append(np.array(self.robot_state.velocity))
 
             ## ---------------- FSM ---------------- ##
             # # Setup or reset variables prior to throwing ##
@@ -320,19 +270,22 @@ class Throwing_controller:
             if self.fsm_state == "IDLE":
                 pdb.set_trace(header="PDB PAUSE: Press C to start homing...")
                 print("HOMING...")
-                current_robot_state = rospy.wait_for_message("/franka_state_controller/joint_states", JointState)
-                self.q0 = np.array(current_robot_state.position)[-3:]
-                self.homing_traj = get_traj_from_ruckig(self.q0, np.zeros(3), np.zeros(3), qs, qs_dot, qs_dotdot,
+                current_robot_state = rospy.wait_for_message("/iiwa/joint_states", JointState)
+                self.q0 = np.array(current_robot_state.position)
+                self.homing_traj = self.get_traj_from_ruckig(self.q0, np.zeros(3), np.zeros(3),
+                                                             self.qs, self.qs_dot, self.qs_dotdot,
                                                         margin_velocity=0.2, margin_acceleration=0.1)
                 print("IDLING: initial state", self.q0, "homing trajectory duration", self.homing_traj.duration)
+
+                # update state
                 self.fsm_state = "HOMING"
                 self.time_start_homing = rospy.get_time()
 
             elif self.fsm_state == "HOMING":
 
                 # Activate integrator term when close to target
-                error_position = np.array(self.robot_state.position)[-3:] - np.array(qs)
-                if np.linalg.norm(error_position) < ERROR_THRESHOLD:
+                error_position = np.array(self.robot_state.position) - np.array(self.qs)
+                if np.linalg.norm(error_position) < self.ERROR_THRESHOLD:
                     # Jump to next state
                     self.fsm_state = "IDLE_THROWING"
                     print("IDLE_THROWING")
@@ -354,17 +307,19 @@ class Throwing_controller:
             elif self.fsm_state == "THROWING":
                 # execute throwing trajectory
                 time_now = rospy.get_time()
-                if time_now - self.time_start_throwing > self.throwing_traj.duration - GRIPPER_DELAY:
-                    threading.Thread(target=deactivate_gripper).start()
+                # release gripper
+                # if time_now - self.time_start_throwing > self.throwing_traj.duration - self.GRIPPER_DELAY:
+                #     threading.Thread(target=self.deactivate_gripper).start()
 
                 if time_now - self.time_start_throwing > self.throwing_traj.duration - dT:
                     self.fsm_state = "SLOWING"
                     self.time_start_slowing = time_now
-                    q_cur = np.array(self.robot_state.position)[-3:]
-                    qdot_cur = np.array(self.robot_state.velocity)[-3:]
-                    self.trajectory_back = get_traj_from_ruckig(q_cur, qdot_cur, qd_dotdot, qs, qs_dot, qs_dotdot,
-                                                                margin_velocity=MARGIN_VELOCITY,
-                                                                margin_acceleration=MARGIN_ACCELERATION * 0.5)
+                    q_cur = np.array(self.robot_state.position)
+                    qdot_cur = np.array(self.robot_state.velocity)
+                    self.trajectory_back = self.get_traj_from_ruckig(q_cur, qdot_cur, self.qd_dotdot,
+                                                                     self.qs, self.qs_dot, self.qs_dotdot,
+                                                                margin_velocity=self.MARGIN_VELOCITY,
+                                                                margin_acceleration=self.MARGIN_ACCELERATION * 0.5)
                     print("Slowing...")
 
                 ref = self.throwing_traj.at_time(time_now - self.time_start_throwing)
@@ -412,18 +367,75 @@ class Throwing_controller:
     def scheduler_callback(self, msg):
         print("scheduler msg", msg)
         if self.fsm_state == "IDLE_THROWING" and msg.data == 1:
-            # computue new trajectory to throw from current position
-            q_cur = np.array(self.robot_state.position)[-3:]
-            qdot_cur = np.array(self.robot_state.velocity)[-3:]
-            self.throwing_traj = get_traj_from_ruckig(q_cur, qdot_cur, np.zeros(3), qd, qd_dot, qd_dotdot,
-                                                      margin_velocity=MARGIN_VELOCITY,
-                                                      margin_acceleration=MARGIN_ACCELERATION)
+            # compute new trajectory to throw from current position
+            q_cur = np.array(self.robot_state.position)
+            qdot_cur = np.array(self.robot_state.velocity)
+            self.throwing_traj = self.get_traj_from_ruckig(q_cur, qdot_cur, np.zeros(3),
+                                                           self.qd, self.qd_dot, self.qd_dotdot,
+                                                      margin_velocity=self.MARGIN_VELOCITY,
+                                                      margin_acceleration=self.MARGIN_ACCELERATION)
             # inspect the throwing trajectory
             # self.simulate_trajectory(self.throwing_traj)
             # pdb.set_trace(header="PDB PAUSE: Press C to throw...")
             self.time_start_throwing = rospy.get_time()
             self.fsm_state = "THROWING"
             print("Throwing...")
+
+    def deactivate_gripper(self):
+        rospy.wait_for_service('/franka_control/gripper_deactivate')
+        try:
+            gripper_deactivate = rospy.ServiceProxy('/franka_control/gripper_deactivate', Trigger)
+            gripper_deactivate()
+        except rospy.ServiceException as e:
+            rospy.logerr("Service call failed: %s", e)
+
+    # Path to the build directory including a file similar to 'ruckig.cpython-37m-x86_64-linux-gnu'.
+    build_path = Path(__file__).parent.absolute().parent / 'build'
+    path.insert(0, str(build_path))
+
+    def get_traj_from_ruckig(self, q0, q0_dot, q0_dotdot,
+                             qd, qd_dot, qd_dotdot,
+                             margin_velocity=1.0, margin_acceleration=0.7,
+                             margin_jerk=None):
+
+        """
+            Generates a smooth trajectory using the Ruckig algorithm for the given joint states.
+
+            Parameters:
+            - q0: Initial joint positions
+            - q0_dot: Initial joint velocities
+            - q0_dotdot: Initial joint accelerations
+            - qd: Target joint positions
+            - qd_dot: Target joint velocities
+            - qd_dotdot: Target joint accelerations
+            - margin_velocity: Velocity margin
+            - margin_acceleration: Acceleration margin
+            - margin_jerk: Jerk margin
+
+            Returns:
+            - trajectory: The generated trajectory object
+            """
+
+        if margin_jerk is None:
+            margin_jerk = self.MARGIN_JERK
+
+        inp = InputParameter(len(q0))
+        inp.current_position = q0
+        inp.current_velocity = q0_dot
+        inp.current_acceleration = q0_dotdot
+
+        inp.target_position = qd
+        inp.target_velocity = qd_dot
+        inp.target_acceleration = qd_dotdot
+
+        inp.max_velocity = self.max_velocity * margin_velocity
+        inp.max_acceleration = self.max_acceleration * margin_acceleration
+        inp.max_jerk = self.max_jerk * margin_jerk
+
+        otg = Ruckig(len(q0))
+        trajectory = Trajectory(3)
+        _ = otg.calculate(inp, trajectory)
+        return trajectory
 
 
 if __name__ == '__main__':

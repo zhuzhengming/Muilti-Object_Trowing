@@ -4,16 +4,19 @@ project(Multi-object_Throwing)
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
+
 find_package(catkin REQUIRED COMPONENTS
+        rospy
         roscpp
         std_msgs
+        gtest
+        gmock
 )
 
 
 catkin_package(
         #  INCLUDE_DIRS include
-        #  LIBRARIES path_planning
-          CATKIN_DEPENDS std_msgs roscpp
+          CATKIN_DEPENDS std_msgs roscpp rospy
         #  DEPENDS system_lib
 )
 
@@ -21,5 +24,10 @@ catkin_package(
 ## Your package locations should be listed before other locations
 include_directories(
         # include
+)
+
+catkin_install_python(PROGRAMS
+  scripts/throwing_generation.py
+  DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 

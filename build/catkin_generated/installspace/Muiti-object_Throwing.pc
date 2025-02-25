@@ -1,8 +1,0 @@
-prefix=/home/zhuzhengming/workspace/Object_throwing/Muilti-Object_Trowing/install
-
-Name: Muiti-object_Throwing
-Description: Description of Muiti-object_Throwing
-Version: 0.0.0
-Cflags: 
-Libs: -L${prefix}/lib 
-Requires: std_msgs roscpp

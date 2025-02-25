@@ -735,23 +735,6 @@ class Robot():
                                 'target_velocity': target_velocity,
                                 'error_velocity_percent': error_velocity_percent})
 
-        # fig, axs = plt.subplots(2, 1, figsize=(10, 8))
-        #
-        # axs[0].plot(timestamp, position, label='Actual Position (q)', linestyle='-')
-        # axs[0].set_xlabel('Timestamp')
-        # axs[0].set_ylabel('Position')
-        # axs[0].set_title('Trajectory of Joint {}'.format(i))
-        # axs[0].grid(True)
-        #
-        # axs[1].plot(timestamp, error_percent, label='Position Error', linestyle='-')
-        # axs[1].set_xlabel('Time (s)')
-        # axs[1].set_ylabel('Error')
-        # axs[1].set_title('Position Error for Joint {}'.format(i))
-        # axs[1].grid(True)
-        #
-        # plt.tight_layout()
-        #
-        # plt.show()
 
     @property
     def xh(self) -> list:

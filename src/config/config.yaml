@@ -35,3 +35,20 @@ envelop_pose: [ 0.07941064,  1.77857954,  0.44877399,  0.62444235,  0.29191241,
         1.55038098,  0.61655537,  0.36046541,  0.4311105 ,  1.76264807,
         1.02352552,  0.9226552 ,  1.54144452,  0.48900141, -0.08175917,
         1.3566044 ]
+
+#########################################################################
+# Trajectory generation
+#########################################################################
+
+ERROR_THRESHOLD: 0.5  # Threshold to switch from homing to throwing state
+GRIPPER_DELAY: 0.350
+
+# Ruckig margins for throwing
+MARGIN_VELOCITY: 1.2
+MARGIN_ACCELERATION: 0.6
+MARGIN_JERK: 0.01
+
+# constraints of iiwa 7
+max_velocity: [1.71, 1.71, 1.745, 2.269, 2.443, 3.142, 3.142]
+max_acceleration: [15, 7.5, 10, 12.5, 15, 20, 20]
+max_jerk: [7500, 3750, 5000, 6250, 7500, 10000, 10000]
