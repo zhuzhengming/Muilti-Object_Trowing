@@ -4,5 +4,5 @@ PROJECT_PKG_CONFIG_INCLUDE_DIRS = "".split(';') if "" != "" else []
 PROJECT_CATKIN_DEPENDS = "std_msgs;roscpp;rospy".replace(';', ' ')
 PKG_CONFIG_LIBRARIES_WITH_PREFIX = "".split(';') if "" != "" else []
 PROJECT_NAME = "Multi-object_Throwing"
-PROJECT_SPACE_DIR = "/home/lasapc2018/workspace/Muilti-Object_Trowing/devel"
+PROJECT_SPACE_DIR = "/home/zhuzhengming/workspace/Object_throwing/Muilti-Object_Trowing/devel"
 PROJECT_VERSION = "0.0.0"

@@ -1,8 +1,8 @@
-# Install script for directory: /home/lasapc2018/workspace/Muilti-Object_Trowing/src
+# Install script for directory: /home/zhuzhengming/workspace/Object_throwing/Muilti-Object_Trowing/src
 
 # Set the install prefix
 if(NOT DEFINED CMAKE_INSTALL_PREFIX)
-  set(CMAKE_INSTALL_PREFIX "/home/lasapc2018/workspace/Muilti-Object_Trowing/install")
+  set(CMAKE_INSTALL_PREFIX "/home/zhuzhengming/workspace/Object_throwing/Muilti-Object_Trowing/install")
 endif()
 string(REGEX REPLACE "/$" "" CMAKE_INSTALL_PREFIX "${CMAKE_INSTALL_PREFIX}")
 
@@ -37,11 +37,6 @@ if(NOT DEFINED CMAKE_CROSSCOMPILING)
   set(CMAKE_CROSSCOMPILING "FALSE")
 endif()
 
-# Set default install directory permissions.
-if(NOT DEFINED CMAKE_OBJDUMP)
-  set(CMAKE_OBJDUMP "/usr/bin/objdump")
-endif()
-
 if("x${CMAKE_INSTALL_COMPONENT}x" STREQUAL "xUnspecifiedx" OR NOT CMAKE_INSTALL_COMPONENT)
   
       if (NOT EXISTS "$ENV{DESTDIR}${CMAKE_INSTALL_PREFIX}")
@@ -54,102 +49,108 @@ endif()
 
 if("x${CMAKE_INSTALL_COMPONENT}x" STREQUAL "xUnspecifiedx" OR NOT CMAKE_INSTALL_COMPONENT)
   list(APPEND CMAKE_ABSOLUTE_DESTINATION_FILES
-   "/home/lasapc2018/workspace/Muilti-Object_Trowing/install/_setup_util.py")
+   "/home/zhuzhengming/workspace/Object_throwing/Muilti-Object_Trowing/install/_setup_util.py")
   if(CMAKE_WARN_ON_ABSOLUTE_INSTALL_DESTINATION)
     message(WARNING "ABSOLUTE path INSTALL DESTINATION : ${CMAKE_ABSOLUTE_DESTINATION_FILES}")
   endif()
   if(CMAKE_ERROR_ON_ABSOLUTE_INSTALL_DESTINATION)
     message(FATAL_ERROR "ABSOLUTE path INSTALL DESTINATION forbidden (by caller): ${CMAKE_ABSOLUTE_DESTINATION_FILES}")
   endif()
-  file(INSTALL DESTINATION "/home/lasapc2018/workspace/Muilti-Object_Trowing/install" TYPE PROGRAM FILES "/home/lasapc2018/workspace/Muilti-Object_Trowing/build/catkin_generated/installspace/_setup_util.py")
+file(INSTALL DESTINATION "/home/zhuzhengming/workspace/Object_throwing/Muilti-Object_Trowing/install" TYPE PROGRAM FILES "/home/zhuzhengming/workspace/Object_throwing/Muilti-Object_Trowing/build/catkin_generated/installspace/_setup_util.py")
 endif()
 
 if("x${CMAKE_INSTALL_COMPONENT}x" STREQUAL "xUnspecifiedx" OR NOT CMAKE_INSTALL_COMPONENT)
   list(APPEND CMAKE_ABSOLUTE_DESTINATION_FILES
-   "/home/lasapc2018/workspace/Muilti-Object_Trowing/install/env.sh")
+   "/home/zhuzhengming/workspace/Object_throwing/Muilti-Object_Trowing/install/env.sh")
   if(CMAKE_WARN_ON_ABSOLUTE_INSTALL_DESTINATION)
     message(WARNING "ABSOLUTE path INSTALL DESTINATION : ${CMAKE_ABSOLUTE_DESTINATION_FILES}")
   endif()
   if(CMAKE_ERROR_ON_ABSOLUTE_INSTALL_DESTINATION)
     message(FATAL_ERROR "ABSOLUTE path INSTALL DESTINATION forbidden (by caller): ${CMAKE_ABSOLUTE_DESTINATION_FILES}")
   endif()
-  file(INSTALL DESTINATION "/home/lasapc2018/workspace/Muilti-Object_Trowing/install" TYPE PROGRAM FILES "/home/lasapc2018/workspace/Muilti-Object_Trowing/build/catkin_generated/installspace/env.sh")
+file(INSTALL DESTINATION "/home/zhuzhengming/workspace/Object_throwing/Muilti-Object_Trowing/install" TYPE PROGRAM FILES "/home/zhuzhengming/workspace/Object_throwing/Muilti-Object_Trowing/build/catkin_generated/installspace/env.sh")
 endif()
 
 if("x${CMAKE_INSTALL_COMPONENT}x" STREQUAL "xUnspecifiedx" OR NOT CMAKE_INSTALL_COMPONENT)
   list(APPEND CMAKE_ABSOLUTE_DESTINATION_FILES
-   "/home/lasapc2018/workspace/Muilti-Object_Trowing/install/setup.bash;/home/lasapc2018/workspace/Muilti-Object_Trowing/install/local_setup.bash")
+   "/home/zhuzhengming/workspace/Object_throwing/Muilti-Object_Trowing/install/setup.bash;/home/zhuzhengming/workspace/Object_throwing/Muilti-Object_Trowing/install/local_setup.bash")
   if(CMAKE_WARN_ON_ABSOLUTE_INSTALL_DESTINATION)
     message(WARNING "ABSOLUTE path INSTALL DESTINATION : ${CMAKE_ABSOLUTE_DESTINATION_FILES}")
   endif()
   if(CMAKE_ERROR_ON_ABSOLUTE_INSTALL_DESTINATION)
     message(FATAL_ERROR "ABSOLUTE path INSTALL DESTINATION forbidden (by caller): ${CMAKE_ABSOLUTE_DESTINATION_FILES}")
   endif()
-  file(INSTALL DESTINATION "/home/lasapc2018/workspace/Muilti-Object_Trowing/install" TYPE FILE FILES
-    "/home/lasapc2018/workspace/Muilti-Object_Trowing/build/catkin_generated/installspace/setup.bash"
-    "/home/lasapc2018/workspace/Muilti-Object_Trowing/build/catkin_generated/installspace/local_setup.bash"
+file(INSTALL DESTINATION "/home/zhuzhengming/workspace/Object_throwing/Muilti-Object_Trowing/install" TYPE FILE FILES
+    "/home/zhuzhengming/workspace/Object_throwing/Muilti-Object_Trowing/build/catkin_generated/installspace/setup.bash"
+    "/home/zhuzhengming/workspace/Object_throwing/Muilti-Object_Trowing/build/catkin_generated/installspace/local_setup.bash"
     )
 endif()
 
 if("x${CMAKE_INSTALL_COMPONENT}x" STREQUAL "xUnspecifiedx" OR NOT CMAKE_INSTALL_COMPONENT)
   list(APPEND CMAKE_ABSOLUTE_DESTINATION_FILES
-   "/home/lasapc2018/workspace/Muilti-Object_Trowing/install/setup.sh;/home/lasapc2018/workspace/Muilti-Object_Trowing/install/local_setup.sh")
+   "/home/zhuzhengming/workspace/Object_throwing/Muilti-Object_Trowing/install/setup.sh;/home/zhuzhengming/workspace/Object_throwing/Muilti-Object_Trowing/install/local_setup.sh")
   if(CMAKE_WARN_ON_ABSOLUTE_INSTALL_DESTINATION)
     message(WARNING "ABSOLUTE path INSTALL DESTINATION : ${CMAKE_ABSOLUTE_DESTINATION_FILES}")
   endif()
   if(CMAKE_ERROR_ON_ABSOLUTE_INSTALL_DESTINATION)
     message(FATAL_ERROR "ABSOLUTE path INSTALL DESTINATION forbidden (by caller): ${CMAKE_ABSOLUTE_DESTINATION_FILES}")
   endif()
-  file(INSTALL DESTINATION "/home/lasapc2018/workspace/Muilti-Object_Trowing/install" TYPE FILE FILES
-    "/home/lasapc2018/workspace/Muilti-Object_Trowing/build/catkin_generated/installspace/setup.sh"
-    "/home/lasapc2018/workspace/Muilti-Object_Trowing/build/catkin_generated/installspace/local_setup.sh"
+file(INSTALL DESTINATION "/home/zhuzhengming/workspace/Object_throwing/Muilti-Object_Trowing/install" TYPE FILE FILES
+    "/home/zhuzhengming/workspace/Object_throwing/Muilti-Object_Trowing/build/catkin_generated/installspace/setup.sh"
+    "/home/zhuzhengming/workspace/Object_throwing/Muilti-Object_Trowing/build/catkin_generated/installspace/local_setup.sh"
     )
 endif()
 
 if("x${CMAKE_INSTALL_COMPONENT}x" STREQUAL "xUnspecifiedx" OR NOT CMAKE_INSTALL_COMPONENT)
   list(APPEND CMAKE_ABSOLUTE_DESTINATION_FILES
-   "/home/lasapc2018/workspace/Muilti-Object_Trowing/install/setup.zsh;/home/lasapc2018/workspace/Muilti-Object_Trowing/install/local_setup.zsh")
+   "/home/zhuzhengming/workspace/Object_throwing/Muilti-Object_Trowing/install/setup.zsh;/home/zhuzhengming/workspace/Object_throwing/Muilti-Object_Trowing/install/local_setup.zsh")
   if(CMAKE_WARN_ON_ABSOLUTE_INSTALL_DESTINATION)
     message(WARNING "ABSOLUTE path INSTALL DESTINATION : ${CMAKE_ABSOLUTE_DESTINATION_FILES}")
   endif()
   if(CMAKE_ERROR_ON_ABSOLUTE_INSTALL_DESTINATION)
     message(FATAL_ERROR "ABSOLUTE path INSTALL DESTINATION forbidden (by caller): ${CMAKE_ABSOLUTE_DESTINATION_FILES}")
   endif()
-  file(INSTALL DESTINATION "/home/lasapc2018/workspace/Muilti-Object_Trowing/install" TYPE FILE FILES
-    "/home/lasapc2018/workspace/Muilti-Object_Trowing/build/catkin_generated/installspace/setup.zsh"
-    "/home/lasapc2018/workspace/Muilti-Object_Trowing/build/catkin_generated/installspace/local_setup.zsh"
+file(INSTALL DESTINATION "/home/zhuzhengming/workspace/Object_throwing/Muilti-Object_Trowing/install" TYPE FILE FILES
+    "/home/zhuzhengming/workspace/Object_throwing/Muilti-Object_Trowing/build/catkin_generated/installspace/setup.zsh"
+    "/home/zhuzhengming/workspace/Object_throwing/Muilti-Object_Trowing/build/catkin_generated/installspace/local_setup.zsh"
     )
 endif()
 
 if("x${CMAKE_INSTALL_COMPONENT}x" STREQUAL "xUnspecifiedx" OR NOT CMAKE_INSTALL_COMPONENT)
   list(APPEND CMAKE_ABSOLUTE_DESTINATION_FILES
-   "/home/lasapc2018/workspace/Muilti-Object_Trowing/install/.rosinstall")
+   "/home/zhuzhengming/workspace/Object_throwing/Muilti-Object_Trowing/install/.rosinstall")
   if(CMAKE_WARN_ON_ABSOLUTE_INSTALL_DESTINATION)
     message(WARNING "ABSOLUTE path INSTALL DESTINATION : ${CMAKE_ABSOLUTE_DESTINATION_FILES}")
   endif()
   if(CMAKE_ERROR_ON_ABSOLUTE_INSTALL_DESTINATION)
     message(FATAL_ERROR "ABSOLUTE path INSTALL DESTINATION forbidden (by caller): ${CMAKE_ABSOLUTE_DESTINATION_FILES}")
   endif()
-  file(INSTALL DESTINATION "/home/lasapc2018/workspace/Muilti-Object_Trowing/install" TYPE FILE FILES "/home/lasapc2018/workspace/Muilti-Object_Trowing/build/catkin_generated/installspace/.rosinstall")
+file(INSTALL DESTINATION "/home/zhuzhengming/workspace/Object_throwing/Muilti-Object_Trowing/install" TYPE FILE FILES "/home/zhuzhengming/workspace/Object_throwing/Muilti-Object_Trowing/build/catkin_generated/installspace/.rosinstall")
 endif()
 
 if("x${CMAKE_INSTALL_COMPONENT}x" STREQUAL "xUnspecifiedx" OR NOT CMAKE_INSTALL_COMPONENT)
-  file(INSTALL DESTINATION "${CMAKE_INSTALL_PREFIX}/lib/pkgconfig" TYPE FILE FILES "/home/lasapc2018/workspace/Muilti-Object_Trowing/build/catkin_generated/installspace/Multi-object_Throwing.pc")
+  file(INSTALL DESTINATION "${CMAKE_INSTALL_PREFIX}/lib/pkgconfig" TYPE FILE FILES "/home/zhuzhengming/workspace/Object_throwing/Muilti-Object_Trowing/build/catkin_generated/installspace/Multi-object_Throwing.pc")
 endif()
 
 if("x${CMAKE_INSTALL_COMPONENT}x" STREQUAL "xUnspecifiedx" OR NOT CMAKE_INSTALL_COMPONENT)
   file(INSTALL DESTINATION "${CMAKE_INSTALL_PREFIX}/share/Multi-object_Throwing/cmake" TYPE FILE FILES
-    "/home/lasapc2018/workspace/Muilti-Object_Trowing/build/catkin_generated/installspace/Multi-object_ThrowingConfig.cmake"
-    "/home/lasapc2018/workspace/Muilti-Object_Trowing/build/catkin_generated/installspace/Multi-object_ThrowingConfig-version.cmake"
+    "/home/zhuzhengming/workspace/Object_throwing/Muilti-Object_Trowing/build/catkin_generated/installspace/Multi-object_ThrowingConfig.cmake"
+    "/home/zhuzhengming/workspace/Object_throwing/Muilti-Object_Trowing/build/catkin_generated/installspace/Multi-object_ThrowingConfig-version.cmake"
     )
 endif()
 
 if("x${CMAKE_INSTALL_COMPONENT}x" STREQUAL "xUnspecifiedx" OR NOT CMAKE_INSTALL_COMPONENT)
-  file(INSTALL DESTINATION "${CMAKE_INSTALL_PREFIX}/share/Multi-object_Throwing" TYPE FILE FILES "/home/lasapc2018/workspace/Muilti-Object_Trowing/src/package.xml")
+  file(INSTALL DESTINATION "${CMAKE_INSTALL_PREFIX}/share/Multi-object_Throwing" TYPE FILE FILES "/home/zhuzhengming/workspace/Object_throwing/Muilti-Object_Trowing/src/package.xml")
 endif()
 
 if("x${CMAKE_INSTALL_COMPONENT}x" STREQUAL "xUnspecifiedx" OR NOT CMAKE_INSTALL_COMPONENT)
-  file(INSTALL DESTINATION "${CMAKE_INSTALL_PREFIX}/lib/Multi-object_Throwing" TYPE PROGRAM FILES "/home/lasapc2018/workspace/Muilti-Object_Trowing/build/catkin_generated/installspace/trajectory_generation.py")
+  file(INSTALL DESTINATION "${CMAKE_INSTALL_PREFIX}/lib/Multi-object_Throwing" TYPE PROGRAM FILES "/home/zhuzhengming/workspace/Object_throwing/Muilti-Object_Trowing/build/catkin_generated/installspace/trajectory_generation.py")
+endif()
+
+if(NOT CMAKE_INSTALL_LOCAL_ONLY)
+  # Include the install script for each subdirectory.
+  include("/home/zhuzhengming/workspace/Object_throwing/Muilti-Object_Trowing/build/gtest/cmake_install.cmake")
+
 endif()
 
 if(CMAKE_INSTALL_COMPONENT)
@@ -160,5 +161,5 @@ endif()
 
 string(REPLACE ";" "\n" CMAKE_INSTALL_MANIFEST_CONTENT
        "${CMAKE_INSTALL_MANIFEST_FILES}")
-file(WRITE "/home/lasapc2018/workspace/Muilti-Object_Trowing/build/${CMAKE_INSTALL_MANIFEST}"
+file(WRITE "/home/zhuzhengming/workspace/Object_throwing/Muilti-Object_Trowing/build/${CMAKE_INSTALL_MANIFEST}"
      "${CMAKE_INSTALL_MANIFEST_CONTENT}")

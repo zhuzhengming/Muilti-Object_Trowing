@@ -1,2 +1,2 @@
 .
--DCATKIN_DEVEL_PREFIX=/home/lasapc2018/workspace/Muilti-Object_Trowing/devel -DCMAKE_INSTALL_PREFIX=/home/lasapc2018/workspace/Muilti-Object_Trowing/install -G Unix Makefiles
+-DCATKIN_DEVEL_PREFIX=/home/zhuzhengming/workspace/Object_throwing/Muilti-Object_Trowing/devel -DCMAKE_INSTALL_PREFIX=/home/zhuzhengming/workspace/Object_throwing/Muilti-Object_Trowing/install -G Unix Makefiles
