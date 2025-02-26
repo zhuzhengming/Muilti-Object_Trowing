@@ -1,4 +1,4 @@
-prefix=/home/zhuzhengming/workspace/Object_throwing/Muilti-Object_Trowing/install
+prefix=/home/zhengmingzhu/workspace/Muilti-Object_Trowing/install
 
 Name: Multi-object_Throwing
 Description: Description of Multi-object_Throwing

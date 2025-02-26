@@ -1,8 +1,12 @@
 <launch>
+       <!-- Include the iiwa_gazebo launch file -->
+<!--     <include file="$(find iiwa_gazebo)/launch/iiwa_gazebo.launch"/> -->
+
+
     <!-- Load parameters from YAML config file -->
     <rosparam file="$(find Multi-object_Throwing)/config/config.yaml" command="load"/>
 
     <!-- Launch the Python script -->
-    <node pkg="Multi-object_Throwing" type="trajectory_generation.py" name="trajectory_generation" output="screen">
-    </node>
+<!--     <node pkg="Multi-object_Throwing" type="trajectory_generation.py" name="trajectory_generation" output="screen"> -->
+<!--     </node> -->
 </launch>

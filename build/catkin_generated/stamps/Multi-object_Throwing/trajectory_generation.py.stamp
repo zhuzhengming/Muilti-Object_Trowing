@@ -26,6 +26,41 @@ REAL_ROBOT_STATE = True  # Set to True to use the real robot state to start the 
 class Throwing_controller:
     def __init__(self):
         rospy.init_node("throwing_controller", anonymous=True)
+
+        # Ruckig margins for throwing
+        self.MARGIN_VELOCITY = rospy.get_param('/MARGIN_VELOCITY')
+        self.MARGIN_ACCELERATION = rospy.get_param('/MARGIN_ACCELERATION')
+        self.MARGIN_JERK = rospy.get_param('/MARGIN_JERK')
+
+        # constraints of iiwa 7
+        self.max_velocity = np.array(rospy.get_param('/max_velocity'))
+        self.max_acceleration = np.array(rospy.get_param('/max_acceleration'))
+        self.max_jerk = np.array(rospy.get_param('/max_jerk'))
+
+
+        # qs for the initial state and qd for the throwing state
+        self.qs = np.zeros(3)
+        self.qs[1] = -0.5
+        self.qs_dot = np.zeros(3)
+        self.qs_dotdot = np.zeros(3)
+
+        self.qd = np.array([0.0, 1.5 - 2.0 * math.pi, 1.0])
+        self.qd_dot = np.array([0.0, -4.0, -4.0]) * self.MARGIN_VELOCITY
+        self.qd_dotdot = np.array([0.0, 0.0, 0.0])
+
+        # compute the nominal throwing and slowing trajectory
+        self.trajectory = self.get_traj_from_ruckig(self.qs, self.qs_dot, self.qs_dotdot, self.qd, self.qd_dot,
+                                                    self.qd_dotdot,
+                                                    margin_velocity=self.MARGIN_VELOCITY,
+                                                    margin_acceleration=self.MARGIN_ACCELERATION)
+        self.trajectory_back = self.get_traj_from_ruckig(self.qd, self.qd_dot, self.qd_dotdot, self.qs, self.qs_dot,
+                                                         self.qs_dotdot,
+                                                         margin_velocity=self.MARGIN_VELOCITY,
+                                                         margin_acceleration=self.MARGIN_ACCELERATION * 0.5)
+
+        self.traj_time = self.trajectory.duration
+        self.traj_back_time = self.trajectory_back.duration
+
         # Run simulation once for visualization
         if SIMULATION:
             self.run_simulation()
@@ -47,16 +82,6 @@ class Throwing_controller:
         self.ERROR_THRESHOLD = rospy.get_param('/ERROR_THRESHOLD')  # Threshold to switch from homing to throwing state
         self.GRIPPER_DELAY = rospy.get_param('/GRIPPER_DELAY')
 
-        # Ruckig margins for throwing
-        self.MARGIN_VELOCITY = rospy.get_param('/MARGIN_VELOCITY')
-        self.MARGIN_ACCELERATION = rospy.get_param('/MARGIN_ACCELERATION')
-        self.MARGIN_JERK = rospy.get_param('/MARGIN_JERK')
-
-        # constraints of iiwa 7
-        self.max_velocity = np.array(rospy.get_param('/max_velocity'))
-        self.max_acceleration = np.array(rospy.get_param('/max_acceleration'))
-        self.max_jerk = np.array(rospy.get_param('/max_jerk'))
-
         self.time_throw = np.inf  # Planned time of throwing
         self.fsm_state = "IDLE"
 
@@ -76,28 +101,6 @@ class Throwing_controller:
         self.tracking_error_pos = []
         self.tracking_error_vel = []
         self.joint_velo_his = []
-
-        # qs for the initial state and qd for the throwing state
-        self.qs = np.zeros(3)
-        self.qs[1] = -0.5
-        self.qs_dot = np.zeros(3)
-        self.qs_dotdot = np.zeros(3)
-
-        self.qd = np.array([0.0, 1.5 - 2.0 * math.pi, 1.0])
-        self.qd_dot = np.array([0.0, -4.0, -4.0]) * self.MARGIN_VELOCITY
-        self.qd_dotdot = np.array([0.0, 0.0, 0.0])
-
-        # compute the nominal throwing and slowing trajectory
-        self.trajectory = self.get_traj_from_ruckig(self.qs, self.qs_dot, self.qs_dotdot, self.qd, self.qd_dot, self.qd_dotdot,
-                                                    margin_velocity=self.MARGIN_VELOCITY,
-                                                    margin_acceleration=self.MARGIN_ACCELERATION)
-        self.trajectory_back = self.get_traj_from_ruckig(self.qd, self.qd_dot, self.qd_dotdot, self.qs, self.qs_dot, self.qs_dotdot,
-                                               margin_velocity=self.MARGIN_VELOCITY,
-                                               margin_acceleration=self.MARGIN_ACCELERATION * 0.5)
-
-        self.traj_time = self.trajectory.duration
-        self.traj_back_time = self.trajectory_back.duration
-
 
     # simulation in Pybullet
     def simulate_trajectory(self, trajectory=None):

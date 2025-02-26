@@ -20,7 +20,7 @@ import threading
 
 # global variables
 SIMULATION = True  # Set to True to run the simulation before commanding the real robot
-REAL_ROBOT_STATE = True  # Set to True to use the real robot state to start the simulation
+REAL_ROBOT_STATE = False  # Set to True to use the real robot state to start the simulation
 
 ## ---- ROS conversion and callbacks functions ---- ##
 class Throwing_controller:
@@ -37,15 +37,14 @@ class Throwing_controller:
         self.max_acceleration = np.array(rospy.get_param('/max_acceleration'))
         self.max_jerk = np.array(rospy.get_param('/max_jerk'))
 
-
         # qs for the initial state and qd for the throwing state
         self.qs = np.zeros(3)
-        self.qs[1] = -0.5
+        self.qs[1] = -0.1
         self.qs_dot = np.zeros(3)
         self.qs_dotdot = np.zeros(3)
 
         self.qd = np.array([0.0, 1.5 - 2.0 * math.pi, 1.0])
-        self.qd_dot = np.array([0.0, -4.0, -4.0]) * self.MARGIN_VELOCITY
+        self.qd_dot = np.array([0.0, -1.0, -1.0]) * self.MARGIN_VELOCITY
         self.qd_dotdot = np.array([0.0, 0.0, 0.0])
 
         # compute the nominal throwing and slowing trajectory
