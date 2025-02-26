@@ -1,0 +1,43 @@
+{
+	"sources" : 
+	[
+		{
+			"file" : "/home/lasapc2018/workspace/Muilti-Object_Trowing/build/CMakeFiles/GMock"
+		},
+		{
+			"file" : "/home/lasapc2018/workspace/Muilti-Object_Trowing/build/CMakeFiles/GMock.rule"
+		},
+		{
+			"file" : "/home/lasapc2018/workspace/Muilti-Object_Trowing/build/CMakeFiles/GMock-complete.rule"
+		},
+		{
+			"file" : "/home/lasapc2018/workspace/Muilti-Object_Trowing/build/GMock-prefix/src/GMock-stamp/GMock-build.rule"
+		},
+		{
+			"file" : "/home/lasapc2018/workspace/Muilti-Object_Trowing/build/GMock-prefix/src/GMock-stamp/GMock-configure.rule"
+		},
+		{
+			"file" : "/home/lasapc2018/workspace/Muilti-Object_Trowing/build/GMock-prefix/src/GMock-stamp/GMock-download.rule"
+		},
+		{
+			"file" : "/home/lasapc2018/workspace/Muilti-Object_Trowing/build/GMock-prefix/src/GMock-stamp/GMock-install.rule"
+		},
+		{
+			"file" : "/home/lasapc2018/workspace/Muilti-Object_Trowing/build/GMock-prefix/src/GMock-stamp/GMock-mkdir.rule"
+		},
+		{
+			"file" : "/home/lasapc2018/workspace/Muilti-Object_Trowing/build/GMock-prefix/src/GMock-stamp/GMock-patch.rule"
+		},
+		{
+			"file" : "/home/lasapc2018/workspace/Muilti-Object_Trowing/build/GMock-prefix/src/GMock-stamp/GMock-update.rule"
+		}
+	],
+	"target" : 
+	{
+		"labels" : 
+		[
+			"GMock"
+		],
+		"name" : "GMock"
+	}
+}

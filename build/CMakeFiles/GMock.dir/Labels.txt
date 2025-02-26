@@ -1,0 +1,13 @@
+# Target labels
+ GMock
+# Source files and their labels
+/home/lasapc2018/workspace/Muilti-Object_Trowing/build/CMakeFiles/GMock
+/home/lasapc2018/workspace/Muilti-Object_Trowing/build/CMakeFiles/GMock.rule
+/home/lasapc2018/workspace/Muilti-Object_Trowing/build/CMakeFiles/GMock-complete.rule
+/home/lasapc2018/workspace/Muilti-Object_Trowing/build/GMock-prefix/src/GMock-stamp/GMock-build.rule
+/home/lasapc2018/workspace/Muilti-Object_Trowing/build/GMock-prefix/src/GMock-stamp/GMock-configure.rule
+/home/lasapc2018/workspace/Muilti-Object_Trowing/build/GMock-prefix/src/GMock-stamp/GMock-download.rule
+/home/lasapc2018/workspace/Muilti-Object_Trowing/build/GMock-prefix/src/GMock-stamp/GMock-install.rule
+/home/lasapc2018/workspace/Muilti-Object_Trowing/build/GMock-prefix/src/GMock-stamp/GMock-mkdir.rule
+/home/lasapc2018/workspace/Muilti-Object_Trowing/build/GMock-prefix/src/GMock-stamp/GMock-patch.rule
+/home/lasapc2018/workspace/Muilti-Object_Trowing/build/GMock-prefix/src/GMock-stamp/GMock-update.rule

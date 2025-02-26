@@ -9,10 +9,7 @@ find_package(catkin REQUIRED COMPONENTS
         rospy
         roscpp
         std_msgs
-        gtest
-        gmock
 )
-
 
 catkin_package(
         #  INCLUDE_DIRS include
@@ -27,7 +24,7 @@ include_directories(
 )
 
 catkin_install_python(PROGRAMS
-  scripts/throwing_generation.py
+  scripts/trajectory_generation.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 
