@@ -1,3 +1,5 @@
+import sys
+sys.path.append("../")
 import time
 import math
 import rospy
@@ -14,9 +16,11 @@ from std_msgs.msg import Int64
 from pathlib import Path
 from sys import path
 from ruckig import InputParameter, Ruckig, Trajectory
+from utils.mujoco_interface import Robot
 
 from std_srvs.srv import Trigger
-import threading
+import mujoco
+from mujoco import viewer
 
 # global variables
 SIMULATION = True  # Set to True to run the simulation before commanding the real robot
@@ -24,8 +28,9 @@ REAL_ROBOT_STATE = False  # Set to True to use the real robot state to start the
 
 ## ---- ROS conversion and callbacks functions ---- ##
 class Throwing_controller:
-    def __init__(self):
+    def __init__(self, simulator='mujoco'):
         rospy.init_node("throwing_controller", anonymous=True)
+        self.simulator = simulator
 
         # Ruckig margins for throwing
         self.MARGIN_VELOCITY = rospy.get_param('/MARGIN_VELOCITY')
@@ -43,8 +48,8 @@ class Throwing_controller:
         self.qs_dot = np.zeros(3)
         self.qs_dotdot = np.zeros(3)
 
-        self.qd = np.array([0.0, 1.5 - 2.0 * math.pi, 1.0])
-        self.qd_dot = np.array([0.0, -1.0, -1.0]) * self.MARGIN_VELOCITY
+        self.qd = np.array([0.0, 0.5, 1.0])
+        self.qd_dot = np.array([0.0, 0.1, 0.1]) * self.MARGIN_VELOCITY
         self.qd_dotdot = np.array([0.0, 0.0, 0.0])
 
         # compute the nominal throwing and slowing trajectory
@@ -52,17 +57,25 @@ class Throwing_controller:
                                                     self.qd_dotdot,
                                                     margin_velocity=self.MARGIN_VELOCITY,
                                                     margin_acceleration=self.MARGIN_ACCELERATION)
+
         self.trajectory_back = self.get_traj_from_ruckig(self.qd, self.qd_dot, self.qd_dotdot, self.qs, self.qs_dot,
                                                          self.qs_dotdot,
                                                          margin_velocity=self.MARGIN_VELOCITY,
                                                          margin_acceleration=self.MARGIN_ACCELERATION * 0.5)
+
+        if self.trajectory is None or self.trajectory_back is None:
+            rospy.logerr("Trajectory is None")
 
         self.traj_time = self.trajectory.duration
         self.traj_back_time = self.trajectory_back.duration
 
         # Run simulation once for visualization
         if SIMULATION:
-            self.run_simulation()
+            if self.simulator == 'pybullet':
+                self.run_simulation_pybullet()
+            elif self.simulator == 'mujoco':
+                self.run_simulation_mujoco()
+
         while True:
             self.robot_state = rospy.wait_for_message("/iiwa/joint_states", JointState)
             print("Got robot state")
@@ -139,7 +152,7 @@ class Throwing_controller:
 
         p.disconnect()
 
-    def run_simulation(self):
+    def run_simulation_pybullet(self):
         clid = p.connect(p.GUI)
         p.configureDebugVisualizer(p.COV_ENABLE_GUI, 0)
         p.resetDebugVisualizerCamera(cameraDistance=2.5, cameraYaw=145, cameraPitch=-45,
@@ -162,17 +175,20 @@ class Throwing_controller:
             q0_dot = np.array(robot_state.velocity)
             self.qs[0] = q0[0]
             # compute the nominal throwing and slowing trajectory
-            trajectory = self.get_traj_from_ruckig(self.qs, self.qs_dot, self.qs_dotdot,
+            self.trajectory = self.get_traj_from_ruckig(self.qs, self.qs_dot, self.qs_dotdot,
                                                    self.qd, self.qd_dot, self.qd_dotdot,
                                                    margin_velocity=self.MARGIN_VELOCITY,
                                                    margin_acceleration=self.MARGIN_ACCELERATION)
-            trajectory_back = self.get_traj_from_ruckig(self.qd, self.qd_dot, self.qd_dotdot,
+            self.trajectory_back = self.get_traj_from_ruckig(self.qd, self.qd_dot, self.qd_dotdot,
                                                         self.qs, self.qs_dot, self.qs_dotdot,
                                                    margin_velocity=self.MARGIN_VELOCITY,
                                                    margin_acceleration=self.MARGIN_ACCELERATION * 0.5)
 
-            traj_time = trajectory.duration
-            traj_back_time = trajectory_back.duration
+            if self.trajectory is None or self.trajectory_back is None:
+                rospy.logerr("Trajectory is None")
+
+            self.traj_time = self.trajectory.duration
+            self.traj_back_time = self.trajectory_back.duration
         else:
             # sample a random starting configuration
             np.random.seed(0)
@@ -180,12 +196,15 @@ class Throwing_controller:
         # reset the robot to the random configuration
         p.resetJointStatesMultiDof(robotId, controlled_joints, [[q0_i] for q0_i in q0],
                                    targetVelocities=[[q0_i] for q0_i in np.zeros(7)])
-        pdb.set_trace(header="PDB PAUSE: Press C to start simulation...")
+        # pdb.set_trace(header="PDB PAUSE: Press C to start simulation...")
 
         # generate the trajectory to go to qs
-        trajectory_to_qs = self.get_traj_from_ruckig(q0, np.zeros(7), np.zeros(7),
+        trajectory_to_qs = self.get_traj_from_ruckig(q0, np.zeros(3), np.zeros(3),
                                                      self.qs, self.qs_dot, self.qs_dotdot,
                                                     margin_velocity=0.2, margin_acceleration=0.1)
+
+        if trajectory_to_qs is None:
+            rospy.logerr("Trajectory is None")
 
         flag = True
         landing_pos = None
@@ -211,7 +230,7 @@ class Throwing_controller:
             logId = p.startStateLogging(loggingType=p.STATE_LOGGING_VIDEO_MP4, fileName=video_path)
         while (True):
             if flag:
-                ref_full = trajectory.at_time(tt)
+                ref_full = self.trajectory.at_time(tt)
 
                 ref = [ref_full[i][:7] for i in range(3)]
                 # ref_base = [ref_full[i][-2:] for i in range(3)]
@@ -220,7 +239,7 @@ class Throwing_controller:
                 eef_state = p.getLinkState(robotId, robotEndEffectorIndex, computeLinkVelocity=1)
             else:
                 # slow down the robot
-                ref_full = trajectory_back.at_time(tt - traj_time)
+                ref_full = self.trajectory_back.at_time(tt - self.traj_time)
                 ref = [ref_full[i][:7] for i in range(3)]
                 p.resetJointStatesMultiDof(robotId, controlled_joints, [[q0_i] for q0_i in ref[0]],
                                            targetVelocities=[[q0_i] for q0_i in ref[1]])
@@ -232,20 +251,118 @@ class Throwing_controller:
             waypoints.append(ref_vector)
             p.stepSimulation()
             tt = tt + delta_t
-            if tt > trajectory.duration and tt <= trajectory.duration + trajectory_back.duration:
+            if tt > self.trajectory.duration and tt <= self.trajectory.duration + self.trajectory_back.duration:
                 flag = False
 
             time.sleep(delta_t)
             if tt > 6.0:
-                # tt = 0.0
-                # flag = True
-                # eef_state = p.getLinkState(robotId, robotEndEffectorIndex, computeLinkVelocity=1)
-                # p.resetBasePositionAndOrientation(soccerballId, eef_state[0], [0, 0, 0, 1])
-                # if recordind_flag and not (video_path is None):
-                #     p.stopStateLogging(logId)
-                #     recordind_flag = False
                 break
         p.disconnect()
+
+    def run_simulation_mujoco(self):
+        xml_path = '../description/iiwa7_allegro_ycb.xml'
+        obj_name = ''
+        model = mujoco.MjModel.from_xml_path(xml_path)
+        data = mujoco.MjData(model)
+        mujoco.mj_step(model, data)
+
+        view = viewer.launch_passive(model, data)
+
+        obj_names = ['banana', 'bottle', 'chip_can', 'soft_scrub', 'sugar_box']
+        num = 0
+        obj = obj_names[num]
+        r = Robot(model, data, view, auto_sync=True, obj_names=obj_names)
+
+        if REAL_ROBOT_STATE:
+            # get initial robot state from ROS message
+            robot_state = rospy.wait_for_message("/iiwa/joint_states", JointState)
+            print("initial robot state")
+
+            q0 = np.array(robot_state.position)
+            q0_dot = np.array(robot_state.velocity)
+            self.qs[0] = q0[0]
+            self.qs_dot[0] = q0_dot[0]
+            # compute the nominal throwing and slowing trajectory
+            self.trajectory = self.get_traj_from_ruckig(self.qs, self.qs_dot, self.qs_dotdot,
+                                                   self.qd, self.qd_dot, self.qd_dotdot,
+                                                   margin_velocity=self.MARGIN_VELOCITY,
+                                                   margin_acceleration=self.MARGIN_ACCELERATION)
+            self.trajectory_back = self.get_traj_from_ruckig(self.qd, self.qd_dot, self.qd_dotdot,
+                                                        self.qs, self.qs_dot, self.qs_dotdot,
+                                                   margin_velocity=self.MARGIN_VELOCITY,
+                                                   margin_acceleration=self.MARGIN_ACCELERATION * 0.5)
+
+            if self.trajectory is None or self.trajectory_back is None:
+                rospy.logerr("Trajectory is None")
+
+            self.traj_time = self.trajectory.duration
+            self.traj_back_time = self.traj_time.duration
+        else:
+            # get initial robot state from Mujoco
+            q0 = np.copy(r.q[:3])
+            q0_dot = np.copy(r.dq[:3])
+
+        qs = np.copy(r.q[:3])
+        qs[1] += 0.2
+        qs_dot = np.copy(r.dq[:3])
+
+        # reset the robot to initial configuration
+        r.iiwa_hand_go(q=q0, d_pose=q0_dot, qh=np.zeros(16))
+        # pdb.set_trace(header="PDB PAUSE: Press C to start simulation...")
+
+        # generate the trajectory to go to qs
+        trajectory_to_qs = self.get_traj_from_ruckig(q0, np.zeros(3), np.zeros(3),
+                                                     qs, qs_dot, self.qs_dotdot,
+                                                     margin_velocity=0.2, margin_acceleration=0.1)
+
+        if trajectory_to_qs is None:
+            rospy.logerr("Trajectory is None")
+
+        flag = True
+        delta_t = 0.002
+
+        # execute homing trajectory
+        tt =0
+        while True:
+            ref = trajectory_to_qs.at_time(tt)
+            ref_positions = ref[0]
+            ref_velocities = ref[1]
+            qh = np.zeros(16)
+            r.iiwa_hand_go(q=ref_positions, d_pose=ref_velocities, qh=qh)
+
+            time.sleep(delta_t)
+            tt += delta_t
+            if tt > trajectory_to_qs.duration:
+                break
+
+        waypoints = []
+        tt = 0
+        while True:
+            if flag:
+                ref_full = self.trajectory.at_time(tt)
+                ref = [ref_full[i][:7] for i in range(3)]
+                r.iiwa_hand_go(q=ref[0], d_pose=ref[1], qh=np.zeros(16))
+            else:
+                # slow down the robot
+                ref_full = self.trajectory_back.at_time(tt - self.traj_time)
+                ref = [ref_full[i][:7] for i in range(3)]
+                r.iiwa_hand_go(q=ref[0], d_pose=ref[1], qh=np.zeros(16))
+
+            ref_vector = np.zeros(10)
+            ref_vector[0] = tt
+            ref_vector[1:4] = ref_full[0]
+            ref_vector[4:7] = ref_full[1]
+            ref_vector[7:10] = ref_full[2]
+            waypoints.append(ref_vector)
+
+            tt += delta_t
+            if tt > self.trajectory.duration and tt <= self.trajectory.duration + self.trajectory_back.duration:
+                flag = False
+            time.sleep(delta_t)
+            if tt > 6.0:
+                break
+        view.close()
+
 
     def run(self):
         # ------------ Control Loop ------------ #
@@ -270,13 +387,16 @@ class Throwing_controller:
             #     continue
 
             if self.fsm_state == "IDLE":
-                pdb.set_trace(header="PDB PAUSE: Press C to start homing...")
+                # pdb.set_trace(header="PDB PAUSE: Press C to start homing...")
                 print("HOMING...")
                 current_robot_state = rospy.wait_for_message("/iiwa/joint_states", JointState)
                 self.q0 = np.array(current_robot_state.position)
                 self.homing_traj = self.get_traj_from_ruckig(self.q0, np.zeros(3), np.zeros(3),
                                                              self.qs, self.qs_dot, self.qs_dotdot,
                                                         margin_velocity=0.2, margin_acceleration=0.1)
+                if self.homing_traj is None:
+                    rospy.logerr("Trajectory is None")
+
                 print("IDLING: initial state", self.q0, "homing trajectory duration", self.homing_traj.duration)
 
                 # update state
@@ -322,6 +442,9 @@ class Throwing_controller:
                                                                      self.qs, self.qs_dot, self.qs_dotdot,
                                                                 margin_velocity=self.MARGIN_VELOCITY,
                                                                 margin_acceleration=self.MARGIN_ACCELERATION * 0.5)
+                    if self.trajectory_back is None:
+                        rospy.logerr("Trajectory is None")
+
                     print("Slowing...")
 
                 ref = self.throwing_traj.at_time(time_now - self.time_start_throwing)
@@ -376,6 +499,9 @@ class Throwing_controller:
                                                            self.qd, self.qd_dot, self.qd_dotdot,
                                                       margin_velocity=self.MARGIN_VELOCITY,
                                                       margin_acceleration=self.MARGIN_ACCELERATION)
+            if self.throwing_traj is None:
+                rospy.logerr("Trajectory is None")
+
             # inspect the throwing trajectory
             # self.simulate_trajectory(self.throwing_traj)
             # pdb.set_trace(header="PDB PAUSE: Press C to throw...")
@@ -441,7 +567,9 @@ class Throwing_controller:
 
 
 if __name__ == '__main__':
-    throwing_controller = Throwing_controller()
+
+    simulation_mode = 'mujoco'
+    throwing_controller = Throwing_controller(simulator=simulation_mode)
 
     for nTry in range(100):
         print("test number", nTry + 1)

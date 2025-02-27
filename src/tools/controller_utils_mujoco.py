@@ -17,12 +17,14 @@ Notes:
  - All quatersions are in (w x y z) order
  - Fingers of hand are in ('index', 'middle', 'ring', 'thumb') order
 """
+import sys
+sys.path.append("../")
 import time
 
 import numpy as np
 import mujoco
 from mujoco import viewer
-import tools.rotations as rot
+import rotations as rot
 import quaternion
 
 import fileinput
@@ -691,7 +693,7 @@ def replace_line_in_xml(file_path, search_pattern, replace_line):
 
 
 if __name__ == "__main__":
-    xml_path = 'description/iiwa7_allegro_ycb.xml'
+    xml_path = '../description/iiwa7_allegro_ycb.xml'
     obj_name = ''
     model = mujoco.MjModel.from_xml_path(xml_path)
     data = mujoco.MjData(model)
