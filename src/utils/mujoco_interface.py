@@ -1,4 +1,7 @@
 import sys
+
+import rospy
+
 sys.path.append("../")
 import numpy as np
 import mujoco
@@ -36,10 +39,9 @@ class Robot:
         self.fingertip_sites = ['index_site', 'middle_site', 'ring_site',
                                 'thumb_site']  # These site points are the fingertip (center of semisphere) positions
 
-        self._joint_kp = np.array([800, 800, 400, 400, 200, 150, 100])
-        self._joint_kd = np.array([200, 200, 100, 100, 30, 30, 10])
-        self.max_torque = np.array([80, 80, 80, 80, 80, 80, 80])
-        self.tau_end = 19.62 + 50
+        self._joint_kp = np.array(rospy.get_param('/PD/joint_kp'))
+        self._joint_kd = np.array(rospy.get_param('/PD/joint_kd'))
+        self.max_torque = np.array(rospy.get_param('/max_torque'))
 
     def step(self):
         mujoco.mj_step(self.m, self.d)  # run one-step dynamics simulation
@@ -73,7 +75,6 @@ class Robot:
         """
 
         self.d.ctrl[:len(torque)] = torque  # apply the control torque
-        print(torque)
         self.step()
         if self.auto_sync:
             self.view.sync()
@@ -93,10 +94,8 @@ class Robot:
         qacc_des = self._joint_kp * error_q + self._joint_kd * error_dq
         qacc_des = np.clip(qacc_des, -self.max_torque, self.max_torque)
 
-        # gravity compensation
-        gravity_torque = np.array([0, 0, self.tau_end, 0, 0, 0])
-        tau_torque_joint = np.dot(self.J.T, gravity_torque)
-        qacc_des += tau_torque_joint
+        # in mujoco
+        qacc_des += self.C[:7]
 
         return qacc_des
 
