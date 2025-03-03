@@ -57,7 +57,8 @@ class Robot():
         self._joint_kp = np.array(rospy.get_param('/PD/joint_kp_joint_impedance'))
         self._joint_kd = np.array(rospy.get_param('/PD/joint_kd_joint_impedance'))
 
-        self.tau_end = rospy.get_param("/tau_end")
+        # add some offset because of rough
+        self.tau_end = rospy.get_param("/tau_end") + 0.5
 
         self._q_cmd = None
         self._dq_cmd = None
