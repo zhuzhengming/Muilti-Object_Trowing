@@ -30,6 +30,26 @@ REAL_ROBOT_STATE = True  # Set to True to use the real robot state to start the 
 class Throwing_controller:
     def __init__(self, simulator='mujoco'):
         rospy.init_node("throwing_controller", anonymous=True)
+
+        # initialize ROS subscriber/publisher
+        self.fsm_state_pub = rospy.Publisher('fsm_state', String, queue_size=1)
+        self.target_state_pub = rospy.Publisher('/computed_torque_controller/target_state', JointState,
+                                                queue_size=10)  # for debug
+        self.command_pub = rospy.Publisher('/iiwa_impedance_joint', JointState, queue_size=10)
+
+        rospy.Subscriber('/iiwa/joint_states', JointState, self.joint_states_callback, queue_size=10)
+        rospy.Subscriber('/throw_node/throw_state', Int64, self.scheduler_callback)
+        # rospy.wait_for_service('/franka_control/gripper_deactivate')
+
+        # Initialize robot state, to be updated from robot
+        self.robot_state = JointState()
+        self.robot_state.position = [0.0 for _ in range(7)]
+        self.robot_state.velocity = [0.0 for _ in range(7)]
+        self.robot_state.effort = [0.0 for _ in range(7)]
+
+        # Initialize target state, to be updated from planner
+        self.target_state = JointState()
+
         self.simulator = simulator
 
         # Ruckig margins for throwing
@@ -47,16 +67,20 @@ class Throwing_controller:
         self.envelop = np.array(rospy.get_param('/envelop_pose'))
 
         # q0 is the home state
-        self.q0 = np.array([-0.32032486, 0.02707055, -0.22881525, -1.42611918, 1.38608943, 0.5596685, -1.34659665 + np.pi])
+        if SIMULATION:
+            self.q0 = np.array([-0.32032486, 0.02707055, -0.22881525, -1.42611918, 1.38608943, 0.5596685, -1.34659665 + np.pi])
+        else:
+            robot_state = rospy.wait_for_message("/iiwa/joint_states", JointState)
+            self.q0 = np.array(robot_state.position)
 
         # qs for the initial state
-        self.qs = self.q0 + np.array([-0.5, -0.1, 0.1, 0.0, 0.0, 0.0, 0.0])
+        self.qs = self.q0 + np.array([-0.5, 0.3, 0.1, 0.0, 0.0, 0.0, 0.0])
         self.qs_dot = np.zeros(7)
         self.qs_dotdot = np.zeros(7)
 
         # qd for the throwing state
-        self.qd = self.qs + np.array([0.8, -0.2, 0.0, 0.0, 0.0, 0.2, 0.0])
-        self.qd_dot = np.array([0.0, 0.1, 0.0, 0.0, 0.0, 0.0, 0.0])
+        self.qd = self.qs + np.array([0.8, -0.3, 0.2, 0.3, 0.1, 0.4, -0.4])
+        self.qd_dot = np.array([0.5, 0.3, 0.2, 0.2, 0.4, 0.2, 0.2])
         self.qd_dotdot = np.zeros(7)
 
         # compute the nominal throwing and slowing trajectory
@@ -76,7 +100,7 @@ class Throwing_controller:
         self.traj_time = self.trajectory.duration
         self.traj_back_time = self.trajectory_back.duration
 
-        if simulator == 'mujoco':
+        if simulator == 'mujoco' and SIMULATION == True:
             xml_path = '../description/iiwa7_allegro_ycb.xml'
             obj_name = ''
             model = mujoco.MjModel.from_xml_path(xml_path)
@@ -98,35 +122,18 @@ class Throwing_controller:
             # elif self.simulator == 'mujoco':
                 # self.run_simulation_mujoco()
 
-        # Initialize robot state, to be updated from robot
-        self.robot_state = JointState()
-        self.robot_state.position = [0.0 for _ in range(7)]
-        self.robot_state.velocity = [0.0 for _ in range(7)]
-        self.robot_state.effort = [0.0 for _ in range(7)]
-
-        # Initialize target state, to be updated from planner
-        self.target_state = JointState()
-
         self.stamp = []
         self.tracking_error_pos = []
         self.tracking_error_vel = []
         self.joint_velo_his = []
 
         while True:
-            self.robot_state.position = np.array(self.r.q)
-            self.robot_state.velocity = np.array(self.r.dq)
-            # self.robot_state = rospy.wait_for_message("/iiwa/joint_states", JointState)
+            if SIMULATION:
+                self.robot_state.position = np.array(self.r.q)
+                self.robot_state.velocity = np.array(self.r.dq)
+
             print("Got robot state")
             break
-
-        # initialize ROS subscriber/publisher
-        self.fsm_state_pub = rospy.Publisher('fsm_state', String, queue_size=1)
-        self.target_state_pub = rospy.Publisher('/computed_torque_controller/target_state', JointState, queue_size=10) # for debug
-        self.command_pub = rospy.Publisher('/iiwa_impedance_joint', JointState, queue_size=10)
-
-        rospy.Subscriber('/iiwa/joint_states', JointState, self.joint_states_callback, queue_size=1)
-        rospy.Subscriber('/throw_node/throw_state', Int64, self.scheduler_callback)
-        # rospy.wait_for_service('/franka_control/gripper_deactivate')
 
         # get parameters and initialization
         self.ERROR_THRESHOLD = rospy.get_param('/ERROR_THRESHOLD')  # Threshold to switch from homing to throwing state
@@ -343,18 +350,18 @@ class Throwing_controller:
         dT = 5e-3
         rate = rospy.Rate(1.0 / dT)
 
-        # update robot state
-        if SIMULATION:
-            q_cur = self.r.q
-            q_cur_dot = self.r.dq
-        else:
-            self.robot_state = rospy.wait_for_message("/iiwa/joint_states", JointState)
-            q_cur = np.array(self.robot_state.position)
-            q_cur_dot = np.array(self.robot_state.velocity)
-
         while not rospy.is_shutdown():
             # Publish state and fsm for debug
             self.fsm_state_pub.publish(self.fsm_state)
+
+            # update robot state
+            if SIMULATION:
+                q_cur = self.r.q
+                q_cur_dot = self.r.dq
+            else:
+                # self.robot_state = rospy.wait_for_message("/iiwa/joint_states", JointState)
+                q_cur = np.array(self.robot_state.position)
+                q_cur_dot = np.array(self.robot_state.velocity)
 
             # Check tracking error before throw
             if self.fsm_state == "THROWING" or self.fsm_state == "RELEASE":
@@ -366,7 +373,7 @@ class Throwing_controller:
                     self.joint_velo_his.append(np.array(self.robot_state.velocity))
 
             if self.fsm_state == "IDLE":
-                pdb.set_trace(header="Press C to start homing...")
+                # pdb.set_trace(header="Press C to start homing...")
                 print("HOMING...")
 
                 self.homing_traj = self.get_traj_from_ruckig(q_cur, q_cur_dot, np.zeros(7),
@@ -376,7 +383,7 @@ class Throwing_controller:
                 if self.homing_traj is None:
                     rospy.logerr("Trajectory is None")
 
-                print("IDLING: initial state", self.q0, "homing trajectory duration", self.homing_traj.duration)
+                # print("IDLING: initial state", self.q0, "homing trajectory duration", self.homing_traj.duration)
 
                 # update state
                 self.fsm_state = "HOMING"
@@ -391,7 +398,7 @@ class Throwing_controller:
                     # Jump to next state
                     self.fsm_state = "IDLE_THROWING"
                     print("IDLE_THROWING")
-                    pdb.set_trace(header="Press C to see the throwing trajectory...")
+                    # pdb.set_trace(header="Press C to see the throwing trajectory...")
                     self.scheduler_callback(Int64(1))
 
                 time_now = rospy.get_time()
@@ -424,13 +431,13 @@ class Throwing_controller:
 
                     self.trajectory_back = self.get_traj_from_ruckig(q_cur, q_cur_dot, self.qd_dotdot,
                                                                      self.qs, self.qs_dot, self.qs_dotdot,
-                                                                margin_velocity=self.MARGIN_VELOCITY,
+                                                                margin_velocity=self.MARGIN_VELOCITY * 0.2,
                                                                 margin_acceleration=self.MARGIN_ACCELERATION * 0.2)
                     if self.trajectory_back is None:
                         rospy.logerr("Trajectory is None")
 
                     print("SLOWING")
-                    pdb.set_trace(header="Press C to see the slowing trajectory...")
+                    # pdb.set_trace(header="Press C to see the slowing trajectory...")
                     self.time_start_slowing = time_now
 
 
@@ -476,9 +483,9 @@ class Throwing_controller:
         command.header.stamp = rospy.Time.from_sec(time_now)
         command.name = ['panda_joint1', 'panda_joint2', 'panda_joint3', 'panda_joint4', 'panda_joint5', 'panda_joint6',
                         'panda_joint7']
-        command.position = [0.0 for _ in range(4)] + qd
-        command.velocity = [0.0 for _ in range(4)] + qd_dot
-        command.effort = [0.0 for _ in range(4)] + qd_dotdot
+        command.position =  qd
+        command.velocity = qd_dot
+        command.effort = qd_dotdot
 
         return command
 
@@ -494,12 +501,12 @@ class Throwing_controller:
             # compute new trajectory to throw from current position
             if SIMULATION:
                 q_cur = self.r.q
-                qdot_cur = self.r.dq
+                q_cur_dot = self.r.dq
             else:
                 q_cur = np.array(self.robot_state.position)
-                qdot_cur = np.array(self.robot_state.velocity)
+                q_cur_dot = np.array(self.robot_state.velocity)
 
-            self.throwing_traj = self.get_traj_from_ruckig(q_cur, qdot_cur, np.zeros(7),
+            self.throwing_traj = self.get_traj_from_ruckig(q_cur, q_cur_dot, np.zeros(7),
                                                            self.qd, self.qd_dot, self.qd_dotdot,
                                                       margin_velocity=self.MARGIN_VELOCITY,
                                                       margin_acceleration=self.MARGIN_ACCELERATION)
@@ -577,6 +584,8 @@ if __name__ == '__main__':
 
         throwing_controller.fsm_state = "IDLE"
         throwing_controller.run()
+
+        time.sleep(2)
 
         # Stop controller when ROS is stopped
         if rospy.is_shutdown():

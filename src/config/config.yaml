@@ -15,7 +15,8 @@ freq: 200
 
 max_torque: [80, 80, 80, 80, 80, 80, 80]
 
-tau_end: 19.62
+gravity: 19.62
+center_ee: [0.01018, 0.01031, 0.05839]
 #########################################################################
 # Pre-defined pose
 #########################################################################
@@ -40,7 +41,7 @@ envelop_pose: [ 0.07941064,  1.77857954,  0.44877399,  0.62444235,  0.29191241,
 # Trajectory generation
 #########################################################################
 
-ERROR_THRESHOLD: 0.15  # Threshold to switch from homing to throwing state
+ERROR_THRESHOLD: 0.1  # Threshold to switch from homing to throwing state
 GRIPPER_DELAY: 0.350
 
 # Ruckig margins for throwing
