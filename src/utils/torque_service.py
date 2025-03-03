@@ -57,6 +57,7 @@ class Robot():
         self._joint_kp = np.array(rospy.get_param('/PD/joint_kp_joint_impedance'))
         self._joint_kd = np.array(rospy.get_param('/PD/joint_kd_joint_impedance'))
 
+        self.center_ee = np.array([0.01018, 0.01031, 0.05839])
         # add some offset because of rough
         self.tau_end = rospy.get_param("/tau_end") + 0.5
 
@@ -120,6 +121,7 @@ class Robot():
 
         # gravity compensation
         gravity_torque = np.array([0, 0, self.tau_end, 0, 0, 0])
+        gravity_torque[3:] = np.cross(self.center_ee, self.tau_end)
         tau_torque_joint = np.dot(self.J.T, gravity_torque)
         qacc_des += tau_torque_joint
 
