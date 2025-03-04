@@ -23,8 +23,8 @@ import mujoco
 from mujoco import viewer
 
 # global variables
-SIMULATION = True  # Set to True to run the simulation before commanding the real robot
-REAL_ROBOT_STATE = False  # Set to True to use the real robot state to start the simulation
+SIMULATION = False  # Set to True to run the simulation before commanding the real robot
+REAL_ROBOT_STATE = True  # Set to True to use the real robot state to start the simulation
 
 ## ---- ROS conversion and callbacks functions ---- ##
 class Throwing_controller:
@@ -74,13 +74,13 @@ class Throwing_controller:
             self.q0 = np.array(robot_state.position)
 
         # qs for the initial state
-        self.qs = np.array([-0.3218, 0.3201, 0.2625, -1.4090, 0.1552, 0.6105, 0.0890])
+        self.qs = np.array([-0.3217, 0.6498, 0.1635, -1.4926, -0.0098, 0.8557, 1.2881])
         self.qs_dot = np.zeros(7)
         self.qs_dotdot = np.zeros(7)
 
         # qd for the throwing state
-        self.qd = self.qs + np.array([0.0, -0.4, 0.0, 0.4, 0.0, -0.4, 0.0])
-        self.qd_dot = np.array([0.0, -0.5, 0.0, 0.4, 0.0, -0.4, 0.0])
+        self.qd = self.qs + np.array([-0.5, -0.2, 0.0, 1.5, 0.0, -1.2, 0.0])
+        self.qd_dot = np.array([-1.0, -0.1, 0.0, 1.5, 0.0, -1.5, 0.0])
         self.qd_dotdot = np.zeros(7)
 
         # compute the nominal throwing and slowing trajectory
@@ -347,7 +347,7 @@ class Throwing_controller:
 
     def run(self):
         # ------------ Control Loop ------------ #
-        dT = 5e-5
+        dT = 2e-3
         rate = rospy.Rate(1.0 / dT)
 
         while not rospy.is_shutdown():

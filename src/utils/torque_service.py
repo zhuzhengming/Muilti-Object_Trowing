@@ -163,7 +163,6 @@ class Robot():
 
         impedance_acc_des = impedance_acc_des1 + tau_null_c
 
-
         self._send_iiwa_torque(impedance_acc_des)
 
     def _send_iiwa_torque(self, torques: np.ndarray) -> None:

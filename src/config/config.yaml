@@ -8,14 +8,15 @@ PD:
 #  joint_kp_joint_impedance: [1600, 1600, 400, 1000, 400, 300, 200]
 #  joint_kd_joint_impedance: [80, 100, 80, 80, 30, 10, 10]
 
-  joint_kp_joint_impedance: [1000, 2000, 400, 800, 200, 150, 120]
-  joint_kd_joint_impedance: [200, 400, 100, 100, 30, 30, 10]
+  joint_kp_joint_impedance: [80, 80, 80, 50, 40, 12, 12]
+  joint_kd_joint_impedance: [ 25, 18, 20, 16, 12.5, 12.5, 5 ]
 
-freq: 200
+freq: 1000
 
 max_torque: [80, 80, 80, 80, 80, 80, 80]
 
 gravity: 19.62
+#gravity: 0.0
 center_ee: [0.01018, 0.01031, 0.05839]
 #########################################################################
 # Pre-defined pose
@@ -46,8 +47,8 @@ GRIPPER_DELAY: 0.350
 
 # Ruckig margins for throwing
 MARGIN_VELOCITY: 1.2
-MARGIN_ACCELERATION: 0.6
-MARGIN_JERK: 0.001
+MARGIN_ACCELERATION: 0.8
+MARGIN_JERK: 0.005
 
 # constraints of iiwa 7
 max_velocity: [1.71, 1.71, 1.745, 2.269, 2.443, 3.142, 3.142]
