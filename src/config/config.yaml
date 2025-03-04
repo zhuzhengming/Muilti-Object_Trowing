@@ -48,7 +48,7 @@ GRIPPER_DELAY: 0.350
 # Ruckig margins for throwing
 MARGIN_VELOCITY: 1.2
 MARGIN_ACCELERATION: 0.8
-MARGIN_JERK: 0.005
+MARGIN_JERK: 0.02
 
 # constraints of iiwa 7
 max_velocity: [1.71, 1.71, 1.745, 2.269, 2.443, 3.142, 3.142]

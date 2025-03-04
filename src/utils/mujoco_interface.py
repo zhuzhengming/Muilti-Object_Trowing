@@ -39,8 +39,12 @@ class Robot:
         self.fingertip_sites = ['index_site', 'middle_site', 'ring_site',
                                 'thumb_site']  # These site points are the fingertip (center of semisphere) positions
 
-        self._joint_kp = np.array([300, 200, 200, 150, 100, 100, 50]) * 2
+        # self._joint_kp = np.array([300, 200, 200, 150, 100, 100, 50])
+        # self._joint_kd = np.sqrt(self._joint_kp) * 2 * 2.
+        self._joint_kp = np.array(rospy.get_param('/PD/joint_kp_joint_impedance')) * 4
         self._joint_kd = np.sqrt(self._joint_kp) * 2 * 2.
+        # self._joint_kd = np.array(rospy.get_param('/PD/joint_kd_joint_impedance'))
+
         self.max_torque = np.array(rospy.get_param('/max_torque'))
 
     def step(self):

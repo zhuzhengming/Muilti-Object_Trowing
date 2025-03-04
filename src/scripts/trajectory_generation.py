@@ -23,8 +23,8 @@ import mujoco
 from mujoco import viewer
 
 # global variables
-SIMULATION = False  # Set to True to run the simulation before commanding the real robot
-REAL_ROBOT_STATE = True  # Set to True to use the real robot state to start the simulation
+SIMULATION = True  # Set to True to run the simulation before commanding the real robot
+REAL_ROBOT_STATE = False  # Set to True to use the real robot state to start the simulation
 
 ## ---- ROS conversion and callbacks functions ---- ##
 class Throwing_controller:
@@ -79,8 +79,8 @@ class Throwing_controller:
         self.qs_dotdot = np.zeros(7)
 
         # qd for the throwing state
-        self.qd = self.qs + np.array([-0.5, -0.2, 0.0, 1.5, 0.0, -1.2, 0.0])
-        self.qd_dot = np.array([-1.0, -0.1, 0.0, 1.5, 0.0, -1.5, 0.0])
+        self.qd = self.qs + np.array([-0.8, -0.1, -0.8, 0.1, 0.0, -0.1, 0.0])
+        self.qd_dot =       np.array([-1.0, -0.1, -0.8, 0.1, 0.0, -0.1, 0.0])
         self.qd_dotdot = np.zeros(7)
 
         # compute the nominal throwing and slowing trajectory
