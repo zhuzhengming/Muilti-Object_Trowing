@@ -80,7 +80,7 @@ class Throwing_controller:
 
         # qd for the throwing state
         self.qd = self.qs + np.array([-0.8, -0.1, -0.8, 0.1, 0.0, -0.1, 0.0])
-        self.qd_dot =       np.array([-1.0, -0.1, -0.8, 0.1, 0.0, -0.1, 0.0])
+        self.qd_dot =       np.array([-1.2, -0.1, -1.2, 0.1, 0.0, -0.1, 0.0])
         self.qd_dotdot = np.zeros(7)
 
         # compute the nominal throwing and slowing trajectory
