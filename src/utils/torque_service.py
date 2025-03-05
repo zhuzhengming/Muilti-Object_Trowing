@@ -54,8 +54,12 @@ class Robot():
         self._torque_cmd = np.zeros(7)
         self._iiwa_torque_pub = rospy.Publisher("/iiwa/TorqueController/command", Float64MultiArray,
                                                 queue_size=10)
-        self._joint_kp = np.array(rospy.get_param('/PD/joint_kp_joint_impedance'))
-        self._joint_kd = np.array(rospy.get_param('/PD/joint_kd_joint_impedance'))
+        # self._joint_kp = np.array(rospy.get_param('/PD/joint_kp_joint_impedance'))
+        # self._joint_kd = np.array(rospy.get_param('/PD/joint_kd_joint_impedance'))
+
+        self._joint_kp = np.array([100, 80, 200, 50, 40, 12, 12])
+        self._joint_kd = np.array([30, 18, 50, 16, 12.5, 12.5, 5])
+
 
         self.center_ee = np.array(rospy.get_param("/center_ee") )
         self.gravity = rospy.get_param("/gravity")

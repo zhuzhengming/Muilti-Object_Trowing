@@ -23,8 +23,8 @@ import mujoco
 from mujoco import viewer
 
 # global variables
-SIMULATION = True  # Set to True to run the simulation before commanding the real robot
-REAL_ROBOT_STATE = False  # Set to True to use the real robot state to start the simulation
+SIMULATION = False  # Set to True to run the simulation before commanding the real robot
+REAL_ROBOT_STATE = True  # Set to True to use the real robot state to start the simulation
 
 ## ---- ROS conversion and callbacks functions ---- ##
 class Throwing_controller:
@@ -74,13 +74,13 @@ class Throwing_controller:
             self.q0 = np.array(robot_state.position)
 
         # qs for the initial state
-        self.qs = np.array([-0.3217, 0.6498, 0.1635, -1.4926, -0.0098, 0.8557, 1.2881])
+        self.qs = np.array([-0.3217 + 0.5, 0.6498, 0.1635, -1.4926, -0.0098, 0.8557, 1.2881])
         self.qs_dot = np.zeros(7)
         self.qs_dotdot = np.zeros(7)
 
         # qd for the throwing state
-        self.qd = self.qs + np.array([-0.8, -0.1, -0.8, 0.1, 0.0, -0.1, 0.0])
-        self.qd_dot =       np.array([-1.2, -0.1, -1.2, 0.1, 0.0, -0.1, 0.0])
+        self.qd = self.qs + np.array([0.0, 0.0, -0.6, 0.0, 0.0, 0.0, 0.0])
+        self.qd_dot =       np.array([0.0, 0.0, -1.0, 0.0, 0.0, 0.0, 0.0])
         self.qd_dotdot = np.zeros(7)
 
         # compute the nominal throwing and slowing trajectory
@@ -125,6 +125,7 @@ class Throwing_controller:
         self.stamp = []
         self.tracking_error_pos = []
         self.tracking_error_vel = []
+        self.tracking_error_eff = []
         self.joint_velo_his = []
 
         while True:
@@ -329,13 +330,6 @@ class Throwing_controller:
 
                 self.r.iiwa_hand_go(q=ref[0], d_pose=ref[1], qh=np.zeros(16))
 
-            # ref_vector = np.zeros(10)
-            # ref_vector[0] = tt
-            # ref_vector[1:4] = ref_full[0]
-            # ref_vector[4:7] = ref_full[1]
-            # ref_vector[7:10] = ref_full[2]
-            # waypoints.append(ref_vector)
-
             tt += delta_t
             if tt > self.trajectory.duration and tt <= self.trajectory.duration + self.trajectory_back.duration:
                 flag = False
@@ -346,23 +340,24 @@ class Throwing_controller:
 
     def save_tracking_data_to_npy(self):
         # Convert lists to numpy arrays
-        if len(self.tracking_error_pos) > 0 and len(self.tracking_error_vel) > 0 and len(self.joint_velo_his) > 0:
+        if len(self.tracking_error_pos) > 0 and len(self.tracking_error_vel) > 0 and len(self.tracking_error_eff) > 0:
             error_pos_array = np.array(self.tracking_error_pos)
             error_vel_array = np.array(self.tracking_error_vel)
-            joint_velo_array = np.array(self.joint_velo_his)
+            error_eff_array = np.array(self.tracking_error_eff)
 
             filename = '../output/data/throwing.npy'
             # Save data to npy files
-            np.save(filename, {'error_pos_array': error_pos_array,
+            np.save(filename, {'stamp': self.stamp,
+                                'error_pos_array': error_pos_array,
                                'error_vel_array': error_vel_array,
-                               'joint_velo_array': joint_velo_array})
+                               'error_eff_array': error_eff_array})
             print("Tracking data saved to npy files.")
         else:
             print("No tracking data to save.")
 
-    def run(self):
+    def run(self, start_time):
         # ------------ Control Loop ------------ #
-        dT = 2e-3
+        dT = 1e-3
         rate = rospy.Rate(1.0 / dT)
 
         while not rospy.is_shutdown():
@@ -373,23 +368,17 @@ class Throwing_controller:
             if SIMULATION:
                 q_cur = self.r.q
                 q_cur_dot = self.r.dq
+                q_cur_effort = np.zeros(7)
             else:
                 # self.robot_state = rospy.wait_for_message("/iiwa/joint_states", JointState)
                 q_cur = np.array(self.robot_state.position)
                 q_cur_dot = np.array(self.robot_state.velocity)
+                q_cur_effort = np.array(self.robot_state.effort)
 
-            # Check tracking error before throw
-            if self.fsm_state == "THROWING" or self.fsm_state == "RELEASE":
-                if (self.time_throw - rospy.get_time()) < 10e-3:
-                    self.tracking_error_pos.append(
-                        np.array(self.target_state.position) - np.array(self.robot_state.position))
-                    self.tracking_error_vel.append(
-                        np.array(self.target_state.velocity) - np.array(self.robot_state.velocity))
-                    self.joint_velo_his.append(np.array(self.robot_state.velocity))
 
             if self.fsm_state == "IDLE":
                 # pdb.set_trace(header="Press C to start homing...")
-                print("HOMING...")
+                # print("HOMING...")
 
                 self.homing_traj = self.get_traj_from_ruckig(q_cur, q_cur_dot, np.zeros(7),
                                                              self.qs, self.qs_dot, self.qs_dotdot,
@@ -412,7 +401,8 @@ class Throwing_controller:
                 if np.linalg.norm(error_position) < self.ERROR_THRESHOLD:
                     # Jump to next state
                     self.fsm_state = "IDLE_THROWING"
-                    print("IDLE_THROWING")
+                    time.sleep(0.5)
+                    # print("IDLE_THROWING")
                     # pdb.set_trace(header="Press C to see the throwing trajectory...")
                     self.scheduler_callback(Int64(1))
 
@@ -451,7 +441,7 @@ class Throwing_controller:
                     if self.trajectory_back is None:
                         rospy.logerr("Trajectory is None")
 
-                    print("SLOWING")
+                    # print("SLOWING")
                     # pdb.set_trace(header="Press C to see the slowing trajectory...")
                     self.time_start_slowing = time_now
 
@@ -469,6 +459,19 @@ class Throwing_controller:
                 else:
                     self.target_state_pub.publish(self.target_state)
                     self.command_pub.publish(self.convert_command_to_ROS(time_now, ref[0], ref[1], ref[2]))
+
+                self.stamp.append(rospy.get_time())
+                error_percent_position = abs(np.array(self.target_state.position) - np.array(self.robot_state.position)) / abs(
+                    self.qd - self.qs + 1e-8) * 100
+                error_percent_velocity = abs(
+                    np.array(self.target_state.velocity) - np.array(self.robot_state.velocity)) / abs(
+                    self.qd_dot - self.qs_dot + 1e-8) * 100
+                error_percent_effort = abs(
+                    np.array(self.target_state.effort) - np.array(self.robot_state.effort))
+
+                self.tracking_error_pos.append(error_percent_effort)
+                self.tracking_error_vel.append(error_percent_velocity)
+                self.tracking_error_eff.append(error_percent_position)
 
             elif self.fsm_state == "SLOWING":
                 time_now = rospy.get_time()
@@ -512,7 +515,7 @@ class Throwing_controller:
         self.robot_state.effort = copy.deepcopy(state.effort)
 
     def scheduler_callback(self, msg):
-        print("scheduler msg", msg)
+        # print("scheduler msg", msg)
         if self.fsm_state == "IDLE_THROWING" and msg.data == 1:
             # compute new trajectory to throw from current position
             if SIMULATION:
@@ -531,7 +534,7 @@ class Throwing_controller:
 
             self.time_start_throwing = rospy.get_time()
             self.fsm_state = "THROWING"
-            print("Throwing...")
+            # print("Throwing...")
 
     def deactivate_gripper(self):
         rospy.wait_for_service('/franka_control/gripper_deactivate')
@@ -595,14 +598,15 @@ if __name__ == '__main__':
 
     simulation_mode = 'mujoco'
     throwing_controller = Throwing_controller(simulator=simulation_mode)
+    start_time = rospy.get_time()
 
     for nTry in range(100):
-        print("test number", nTry + 1)
+        # print("test number", nTry + 1)
 
         throwing_controller.fsm_state = "IDLE"
-        throwing_controller.run()
+        throwing_controller.run(start_time)
 
-        time.sleep(2)
+        time.sleep(1)
 
         # Stop controller when ROS is stopped
         if rospy.is_shutdown():
