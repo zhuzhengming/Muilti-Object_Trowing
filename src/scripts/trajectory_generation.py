@@ -344,6 +344,21 @@ class Throwing_controller:
                 break
         # self.view.close()
 
+    def save_tracking_data_to_npy(self):
+        # Convert lists to numpy arrays
+        if len(self.tracking_error_pos) > 0 and len(self.tracking_error_vel) > 0 and len(self.joint_velo_his) > 0:
+            error_pos_array = np.array(self.tracking_error_pos)
+            error_vel_array = np.array(self.tracking_error_vel)
+            joint_velo_array = np.array(self.joint_velo_his)
+
+            filename = '../output/data/throwing.npy'
+            # Save data to npy files
+            np.save(filename, {'error_pos_array': error_pos_array,
+                               'error_vel_array': error_vel_array,
+                               'joint_velo_array': joint_velo_array})
+            print("Tracking data saved to npy files.")
+        else:
+            print("No tracking data to save.")
 
     def run(self):
         # ------------ Control Loop ------------ #
@@ -459,6 +474,7 @@ class Throwing_controller:
                 time_now = rospy.get_time()
 
                 if time_now - self.time_start_slowing > self.trajectory_back.duration - dT:
+                    self.save_tracking_data_to_npy()
                     break
 
                 ref = self.trajectory_back.at_time(time_now - self.time_start_slowing)
@@ -524,6 +540,7 @@ class Throwing_controller:
             gripper_deactivate()
         except rospy.ServiceException as e:
             rospy.logerr("Service call failed: %s", e)
+
 
     # Path to the build directory including a file similar to 'ruckig.cpython-37m-x86_64-linux-gnu'.
     build_path = Path(__file__).parent.absolute().parent / 'build'
