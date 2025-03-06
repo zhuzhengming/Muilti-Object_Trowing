@@ -4,42 +4,50 @@ import matplotlib
 matplotlib.use('Qt5Agg')
 
 def plot_arm_data():
-    # Create figure with 7 rows and 3 columns for position and error plots, and 7 rows and 2 columns for velocity and error plots
-    fig1, axs1 = plt.subplots(7, 3, figsize=(12, 18))  # Adjust the figure size to suit the layout
+    # Create figure with 3 subplots (Position, Velocity, Effort) for the third joint
+    fig, axs = plt.subplots(3, 1, figsize=(12, 18))  # 3 rows for position, velocity, and effort plots
+
     filename = f'../output/data/throwing.npy'
     data = np.load(filename, allow_pickle=True).item()
 
-    stamp = data['stamp']
-    error_pos_array = data['error_pos_array']
-    error_vel_array = data['error_vel_array']
-    error_eff_array = data['error_eff_array']
+    timestamp = np.array(data['stamp'])
+    actual_position = np.array(data['real_pos'])
+    actual_velocity = np.array(data['real_vel'])
+    actual_effort = np.array(data['real_eff'])
+    target_position = np.array(data['target_pos'])
+    target_velocity = np.array(data['target_vel'])
+    target_effort = np.array(data['target_eff'])
 
-    # Plotting the position errors
-    for i in range(7):  # Assuming 7 joints
-        axs1[i, 0].plot(stamp, error_pos_array[:, i], label=f'Joint {i+1} Error')
-        axs1[i, 0].set_xlabel('Time')
-        axs1[i, 0].set_ylabel('Position Error')
-        axs1[i, 0].legend()
+    joint_index = 3 # Third joint
 
-    # Plotting the velocity errors
-    for i in range(7):
-        axs1[i, 1].plot(stamp, error_vel_array[:, i], label=f'Joint {i+1} Error')
-        axs1[i, 1].set_xlabel('Time')
-        axs1[i, 1].set_ylabel('Velocity Error')
-        axs1[i, 1].legend()
+    # Plot Position data for the third joint
+    axs[0].plot(timestamp, actual_position[:, joint_index], label=f'Actual Position for Joint {joint_index}', linestyle='-', color='blue')
+    axs[0].plot(timestamp, target_position[:, joint_index], label=f'Target Position for Joint {joint_index}', linestyle='--', color='green')
+    axs[0].set_ylabel('Position')
+    axs[0].set_title(f'Joint {joint_index} Position Tracking')
+    axs[0].grid(True)
+    axs[0].legend(loc='best')
 
-    # Plotting the effort errors
-    for i in range(7):
-        axs1[i, 2].plot(stamp, error_eff_array[:, i], label=f'Joint {i + 1} Error')
-        axs1[i, 2].set_xlabel('Time')
-        axs1[i, 2].set_ylabel('Effort Error')
-        axs1[i, 2].legend()
+    # Plot Velocity data for the third joint
+    axs[1].plot(timestamp, actual_velocity[:, joint_index], label=f'Actual Velocity for Joint {joint_index}', linestyle='-', color='blue')
+    axs[1].plot(timestamp, target_velocity[:, joint_index], label=f'Target Velocity for Joint {joint_index}', linestyle='--', color='green')
+    axs[1].set_ylabel('Velocity')
+    axs[1].set_title(f'Joint {joint_index} Velocity Tracking')
+    axs[1].grid(True)
+    axs[1].legend(loc='best')
 
-    # Adjust layout to make sure everything fits
+    # Plot Effort data for the third joint
+    axs[2].plot(timestamp, actual_effort[:, joint_index], label=f'Actual Effort for Joint {joint_index}', linestyle='-', color='blue')
+    axs[2].plot(timestamp, target_effort[:, joint_index], label=f'Target Effort for Joint {joint_index}', linestyle='--', color='green')
+    axs[2].set_ylabel('Effort (Torque)')
+    axs[2].set_title(f'Joint {joint_index} Effort Tracking')
+    axs[2].grid(True)
+    axs[2].legend(loc='best')
+
+    # Add x-axis label for all subplots
+    axs[2].set_xlabel('Timestamp')
+
     plt.tight_layout()
     plt.show()
 
-if __name__ == '__main__':
-
-    # Call the function to plot the data
-    plot_arm_data()
+plot_arm_data()

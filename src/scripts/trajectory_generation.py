@@ -23,8 +23,8 @@ import mujoco
 from mujoco import viewer
 
 # global variables
-SIMULATION = False  # Set to True to run the simulation before commanding the real robot
-REAL_ROBOT_STATE = True  # Set to True to use the real robot state to start the simulation
+SIMULATION = True  # Set to True to run the simulation before commanding the real robot
+REAL_ROBOT_STATE = False  # Set to True to use the real robot state to start the simulation
 
 ## ---- ROS conversion and callbacks functions ---- ##
 class Throwing_controller:
@@ -79,8 +79,8 @@ class Throwing_controller:
         self.qs_dotdot = np.zeros(7)
 
         # qd for the throwing state
-        self.qd = self.qs + np.array([0.0, 0.0, -0.6, 0.0, 0.0, 0.0, 0.0])
-        self.qd_dot =       np.array([0.0, 0.0, -1.0, 0.0, 0.0, 0.0, 0.0])
+        self.qd = self.qs + np.array([0.0, 0.0, -0.4, 0.0, 0.0, 0.0, 0.0])
+        self.qd_dot =       np.array([0.0, 0.0, -0.4, 0.0, 0.0, 0.0, 0.0])
         self.qd_dotdot = np.zeros(7)
 
         # compute the nominal throwing and slowing trajectory
@@ -123,10 +123,12 @@ class Throwing_controller:
                 # self.run_simulation_mujoco()
 
         self.stamp = []
-        self.tracking_error_pos = []
-        self.tracking_error_vel = []
-        self.tracking_error_eff = []
-        self.joint_velo_his = []
+        self.real_pos = []
+        self.real_vel = []
+        self.real_eff = []
+        self.target_pos = []
+        self.target_vel = []
+        self.target_eff = []
 
         while True:
             if SIMULATION:
@@ -238,12 +240,7 @@ class Throwing_controller:
                 ref = [ref_full[i][:7] for i in range(3)]
                 p.resetJointStatesMultiDof(robotId, controlled_joints, [[q0_i] for q0_i in ref[0]],
                                            targetVelocities=[[q0_i] for q0_i in ref[1]])
-            # ref_vector = np.zeros(10)
-            # ref_vector[0] = tt
-            # ref_vector[1:4] = ref_full[0]
-            # ref_vector[4:7] = ref_full[1]
-            # ref_vector[7:10] = ref_full[2]
-            # waypoints.append(ref_vector)
+
             p.stepSimulation()
             tt = tt + delta_t
             if tt > self.trajectory.duration and tt <= self.trajectory.duration + self.trajectory_back.duration:
@@ -339,26 +336,23 @@ class Throwing_controller:
         # self.view.close()
 
     def save_tracking_data_to_npy(self):
-        # Convert lists to numpy arrays
-        if len(self.tracking_error_pos) > 0 and len(self.tracking_error_vel) > 0 and len(self.tracking_error_eff) > 0:
-            error_pos_array = np.array(self.tracking_error_pos)
-            error_vel_array = np.array(self.tracking_error_vel)
-            error_eff_array = np.array(self.tracking_error_eff)
 
-            filename = '../output/data/throwing.npy'
-            # Save data to npy files
-            np.save(filename, {'stamp': self.stamp,
-                                'error_pos_array': error_pos_array,
-                               'error_vel_array': error_vel_array,
-                               'error_eff_array': error_eff_array})
-            print("Tracking data saved to npy files.")
-        else:
-            print("No tracking data to save.")
+        filename = '../output/data/throwing.npy'
+        # Save data to npy files
+        np.save(filename, {'stamp': self.stamp,
+                            'real_pos': self.real_pos,
+                           'real_vel': self.real_vel,
+                           'real_eff': self.real_eff,
+                           'target_pos': self.target_pos,
+                           'target_vel': self.target_vel,
+                           'target_eff': self.target_eff})
+        print("Tracking data saved to npy files.")
 
     def run(self, start_time):
         # ------------ Control Loop ------------ #
         dT = 1e-3
         rate = rospy.Rate(1.0 / dT)
+        cycle = 0
 
         while not rospy.is_shutdown():
             # Publish state and fsm for debug
@@ -445,7 +439,6 @@ class Throwing_controller:
                     # pdb.set_trace(header="Press C to see the slowing trajectory...")
                     self.time_start_slowing = time_now
 
-
                 ref = self.throwing_traj.at_time(time_now - self.time_start_throwing)
                 self.target_state.header.stamp = time_now
                 self.target_state.position = ref[0]
@@ -460,24 +453,24 @@ class Throwing_controller:
                     self.target_state_pub.publish(self.target_state)
                     self.command_pub.publish(self.convert_command_to_ROS(time_now, ref[0], ref[1], ref[2]))
 
-                self.stamp.append(rospy.get_time())
-                error_percent_position = abs(np.array(self.target_state.position) - np.array(self.robot_state.position)) / abs(
-                    self.qd - self.qs + 1e-8) * 100
-                error_percent_velocity = abs(
-                    np.array(self.target_state.velocity) - np.array(self.robot_state.velocity)) / abs(
-                    self.qd_dot - self.qs_dot + 1e-8) * 100
-                error_percent_effort = abs(
-                    np.array(self.target_state.effort) - np.array(self.robot_state.effort))
+                # record error
+                if(self.time_throw - (time_now - self.time_start_throwing) < 0.05 * self.time_throw):
 
-                self.tracking_error_pos.append(error_percent_effort)
-                self.tracking_error_vel.append(error_percent_velocity)
-                self.tracking_error_eff.append(error_percent_position)
+                    self.stamp.append(time_now)
+
+                    self.real_pos.append(q_cur)
+                    self.real_vel.append(q_cur_dot)
+                    self.real_eff.append(q_cur_effort)
+                    self.target_pos.append(self.target_state.position)
+                    self.target_vel.append(self.target_state.velocity)
+                    self.target_eff.append(self.target_state.effort)
 
             elif self.fsm_state == "SLOWING":
                 time_now = rospy.get_time()
 
                 if time_now - self.time_start_slowing > self.trajectory_back.duration - dT:
                     self.save_tracking_data_to_npy()
+                    cycle += 1
                     break
 
                 ref = self.trajectory_back.at_time(time_now - self.time_start_slowing)
@@ -533,6 +526,7 @@ class Throwing_controller:
                 rospy.logerr("Trajectory is None")
 
             self.time_start_throwing = rospy.get_time()
+            self.time_throw = self.throwing_traj.duration
             self.fsm_state = "THROWING"
             # print("Throwing...")
 
@@ -591,6 +585,7 @@ class Throwing_controller:
         otg = Ruckig(len(q0))
         trajectory = Trajectory(len(q0))
         _ = otg.calculate(inp, trajectory)
+
         return trajectory
 
 
