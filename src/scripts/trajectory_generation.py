@@ -23,8 +23,8 @@ import mujoco
 from mujoco import viewer
 
 # global variables
-SIMULATION = True  # Set to True to run the simulation before commanding the real robot
-REAL_ROBOT_STATE = False  # Set to True to use the real robot state to start the simulation
+SIMULATION = False  # Set to True to run the simulation before commanding the real robot
+REAL_ROBOT_STATE = True  # Set to True to use the real robot state to start the simulation
 
 ## ---- ROS conversion and callbacks functions ---- ##
 class Throwing_controller:
