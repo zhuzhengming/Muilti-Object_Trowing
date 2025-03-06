@@ -74,13 +74,13 @@ class Throwing_controller:
             self.q0 = np.array(robot_state.position)
 
         # qs for the initial state
-        self.qs = np.array([-0.3217 + 0.5, 0.6498, 0.1635, -1.4926, -0.0098, 0.8557, 1.2881])
+        self.qs = np.array([-0.3217 + 0.7, 0.6498, 0.1635, -1.4926 + 0.3, -0.0098, 0.6, 1.2881])
         self.qs_dot = np.zeros(7)
         self.qs_dotdot = np.zeros(7)
 
         # qd for the throwing state
-        self.qd = self.qs + np.array([0.0, 0.0, -0.4, 0.0, 0.0, 0.0, 0.0])
-        self.qd_dot =       np.array([0.0, 0.0, -0.4, 0.0, 0.0, 0.0, 0.0])
+        self.qd = self.qs + np.array([-0.3, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
+        self.qd_dot =       np.array([-self.max_velocity[0]*self.MARGIN_VELOCITY, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
         self.qd_dotdot = np.zeros(7)
 
         # compute the nominal throwing and slowing trajectory
@@ -350,7 +350,7 @@ class Throwing_controller:
 
     def run(self, start_time):
         # ------------ Control Loop ------------ #
-        dT = 1e-3
+        dT = 5e-3
         rate = rospy.Rate(1.0 / dT)
         cycle = 0
 
@@ -430,8 +430,8 @@ class Throwing_controller:
 
                     self.trajectory_back = self.get_traj_from_ruckig(q_cur, q_cur_dot, self.qd_dotdot,
                                                                      self.qs, self.qs_dot, self.qs_dotdot,
-                                                                margin_velocity=self.MARGIN_VELOCITY * 0.2,
-                                                                margin_acceleration=self.MARGIN_ACCELERATION * 0.2)
+                                                                margin_velocity=self.MARGIN_VELOCITY * 0.5,
+                                                                margin_acceleration=self.MARGIN_ACCELERATION * 0.5)
                     if self.trajectory_back is None:
                         rospy.logerr("Trajectory is None")
 
@@ -454,7 +454,7 @@ class Throwing_controller:
                     self.command_pub.publish(self.convert_command_to_ROS(time_now, ref[0], ref[1], ref[2]))
 
                 # record error
-                if(self.time_throw - (time_now - self.time_start_throwing) < 0.05 * self.time_throw):
+                if(self.time_throw - (time_now - self.time_start_throwing) < 1 * self.time_throw):
 
                     self.stamp.append(time_now)
 

@@ -57,8 +57,8 @@ class Robot():
         # self._joint_kp = np.array(rospy.get_param('/PD/joint_kp_joint_impedance'))
         # self._joint_kd = np.array(rospy.get_param('/PD/joint_kd_joint_impedance'))
 
-        self._joint_kp = np.array([100, 80, 200, 50, 40, 12, 12])
-        self._joint_kd = np.array([30, 18, 50, 16, 12.5, 12.5, 5])
+        self._joint_kp = np.array([400, 80, 80, 800, 100, 12, 12])
+        self._joint_kd = np.array([80, 18, 20, 150, 50, 12.5, 5])
 
 
         self.center_ee = np.array(rospy.get_param("/center_ee") )
@@ -128,7 +128,7 @@ class Robot():
         gravity_torque[3:] = np.cross(self.center_ee, np.array([0, 0, self.gravity]))
         tau_torque_joint = np.dot(self.J.T, gravity_torque)
         qacc_des += tau_torque_joint
-
+        print(qacc_des[0])
         self._send_iiwa_torque(qacc_des)
 
     def iiwa_impedance(self, pose: np.ndarray, d_pose=None):
