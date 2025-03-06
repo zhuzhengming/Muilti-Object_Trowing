@@ -47,15 +47,42 @@ GRIPPER_DELAY: 0.350
 
 # Ruckig margins for throwing
 MARGIN_VELOCITY: 0.8
+
+# for joint 1
+#MARGIN_ACCELERATION: 0.03
+#MARGIN_JERK: 0.0001
+
+# for joint 0
+#MARGIN_ACCELERATION: 0.09
+#MARGIN_JERK: 0.0009
+
+# for joint 1
+#MARGIN_ACCELERATION: 0.03
+#MARGIN_JERK: 0.0001
+
+# for joint 2
+#MARGIN_ACCELERATION: 0.2
+#MARGIN_JERK: 0.002
+
+# for joint 3
+#MARGIN_ACCELERATION: 0.1
+#MARGIN_JERK: 0.0008
+
+# for joint 4
+#MARGIN_ACCELERATION: 0.5
+#MARGIN_JERK: 0.004
+
 # works for joint 5
 #MARGIN_ACCELERATION: 0.5
 #MARGIN_JERK: 0.003
 
-# for joint 0
-MARGIN_ACCELERATION: 0.085
-MARGIN_JERK: 0.0007
+# works for joint 5
+MARGIN_ACCELERATION: 0.5
+MARGIN_JERK: 0.003
 
 # constraints of iiwa 7
-max_velocity: [1.71, 1.71, 1.745, 2.269, 2.443, 3.142, 3.142]
+# joint 1 and joint 4 has lower max_velocity because of compensation of gravity
+# [1.71, 1.74, 1.745, 2.269, 2.443, 3.142, 3.142]
+max_velocity: [1.71, 0.5, 1.745, 1.6, 2.443, 3.142, 3.142]
 max_acceleration: [15, 7.5, 10, 12.5, 15, 20, 20]
 max_jerk: [7500, 3750, 5000, 6250, 7500, 10000, 10000]

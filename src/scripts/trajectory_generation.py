@@ -74,13 +74,18 @@ class Throwing_controller:
             self.q0 = np.array(robot_state.position)
 
         # qs for the initial state
-        self.qs = np.array([-0.3217 + 0.7, 0.6498, 0.1635, -1.4926 + 0.3, -0.0098, 0.6, 1.2881])
+        self.qs = np.array([0.4217, 0.5498, 0.1635, -1.0926, -0.0098, 0.6, 1.2881])
         self.qs_dot = np.zeros(7)
         self.qs_dotdot = np.zeros(7)
 
         # qd for the throwing state
-        self.qd = self.qs + np.array([-0.3, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
-        self.qd_dot =       np.array([-self.max_velocity[0]*self.MARGIN_VELOCITY, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
+        test_id = 6
+        qd_offset = np.zeros(7)
+        qd_dot_offset = np.zeros(7)
+        qd_offset[test_id] = -0.3
+        qd_dot_offset[test_id] = -self.max_velocity[test_id] * self.MARGIN_VELOCITY
+        self.qd = self.qs + qd_offset
+        self.qd_dot = qd_dot_offset
         self.qd_dotdot = np.zeros(7)
 
         # compute the nominal throwing and slowing trajectory

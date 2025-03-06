@@ -18,7 +18,7 @@ def plot_arm_data():
     target_velocity = np.array(data['target_vel'])
     target_effort = np.array(data['target_eff'])
 
-    joint_index = 0 # Third joint
+    joint_index = 6 # Third joint
 
     # Plot Position data for the third joint
     axs[0].plot( actual_position[:, joint_index], label=f'Actual Position for Joint {joint_index}', linestyle='-', color='blue')
