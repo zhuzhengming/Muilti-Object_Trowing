@@ -84,6 +84,8 @@ class Throwing_controller:
         qd_dot_offset = np.zeros(7)
         qd_offset[test_id] = -0.3
         qd_dot_offset[test_id] = -self.max_velocity[test_id] * self.MARGIN_VELOCITY
+
+        qd_offset = np.array([])
         self.qd = self.qs + qd_offset
         self.qd_dot = qd_dot_offset
         self.qd_dotdot = np.zeros(7)
