@@ -8,10 +8,10 @@ PD:
 #  joint_kp_joint_impedance: [1600, 1600, 400, 1000, 400, 300, 200]
 #  joint_kd_joint_impedance: [80, 100, 80, 80, 30, 10, 10]
 
-  joint_kp_joint_impedance: [80, 80, 80, 50, 40, 12, 12]
-  joint_kd_joint_impedance: [25, 18, 20, 16, 12.5, 12.5, 5 ]
+  joint_kp_joint_impedance: [600, 600, 500, 500, 150, 12, 20]
+  joint_kd_joint_impedance: [100, 120, 80,  80,  40,  12.5, 10]
 
-freq: 1000
+freq: 200
 
 max_torque: [175, 110, 110, 80, 110, 40, 40]
 
@@ -48,10 +48,6 @@ GRIPPER_DELAY: 0.350
 # Ruckig margins for throwing
 MARGIN_VELOCITY: 0.8
 
-# for joint 1
-#MARGIN_ACCELERATION: 0.03
-#MARGIN_JERK: 0.0001
-
 # for joint 0
 #MARGIN_ACCELERATION: 0.09
 #MARGIN_JERK: 0.0009
@@ -77,12 +73,15 @@ MARGIN_VELOCITY: 0.8
 #MARGIN_JERK: 0.003
 
 # works for joint 6
-MARGIN_ACCELERATION: 0.5
-MARGIN_JERK: 0.003
+#MARGIN_ACCELERATION: 0.5
+#MARGIN_JERK: 0.003
+
+MARGIN_ACCELERATION: 1
+MARGIN_JERK: 1
 
 # constraints of iiwa 7
 # joint 1 and joint 4 has lower max_velocity because of compensation of gravity
 # [1.71, 1.74, 1.745, 2.269, 2.443, 3.142, 3.142]
 max_velocity: [1.71, 0.5, 1.745, 1.6, 2.443, 3.142, 3.142]
-max_acceleration: [15, 7.5, 10, 12.5, 15, 20, 20]
-max_jerk: [7500, 3750, 5000, 6250, 7500, 10000, 10000]
+max_acceleration: [1.35, 0.225, 2.0, 1.25, 7.5, 10.0, 10.0]
+max_jerk: [6.75, 0.375, 10.0, 5.0, 30.0, 30.0, 30.0]

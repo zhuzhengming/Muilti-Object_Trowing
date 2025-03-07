@@ -23,8 +23,8 @@ import mujoco
 from mujoco import viewer
 
 # global variables
-SIMULATION = False  # Set to True to run the simulation before commanding the real robot
-REAL_ROBOT_STATE = True  # Set to True to use the real robot state to start the simulation
+SIMULATION = True  # Set to True to run the simulation before commanding the real robot
+REAL_ROBOT_STATE = False  # Set to True to use the real robot state to start the simulation
 
 ## ---- ROS conversion and callbacks functions ---- ##
 class Throwing_controller:
@@ -85,7 +85,8 @@ class Throwing_controller:
         qd_offset[test_id] = -0.3
         qd_dot_offset[test_id] = -self.max_velocity[test_id] * self.MARGIN_VELOCITY
 
-        qd_offset = np.array([])
+        qd_offset = np.array([-0.3, 0.0, -0.2, 0.0, -0.3, 0.0, 0.0])
+        qd_dot_offset = np.array([-0.4, 0.0, -0.2, 0.0, -0.3, 0.0, 0.0])
         self.qd = self.qs + qd_offset
         self.qd_dot = qd_dot_offset
         self.qd_dotdot = np.zeros(7)
