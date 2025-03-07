@@ -39,10 +39,10 @@ class Robot:
         self.fingertip_sites = ['index_site', 'middle_site', 'ring_site',
                                 'thumb_site']  # These site points are the fingertip (center of semisphere) positions
 
-        self._joint_kp = np.array([600, 600, 500, 500, 150, 12, 20])
-        self._joint_kd = np.array([100, 120, 80,  80,  40,  12.5, 10])
+        self._joint_kp = np.array([200, 200, 200, 200, 50, 12, 20])* 2
+        self._joint_kd = np.array([20, 50, 50, 50, 30, 12.5, 10]) * 0.5
 
-        self.max_torque = np.array(rospy.get_param('/max_torque')) * 2
+        self.max_torque = np.array(rospy.get_param('/max_torque'))
 
     def step(self):
         mujoco.mj_step(self.m, self.d)  # run one-step dynamics simulation
@@ -64,7 +64,7 @@ class Robot:
         self.view.cam.azimuth = 94.61867426942274  # camera rotation around the camera's vertical axis
 
 
-    def send_torque(self, torque):
+    def send_torque(self, torque, render=True):
         """
         control joints by torque and send to mujoco, then run a step.
         input the joint control torque
@@ -77,7 +77,7 @@ class Robot:
 
         self.d.ctrl[:len(torque)] = torque  # apply the control torque
         self.step()
-        if self.auto_sync:
+        if render and self.auto_sync:
             self.view.sync()
 
     def iiwa_joint_impedance(self, q_target, d_qd=None):
@@ -92,7 +92,7 @@ class Robot:
         error_q = q_target - self.q
         error_dq = d_qd - self.dq
 
-        qacc_des = self._joint_kp * error_q + self._joint_kd * error_dq
+        qacc_des = self.M @ (self._joint_kp * error_q + self._joint_kd * error_dq)
         qacc_des = np.clip(qacc_des, -self.max_torque, self.max_torque)
 
         # in mujoco
@@ -100,7 +100,7 @@ class Robot:
 
         return qacc_des
 
-    def iiwa_hand_go(self, q, qh, d_pose=None, dqh=None, u_add=None, kh_scale=None):
+    def iiwa_hand_go(self, q, qh, d_pose=None, dqh=None, u_add=None, kh_scale=None, render=True):
         """
         Give the desired pose of ee and joint positions of hand, using the Cartesian space impedance controller for iiwa
          and joint-space impedance controller for hand to calculate the desired joint torque and send it to MuJoCo
@@ -116,7 +116,7 @@ class Robot:
         iiwa_torque = self.iiwa_joint_impedance(q, d_qd=d_pose)
         hand_torque = self.hand_move_torque(qh=qh, dqh=dqh, u_add=u_add, kh_scale=kh_scale)
         u = np.concatenate([iiwa_torque, hand_torque])
-        self.send_torque(u)
+        self.send_torque(u, render=render)
 
     def hand_move_torque(self, qh=None, dqh=None, u_add=None, kh_scale=None):
         """
