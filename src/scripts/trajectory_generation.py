@@ -66,10 +66,12 @@ class Throwing_controller:
         self.allegro_home = np.array(rospy.get_param('/hand_home_pose'))
         self.envelop = np.array(rospy.get_param('/envelop_pose'))
 
-        # q0 is the home state
+        # q0 is the home state and control period
         if SIMULATION:
             self.q0 = np.array([-0.32032486, 0.02707055, -0.22881525, -1.42611918, 1.38608943, 0.5596685, -1.34659665 + np.pi])
+            self.dt = 1e-4
         else:
+            self.dt = 5e-3
             robot_state = rospy.wait_for_message("/iiwa/joint_states", JointState)
             self.q0 = np.array(robot_state.position)
 
@@ -79,14 +81,14 @@ class Throwing_controller:
         self.qs_dotdot = np.zeros(7)
 
         # qd for the throwing state
-        test_id = 6
+        test_id = 2
         qd_offset = np.zeros(7)
         qd_dot_offset = np.zeros(7)
         qd_offset[test_id] = -0.3
         qd_dot_offset[test_id] = -self.max_velocity[test_id] * self.MARGIN_VELOCITY
 
-        qd_offset = np.array([-0.3, 0.0, -0.2, 0.0, -0.3, 0.0, 0.0])
-        qd_dot_offset = np.array([-0.4, 0.0, -0.2, 0.0, -0.3, 0.0, 0.0])
+        # qd_offset = np.array([-0.3, 0.0, -0.2, 0.0, -0.3, 0.0, 0.0])
+        # qd_dot_offset = np.array([-0.4, 0.0, -0.2, 0.0, -0.3, 0.0, 0.0])
         self.qd = self.qs + qd_offset
         self.qd_dot = qd_dot_offset
         self.qd_dotdot = np.zeros(7)
@@ -358,7 +360,7 @@ class Throwing_controller:
 
     def run(self, start_time):
         # ------------ Control Loop ------------ #
-        dT = 5e-3
+        dT = self.dt
         rate = rospy.Rate(1.0 / dT)
         cycle = 0
 
@@ -368,11 +370,10 @@ class Throwing_controller:
 
             # update robot state
             if SIMULATION:
-                q_cur = self.r.q
-                q_cur_dot = self.r.dq
+                q_cur = np.array(self.r.q)
+                q_cur_dot = np.array(self.r.dq)
                 q_cur_effort = np.zeros(7)
             else:
-                # self.robot_state = rospy.wait_for_message("/iiwa/joint_states", JointState)
                 q_cur = np.array(self.robot_state.position)
                 q_cur_dot = np.array(self.robot_state.velocity)
                 q_cur_effort = np.array(self.robot_state.effort)
@@ -400,6 +401,8 @@ class Throwing_controller:
 
                 # Activate integrator term when close to target
                 error_position = np.array(q_cur) - np.array(self.qs)
+                if SIMULATION:
+                    self.ERROR_THRESHOLD *= 3
                 if np.linalg.norm(error_position) < self.ERROR_THRESHOLD:
                     # Jump to next state
                     self.fsm_state = "IDLE_THROWING"
@@ -465,7 +468,6 @@ class Throwing_controller:
                 if(self.time_throw - (time_now - self.time_start_throwing) < 1 * self.time_throw):
 
                     self.stamp.append(time_now)
-
                     self.real_pos.append(q_cur)
                     self.real_vel.append(q_cur_dot)
                     self.real_eff.append(q_cur_effort)

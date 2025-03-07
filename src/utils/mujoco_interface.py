@@ -39,10 +39,10 @@ class Robot:
         self.fingertip_sites = ['index_site', 'middle_site', 'ring_site',
                                 'thumb_site']  # These site points are the fingertip (center of semisphere) positions
 
-        self._joint_kp = np.array([600, 600, 500, 500, 150, 12, 20])
-        self._joint_kd = np.array([100, 120, 80,  80,  40,  12.5, 10])
+        self._joint_kp = np.array([200, 200, 200, 200, 50, 12, 20])* 2
+        self._joint_kd = np.array([20, 50, 50, 50, 30, 12.5, 10]) * 0.2
 
-        self.max_torque = np.array(rospy.get_param('/max_torque')) * 2
+        self.max_torque = np.array(rospy.get_param('/max_torque'))
 
     def step(self):
         mujoco.mj_step(self.m, self.d)  # run one-step dynamics simulation

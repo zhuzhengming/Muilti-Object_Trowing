@@ -35,4 +35,4 @@ while 1:
     t = time.time() - t0
     qd[0] = q0[0] + 0.2 * np.sin(2 *np.pi * 0.02 * t)
     r.iiwa_hand_go(qd, qh)
-    time.sleep(0.001)
+    time.sleep(0.005)
