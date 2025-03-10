@@ -1,6 +1,7 @@
 import sys
 sys.path.append("../")
 import time
+import os
 import math
 import rospy
 import copy
@@ -8,6 +9,8 @@ import numpy as np
 import pybullet as p
 import pybullet_data
 import pdb
+import matplotlib
+matplotlib.use('Qt5Agg')
 
 from std_msgs.msg import String
 from sensor_msgs.msg import JointState
@@ -21,6 +24,7 @@ from utils.mujoco_interface import Robot
 from std_srvs.srv import Trigger
 import mujoco
 from mujoco import viewer
+import matplotlib.pyplot as plt
 
 # global variables
 SIMULATION = True  # Set to True to run the simulation before commanding the real robot
@@ -28,7 +32,7 @@ REAL_ROBOT_STATE = False  # Set to True to use the real robot state to start the
 
 ## ---- ROS conversion and callbacks functions ---- ##
 class Throwing_controller:
-    def __init__(self, simulator='mujoco'):
+    def __init__(self, simulator='mujoco', test_id=None):
         rospy.init_node("throwing_controller", anonymous=True)
 
         # initialize ROS subscriber/publisher
@@ -69,23 +73,28 @@ class Throwing_controller:
         # q0 is the home state and control period
         if SIMULATION:
             self.q0 = np.array([-0.32032486, 0.02707055, -0.22881525, -1.42611918, 1.38608943, 0.5596685, -1.34659665 + np.pi])
-            self.dt = 1e-4
+            self.dt = 5e-3
         else:
             self.dt = 5e-3
             robot_state = rospy.wait_for_message("/iiwa/joint_states", JointState)
             self.q0 = np.array(robot_state.position)
 
         # qs for the initial state
-        self.qs = np.array([0.4217, 0.5498, 0.1635, -1.0926, -0.0098, 0.6, 1.2881])
+        self.qs = np.array([0.4217, 0.8498, 0.1635, -1.0926, -0.0098, 0.6, 1.2881])
         self.qs_dot = np.zeros(7)
         self.qs_dotdot = np.zeros(7)
 
         # qd for the throwing state
-        test_id = 2
         qd_offset = np.zeros(7)
         qd_dot_offset = np.zeros(7)
-        qd_offset[test_id] = -0.3
-        qd_dot_offset[test_id] = -self.max_velocity[test_id] * self.MARGIN_VELOCITY
+
+        self.test_id = test_id
+        if self.test_id is not None:
+            qd_offset[self.test_id] = -0.3
+            qd_dot_offset[self.test_id] = -self.max_velocity[self.test_id] * self.MARGIN_VELOCITY
+            if self.test_id == 3:
+                qd_offset[self.test_id] = -qd_offset[self.test_id]
+                qd_dot_offset[self.test_id] = -qd_dot_offset[self.test_id]
 
         # qd_offset = np.array([-0.3, 0.0, -0.2, 0.0, -0.3, 0.0, 0.0])
         # qd_dot_offset = np.array([-0.4, 0.0, -0.2, 0.0, -0.3, 0.0, 0.0])
@@ -139,6 +148,8 @@ class Throwing_controller:
         self.target_pos = []
         self.target_vel = []
         self.target_eff = []
+        self.pos_error_sum = np.zeros(7)
+        self.vel_error_sum = np.zeros(7)
 
         while True:
             if SIMULATION:
@@ -349,25 +360,39 @@ class Throwing_controller:
 
         filename = '../output/data/throwing.npy'
         # Save data to npy files
-        np.save(filename, {'stamp': self.stamp,
-                            'real_pos': self.real_pos,
-                           'real_vel': self.real_vel,
-                           'real_eff': self.real_eff,
-                           'target_pos': self.target_pos,
-                           'target_vel': self.target_vel,
-                           'target_eff': self.target_eff})
-        print("Tracking data saved to npy files.")
+        if self.test_id is not None:
+            self.pos_error_sum[self.test_id] += np.sum(np.abs(
+                np.array(self.target_pos)[:,self.test_id] - np.array(self.real_pos)[:,self.test_id]
+            ))
 
-    def run(self, start_time):
+            self.vel_error_sum[self.test_id] += np.sum(np.abs(
+                np.array(self.target_vel)[:,self.test_id] - np.array(self.real_vel)[:,self.test_id]
+            ))
+        else:
+            np.save(filename, {'stamp': self.stamp,
+                               'real_pos': self.real_pos,
+                               'real_vel': self.real_vel,
+                               'real_eff': self.real_eff,
+                               'target_pos': self.target_pos,
+                               'target_vel': self.target_vel,
+                               'target_eff': self.target_eff})
+            print("Tracking data saved to npy files.")
+
+
+    def run(self, max_run_time=30.0, render=True):
         # ------------ Control Loop ------------ #
+        start_time = time.time()
         dT = self.dt
         rate = rospy.Rate(1.0 / dT)
-        cycle = 0
 
         while not rospy.is_shutdown():
+            if (time.time() - start_time) > max_run_time:
+                rospy.logwarn("run() time limit exceeded, saving data and breaking...")
+                self.save_tracking_data_to_npy() # save data if stuck
+                break
+
             # Publish state and fsm for debug
             self.fsm_state_pub.publish(self.fsm_state)
-
             # update robot state
             if SIMULATION:
                 q_cur = np.array(self.r.q)
@@ -421,7 +446,7 @@ class Throwing_controller:
                 if SIMULATION:
                     self.r.iiwa_hand_go(q=self.target_state.position,
                                         d_pose=self.target_state.velocity,
-                                        qh=np.zeros(16))
+                                        qh=np.zeros(16), render=render)
                 else:
                     self.target_state_pub.publish(self.target_state)
                     self.command_pub.publish(self.convert_command_to_ROS(time_now, ref[0], ref[1], ref[2]))
@@ -459,7 +484,7 @@ class Throwing_controller:
                 if SIMULATION:
                     self.r.iiwa_hand_go(q=self.target_state.position,
                                         d_pose=self.target_state.velocity,
-                                        qh=np.zeros(16))
+                                        qh=np.zeros(16), render=render)
                 else:
                     self.target_state_pub.publish(self.target_state)
                     self.command_pub.publish(self.convert_command_to_ROS(time_now, ref[0], ref[1], ref[2]))
@@ -480,7 +505,6 @@ class Throwing_controller:
 
                 if time_now - self.time_start_slowing > self.trajectory_back.duration - dT:
                     self.save_tracking_data_to_npy()
-                    cycle += 1
                     break
 
                 ref = self.trajectory_back.at_time(time_now - self.time_start_slowing)
@@ -492,7 +516,7 @@ class Throwing_controller:
                 if SIMULATION:
                     self.r.iiwa_hand_go(q=self.target_state.position,
                                         d_pose=self.target_state.velocity,
-                                        qh=np.zeros(16))
+                                        qh=np.zeros(16), render=render)
                 else:
                     self.target_state_pub.publish(self.target_state)
                     self.command_pub.publish(self.convert_command_to_ROS(time_now, ref[0], ref[1], ref[2]))
@@ -598,21 +622,122 @@ class Throwing_controller:
 
         return trajectory
 
+    def batch_test_kp_kd(self, kp_min=10, kp_max=1000,
+                         kd_min=5, kd_max=500,
+                         num_point=10, N_runs=5,
+                         SAVE_FILE=True):
+        if self.test_id == 3:
+            kp_max = 800
+            kd_max = 400
+        elif self.test_id == 4 or self.test_id == 5:
+            kp_max = 500
+            kd_max = 250
+        elif self.test_id == 6:
+            kp_max = 300
+            kd_max = 200
+
+        self.view.close() # close mujoco viewer
+
+        kp_candidates = np.linspace(kp_min, kp_max, num_point)
+        kd_candidates = np.linspace(kd_min, kd_max, num_point)
+
+        pos_error = np.zeros((num_point, num_point))
+        vel_error = np.zeros((num_point, num_point))
+
+        for i, kp_val in enumerate(kp_candidates):
+            for j, kd_val in enumerate(kd_candidates):
+                self.r._joint_kp[self.test_id] = kp_val
+                self.r._joint_kd[self.test_id] = kd_val
+
+                self.pos_error_sum[self.test_id] = 0
+                self.vel_error_sum[self.test_id] = 0
+
+                for n in range(N_runs):
+                    self.stamp.clear()
+                    self.real_pos.clear()
+                    self.real_vel.clear()
+                    self.real_eff.clear()
+                    self.target_pos.clear()
+                    self.target_vel.clear()
+                    self.target_eff.clear()
+
+                    self.fsm_state = "IDLE"
+                    self.run(render=False)
+                    time.sleep(1)
+                    if rospy.is_shutdown():
+                        break
+
+                pos_error[i, j] = self.pos_error_sum[self.test_id] / N_runs
+                vel_error[i, j] = self.vel_error_sum[self.test_id] / N_runs
+                print(f"joint {self.test_id:d}, processing: {(i*num_point + (j+1))/(num_point*num_point)*100:.2f}%")
+
+        if SAVE_FILE:
+            data_to_save = {
+                'kp_candidates': kp_candidates,
+                'kd_candidates': kd_candidates,
+                'pos_error': pos_error,
+                'vel_error': vel_error
+            }
+
+            filepath = '../output/data/test_kp_kd'
+            os.makedirs(filepath, exist_ok=True)
+            save_file = os.path.join(filepath, f"kp_kd_joint{self.test_id}.npy")
+
+            np.save(save_file, data_to_save)
+
+        else:
+            self.plot_tracking_data(kp_candidates, kd_candidates, pos_error, vel_error)
+
+
+
+    def plot_tracking_data(self, kp_candidate, kd_candidate, pos_error_sum, vel_error_sum):
+        kp_mesh, kd_mesh = np.meshgrid(kp_candidate, kd_candidate)
+        fig1 = plt.figure()
+        ax1 = fig1.add_subplot(111, projection='3d')
+
+        surface1 = ax1.plot_surface(kp_mesh, kd_mesh, pos_error_sum, edgecolor='none')
+        ax1.set_xlabel('Kp')
+        ax1.set_ylabel('Kd')
+        ax1.set_zlabel('Position Tracking Error')
+
+        fig2 = plt.figure()
+        ax2 = fig2.add_subplot(111, projection='3d')
+        surface2 = ax2.plot_surface(kp_mesh, kd_mesh, vel_error_sum, edgecolor='none')
+        ax2.set_xlabel('Kp')
+        ax2.set_ylabel('Kd')
+        ax2.set_zlabel('Velocity Tracking Error')
+
+        plt.show()
+
+
 
 if __name__ == '__main__':
 
     simulation_mode = 'mujoco'
-    throwing_controller = Throwing_controller(simulator=simulation_mode)
-    start_time = rospy.get_time()
+    for test_id in range(3):
+        test_id += 4
+        throwing_controller = Throwing_controller(simulator=simulation_mode, test_id=test_id)
+        throwing_controller.batch_test_kp_kd()
+        throwing_controller.view.close()
+        print("joint finished:", test_id)
 
-    for nTry in range(100):
-        # print("test number", nTry + 1)
 
-        throwing_controller.fsm_state = "IDLE"
-        throwing_controller.run(start_time)
 
-        time.sleep(1)
-
-        # Stop controller when ROS is stopped
-        if rospy.is_shutdown():
-            break
+    # for nTry in range(100):
+    #     print("test number", nTry + 1)
+    #     self.stamp.clear()
+    #     self.real_pos.clear()
+    #     self.real_vel.clear()
+    #     self.real_eff.clear()
+    #     self.target_pos.clear()
+    #     self.target_vel.clear()
+    #     self.target_eff.clear()
+    #
+    #     throwing_controller.fsm_state = "IDLE"
+    #     throwing_controller.run()
+    #
+    #     time.sleep(1)
+    #
+    #     # Stop controller when ROS is stopped
+    #     if rospy.is_shutdown():
+    #         break

@@ -50,4 +50,33 @@ def plot_arm_data():
     plt.tight_layout()
     plt.show()
 
-plot_arm_data()
+def plot_tracking_data():
+    file_path = "../output/data/test_kp_kd/kp_kd_joint0.npy"
+    data = np.load(file_path, allow_pickle=True).item()
+
+    kp_candidates = data['kp_candidates']  # 1D array
+    kd_candidates = data['kd_candidates']  # 1D array
+    pos_error_sum = data['pos_error']  # 2D array
+    vel_error_sum = data['vel_error']  # 2D array
+
+    kp_mesh, kd_mesh = np.meshgrid(kp_candidates, kd_candidates)
+    fig1 = plt.figure()
+    ax1 = fig1.add_subplot(111, projection='3d')
+
+    surface1 = ax1.plot_surface(kp_mesh, kd_mesh, pos_error_sum, edgecolor='none')
+    ax1.set_xlabel('Kp')
+    ax1.set_ylabel('Kd')
+    ax1.set_zlabel('Position Tracking Error')
+
+    fig2 = plt.figure()
+    ax2 = fig2.add_subplot(111, projection='3d')
+    surface2 = ax2.plot_surface(kp_mesh, kd_mesh, vel_error_sum, edgecolor='none')
+    ax2.set_xlabel('Kp')
+    ax2.set_ylabel('Kd')
+    ax2.set_zlabel('Velocity Tracking Error')
+
+    plt.show()
+
+if __name__ == '__main__':
+    plot_tracking_data()
+    # plot_arm_data()
