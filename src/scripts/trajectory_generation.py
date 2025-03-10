@@ -360,23 +360,22 @@ class Throwing_controller:
 
         filename = '../output/data/throwing.npy'
         # Save data to npy files
-        if self.test_id is not None:
-            self.pos_error_sum[self.test_id] += np.sum(np.abs(
-                np.array(self.target_pos)[:,self.test_id] - np.array(self.real_pos)[:,self.test_id]
-            ))
+        # self.pos_error_sum[self.test_id] += np.sum(np.abs(
+        #     np.array(self.target_pos)[:,self.test_id] - np.array(self.real_pos)[:,self.test_id]
+        # ))
+        #
+        # self.vel_error_sum[self.test_id] += np.sum(np.abs(
+        #     np.array(self.target_vel)[:,self.test_id] - np.array(self.real_vel)[:,self.test_id]
+        # ))
 
-            self.vel_error_sum[self.test_id] += np.sum(np.abs(
-                np.array(self.target_vel)[:,self.test_id] - np.array(self.real_vel)[:,self.test_id]
-            ))
-        else:
-            np.save(filename, {'stamp': self.stamp,
-                               'real_pos': self.real_pos,
-                               'real_vel': self.real_vel,
-                               'real_eff': self.real_eff,
-                               'target_pos': self.target_pos,
-                               'target_vel': self.target_vel,
-                               'target_eff': self.target_eff})
-            print("Tracking data saved to npy files.")
+        np.save(filename, {'stamp': self.stamp,
+                           'real_pos': self.real_pos,
+                           'real_vel': self.real_vel,
+                           'real_eff': self.real_eff,
+                           'target_pos': self.target_pos,
+                           'target_vel': self.target_vel,
+                           'target_eff': self.target_eff})
+        print("Tracking data saved to npy files.")
 
 
     def run(self, max_run_time=30.0, render=True):
@@ -714,30 +713,22 @@ class Throwing_controller:
 if __name__ == '__main__':
 
     simulation_mode = 'mujoco'
-    for test_id in range(3):
-        test_id += 4
-        throwing_controller = Throwing_controller(simulator=simulation_mode, test_id=test_id)
-        throwing_controller.batch_test_kp_kd()
-        throwing_controller.view.close()
-        print("joint finished:", test_id)
+    # for test_id in range(7):
+    #     throwing_controller = Throwing_controller(simulator=simulation_mode, test_id=test_id)
+    #     throwing_controller.batch_test_kp_kd()
+    #     throwing_controller.view.close()
+    #     print("joint finished:", test_id)
 
+    throwing_controller = Throwing_controller(simulator=simulation_mode,
+                                              test_id=6)
+    for nTry in range(100):
+        print("test number", nTry + 1)
 
+        throwing_controller.fsm_state = "IDLE"
+        throwing_controller.run()
 
-    # for nTry in range(100):
-    #     print("test number", nTry + 1)
-    #     self.stamp.clear()
-    #     self.real_pos.clear()
-    #     self.real_vel.clear()
-    #     self.real_eff.clear()
-    #     self.target_pos.clear()
-    #     self.target_vel.clear()
-    #     self.target_eff.clear()
-    #
-    #     throwing_controller.fsm_state = "IDLE"
-    #     throwing_controller.run()
-    #
-    #     time.sleep(1)
-    #
-    #     # Stop controller when ROS is stopped
-    #     if rospy.is_shutdown():
-    #         break
+        time.sleep(1)
+
+        # Stop controller when ROS is stopped
+        if rospy.is_shutdown():
+            break
