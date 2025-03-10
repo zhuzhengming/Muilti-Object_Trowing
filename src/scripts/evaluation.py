@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import matplotlib
 matplotlib.use('Qt5Agg')
 
-def plot_arm_data():
+def plot_arm_data(joint_index):
     # Create figure with 3 subplots (Position, Velocity, Effort) for the third joint
     fig, axs = plt.subplots(3, 1, figsize=(12, 18))  # 3 rows for position, velocity, and effort plots
 
@@ -18,7 +18,7 @@ def plot_arm_data():
     target_velocity = np.array(data['target_vel'])
     target_effort = np.array(data['target_eff'])
 
-    joint_index = 2 # Third joint
+    joint_index = joint_index # Third joint
 
     # Plot Position data for the third joint
     axs[0].plot( actual_position[:, joint_index], label=f'Actual Position for Joint {joint_index}', linestyle='-', color='blue')
@@ -50,8 +50,7 @@ def plot_arm_data():
     plt.tight_layout()
     plt.show()
 
-def plot_tracking_data():
-    file_path = "../output/data/test_kp_kd/kp_kd_joint5.npy"
+def plot_tracking_data(file_path):
     data = np.load(file_path, allow_pickle=True).item()
 
     kp_candidates = data['kp_candidates']  # 1D array
@@ -78,5 +77,5 @@ def plot_tracking_data():
     plt.show()
 
 if __name__ == '__main__':
-    plot_tracking_data()
-    # plot_arm_data()
+    # plot_tracking_data(file_path = "../output/data/test_kp_kd/kp_kd_joint2.npy")
+    plot_arm_data(joint_index=6)
