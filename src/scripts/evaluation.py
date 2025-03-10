@@ -51,7 +51,7 @@ def plot_arm_data():
     plt.show()
 
 def plot_tracking_data():
-    file_path = "../output/data/test_kp_kd/kp_kd_joint0.npy"
+    file_path = "../output/data/test_kp_kd/kp_kd_joint5.npy"
     data = np.load(file_path, allow_pickle=True).item()
 
     kp_candidates = data['kp_candidates']  # 1D array
