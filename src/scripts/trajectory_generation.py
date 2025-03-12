@@ -132,7 +132,6 @@ class Throwing_controller:
             num = 0
             obj = obj_names[num]
             self.r = Robot(model, data, self.view, auto_sync=True, obj_names=obj_names)
-            self.r.iiwa_hand_go(q=self.q0,qh=self.envelop)
 
         # Run simulation once for visualization
         if SIMULATION:
