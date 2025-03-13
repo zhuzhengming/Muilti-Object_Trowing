@@ -212,7 +212,7 @@ def main(VelocityHedgehog: VelocityHedgehog, delta_q, Dis, Z, Phi, Gamma,
 
 if __name__ == '__main__':
 
-    prefix = '../hedgehog_data'
+    prefix = '../hedgehog_data/'
     robot_path = '../description/iiwa7_allegro_ycb.xml'
 
     q_min = np.array([-2.96705972839, -2.09439510239, -2.96705972839, -2.09439510239, -2.96705972839,
