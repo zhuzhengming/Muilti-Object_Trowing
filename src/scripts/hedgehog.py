@@ -17,6 +17,7 @@ import time
 import cvxpy as cp
 import numpy as np
 import mujoco
+from mujoco import viewer
 from tqdm import tqdm
 
 
@@ -29,14 +30,36 @@ class VelocityHedgehog:
         self.model = mujoco.MjModel.from_xml_path(robot_path)
         self.data = mujoco.MjData(self.model)
 
+        self.view = viewer.launch_passive(self.model, self.data)
+
         self.q0 = np.array([-0.32032486, 0.02707055, -0.22881525, -1.42611918, 1.38608943, 0.5596685, -1.34659665 + np.pi])
-        self._set_joints(self.q0)
+        self._set_joints(self.q0.tolist(), render=True)
+        self.viewer_setup()
 
-        # AE, J = self.forward(self.q0)
+    def viewer_setup(self):
+        """
+        setup camera angles and distances
+        These data is generated from a notebook, change the view direction you wish and print the view.cam to get desired ones
+        :return:
+        """
+        self.view.cam.trackbodyid = 0  # id of the body to track ()
+        # self.viewer.cam.distance = self.sim.model.stat.extent * 0.05  # how much you "zoom in", model.stat.extent is the max limits of the arena
+        self.view.cam.distance = 0.6993678113883466  # how much you "zoom in", model.stat.extent is the max limits of the arena
+        self.view.cam.lookat[0] = 0.55856114  # x,y,z offset from the object (works if trackbodyid=-1)
+        self.view.cam.lookat[1] = 0.00967048
+        self.view.cam.lookat[2] = 1.20266637
+        self.view.cam.elevation = -21.105028822285007  # camera rotation around the axis in the plane going through the frame origin (if 0 you just see a line)
+        self.view.cam.azimuth = 94.61867426942274  # camera rotation around the camera's vertical axis
 
-    def _set_joints(self, q: list):
+
+    def _set_joints(self, q: list, q_dot: list=None, render=False):
         self.data.qpos[:7] = q
+        if q_dot is not None:
+            self.data.qvel[:7] = q_dot
         mujoco.mj_forward(self.model, self.data)
+        if render:
+            mujoco.mj_step(self.model, self.data)
+            self.view.sync()
 
     def forward(self, q: list) -> (np.ndarray, np.ndarray):
         self._set_joints(q)

@@ -136,7 +136,7 @@ class BRT:
             l += 1
         brt_tensor = np.array(brt_tensor)
         brt_tensor = np.moveaxis(brt_tensor, 0, 2)
-        brt_tensor = np.expand_dims(brt_tensor, axis=1)
+        brt_tensor = np.expand_dims(brt_tensor, axis=(1, 2))
         print("Tensor Size: {0} with {1} states( occupation rate {2:0.1f}%)".format(
             brt_tensor.shape, states_num, 100 * states_num * 5.0 / (np.prod(brt_tensor.shape))))
 
