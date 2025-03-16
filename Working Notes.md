@@ -206,20 +206,39 @@
 
 ### VLA抓取任务
 
-- 机器人6轴UR5，平台搭建和收集数据-2week
-  - 就是RBG摄像头录制，操作机器人抓取机器人成功的视频，然后一帧一帧给机器人
-- 处理数据集-2week
-  - 状态表示为：笛卡尔空间末端坐标6维+gripper开放状态1维度
-  - 打包成RLDS数据格式，强化学习用到的
-- 训练数据集
-  - 使用1*4090，显存24G
-  - 显存不够，利用mini-batch来叠加梯度实现小显存训练，不改变batch-size，分成小块来累加反向传播的梯度
+- #### 理论：
+
+  - 结构：
+    - Visual encoder: DinoV2, SigLIP作为backbone, mapping图像到一些embeddings,
+    - MLP projector: 把输出的embeddings mapping到大语言模型的输入
+    - Llama2 7B: 输出一系列action token
+    -  Action de-tokenizer: 把action token转化为可以输入给机器人的连续action
+
+  - 训练：
+    - 预训练：数据集Open X-Embodiment. 64 A100 15天
+    - 微调：微调LoRA(大语言模型的低阶适应)效果最好，有接口了
+
+- #### 实验：
+
+  - 机器人6轴UR5，平台搭建和收集数据-2week
+    - 就是RBG摄像头录制，操作机器人抓取机器人成功的视频，然后一帧一帧给机器人，大概100多组，单视角
+    
+    - 处理数据集-2week
+      - 状态表示为：笛卡尔空间末端坐标6维+gripper开放状态1维度
+      - **打包成RLDS数据格式**，强化学习用到的
+    
+
+  - 训练数据集
+    - 使用1*4090，显存24G
+      - 显存不够，利用mini-batch来叠加梯度实现小显存训练，不改变batch-size，分成小块来累加反向传播的梯度
+        - --grad_accumulation_steps
+        - batch_size
+      - 训练的frequency在5-10hz
 
 
+- #### 微调
 
-- #### 改进
-
-  - 之前只是输入RGB图像，打算增加入机器人的末端状态和深度信息
+  - 之前只是输入RGB图像，增加机器人的关节状态和深度信息，使用单独的网络把其映射到与visual embedding同样的空间
   - 换用加入了action chunking的模型openvla-oft
     - 动作的连续性打包
   
