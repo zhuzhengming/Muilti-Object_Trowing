@@ -4,6 +4,9 @@ input: box_position
 output: target[q, q_dot]
 """
 import sys
+
+from lxml import etree
+
 sys.path.append("../")
 from hedgehog import VelocityHedgehog
 import argparse
@@ -39,6 +42,8 @@ class TrajectoryGenerator:
         q_dot_max = np.array([1.71, 0.5, 1.745, 1.6, 2.443, 3.142, 3.142])
 
         self.robot = VelocityHedgehog(self.q_ll, self.q_ul, q_dot_min, q_dot_max, robot_path)
+
+
         # self.max_velocity = np.array(rospy.get_param('/max_velocity'))
         self.max_velocity = np.array([2.1750, 2.1750, 2.1750, 2.1750, 2.6100, 2.6100, 2.6100])
         self.max_acceleration = np.array(rospy.get_param('/max_acceleration'))
@@ -80,7 +85,6 @@ class TrajectoryGenerator:
         :param thres_v:
         :return: candidates of q, phi, x
         """
-        start = time.time()
         z_target_to_base = self.box_position[-1]
         AB = self.box_position[:2]
 
@@ -349,8 +353,14 @@ class TrajectoryGenerator:
     def throw_simulation_mujoco(self, trajectory, throw_config_full):
         ROBOT_BASE_HEIGHT = 0.5
         box_position = throw_config_full[-1]
-        freq = 200
+        freq = 1000
         delta_t = 1.0 / freq
+
+        bottle_id = self.robot.model.body("banana").id  # set box position
+        bottle_position = np.zeros(3)
+        bottle_position[:2] = self.box_position[:2]
+        bottle_position[2] = 0
+        self.robot._set_object_position(bottle_id, bottle_position)
 
         AE = throw_config_full[-2]
         EB = box_position - AE
@@ -391,18 +401,23 @@ class TrajectoryGenerator:
                 self.robot._set_joints(ref[0], ref[1], render=True)
                 # self.robot._set_joints(ref_base[0], ref_base[1], render=True)
 
+
+            ee_pos = self.robot.data.body("allegro_base").xpos.copy()
+            ee_vel = self.robot.dx
+            object_id = self.robot.model.body("chip_can").id
+
             if tt > plan_time - 1 * delta_t:
-                print("release gripper")
+                self.robot._set_hand_joints(self.robot.hand_home_pose, render=True)
             else:
-                AE_pos = self.robot.data.site("ee_site").xpos
-                # set ball position stick to AE
+                self.robot._set_hand_joints(self.robot.envelop_pose.tolist(), render=True)
+                self.robot._set_object_position(object_id, ee_pos, ee_vel[:3])
 
             tt += delta_t
             if tt > trajectory.duration:
                 flag = False
             time.sleep(delta_t)
 
-            if tt > 6.0:
+            if tt > 15.0:
                 break
 
 
@@ -415,7 +430,7 @@ if __name__ == "__main__":
     hedgehog_path = '../hedgehog_data'
     brt_path = '../brt_data'
     robot_path = '../description/iiwa7_allegro_ycb.xml'
-    box_position = np.array([0.3, 0.6, 0.6])
+    box_position = np.array([0.6, 0.1, 0.5])
 
     trajectory_generator = TrajectoryGenerator(q_max, q_min,
                                                hedgehog_path, brt_path,

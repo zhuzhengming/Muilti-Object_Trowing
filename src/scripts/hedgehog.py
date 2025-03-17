@@ -19,6 +19,7 @@ import numpy as np
 import mujoco
 from mujoco import viewer
 from tqdm import tqdm
+import rospy
 
 
 class VelocityHedgehog:
@@ -33,7 +34,10 @@ class VelocityHedgehog:
         self.view = viewer.launch_passive(self.model, self.data)
 
         self.q0 = np.array([-0.32032486, 0.02707055, -0.22881525, -1.42611918, 1.38608943, 0.5596685, -1.34659665 + np.pi])
+        self.hand_home_pose = np.array(rospy.get_param('/hand_home_pose'))
+        self.envelop_pose = np.array(rospy.get_param('/envelop_pose'))
         self._set_joints(self.q0.tolist(), render=True)
+
         self.viewer_setup()
 
     def viewer_setup(self):
@@ -44,7 +48,7 @@ class VelocityHedgehog:
         """
         self.view.cam.trackbodyid = 0  # id of the body to track ()
         # self.viewer.cam.distance = self.sim.model.stat.extent * 0.05  # how much you "zoom in", model.stat.extent is the max limits of the arena
-        self.view.cam.distance = 0.6993678113883466  # how much you "zoom in", model.stat.extent is the max limits of the arena
+        self.view.cam.distance = 0.6993678113883466 * 3  # how much you "zoom in", model.stat.extent is the max limits of the arena
         self.view.cam.lookat[0] = 0.55856114  # x,y,z offset from the object (works if trackbodyid=-1)
         self.view.cam.lookat[1] = 0.00967048
         self.view.cam.lookat[2] = 1.20266637
@@ -61,6 +65,21 @@ class VelocityHedgehog:
             mujoco.mj_step(self.model, self.data)
             self.view.sync()
 
+    def _set_hand_joints(self, qh: list, qh_dot: list=None, render=False):
+        self.data.qpos[7:23] = qh
+        if qh_dot is not None:
+            self.data.qvel[7:23] = qh_dot
+        if render:
+            mujoco.mj_forward(self.model, self.data)
+            self.view.sync()
+
+    def _set_object_position(self, id, x, vel=None):
+        jnt_adr = self.model.body_jntadr[id]
+        self.data.qpos[jnt_adr:jnt_adr+3] = x
+        if vel is not None:
+            dof_adr = self.model.body_dofadr[id]
+            self.data.qvel[dof_adr:dof_adr+3] = vel[:3]
+
     def forward(self, q: list) -> (np.ndarray, np.ndarray):
         self._set_joints(q)
         J_shape = (3, self.model.nv)
@@ -71,6 +90,36 @@ class VelocityHedgehog:
         AE = self.data.body("allegro_base").xpos.copy()
 
         return AE, J
+
+    @property
+    def dq(self):
+        """
+        iiwa joint velocities
+        :return: (7, )
+        """
+        return self.data.qvel[:7]
+
+    @property
+    def J(self):
+        """
+            Compute site end-effector Jacobian
+        :return: (6, 7)
+        """
+        J_shape = (3, self.model.nv)
+        jacp = np.zeros(J_shape)
+        jacr = np.zeros(J_shape)
+        mujoco.mj_jacSite(self.model, self.data, jacp, jacr, 0)
+        return np.vstack((jacp[:3, :7], jacr[:3, :7]))
+
+    @property
+    def dx(self):
+        """
+            Cartesian velocities of the end-effector frame
+            Compute site end-effector Jacobian
+        :return: (6, )
+        """
+        dx = self.J @ self.dq
+        return dx.flatten()
 
 def computeMesh(q_min, q_max, delta_q):
     qs = [np.arange(qn, qa, delta_q) for qn, qa in zip(q_min, q_max)]
