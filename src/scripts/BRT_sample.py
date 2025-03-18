@@ -8,7 +8,6 @@ output:
 - brt_zs
 """
 
-
 import sys
 sys.path.append("../")
 import time
@@ -34,8 +33,7 @@ class BRT:
 
 
     def BRT_generation(self):
-        start = time.time()
-        t = np.linspace(2.0, 0.0, 51)
+        t = np.linspace(2.0, 0.0, 51) # backwards
         n_steps = t.shape[0]
 
         n_r_dot0 = self.r_dot0.shape[0]
@@ -54,11 +52,10 @@ class BRT:
             sol = odeint(flying_dynamics,
                          [0,0, r_dot0s_flat[i], z_dot0s_flat[i]],
                          t, tfirst=True)
+            # flying state for every timestamp
             brt_data[i, :, :] = sol
 
-        print(brt_data[0,:])
         brt_data = brt_data.reshape(-1, 4)
-        print("Original size: ", brt_data.shape[0])
 
         # filter out data with insane number
         brt_data = brt_data[(brt_data[:, 0] > -10)
@@ -66,21 +63,19 @@ class BRT:
                             & (brt_data[:, 1] < 5.0)
                             & (brt_data[:, 2] < 10.0)
                             & (brt_data[:, 3] < 10.0)]
-        print("Filtered size: ", brt_data.shape[0])
 
         if self.brt_path is not None:
             np.save(self.brt_path, brt_data)
-        print("Generated", n_velo, "flying trajectories in %.3f" % (time.time() - start), "seconds with",
-                  round(getsizeof(brt_data) / 1024 / 1024, 2), "MB")
+
         return brt_data
 
     def convert2tensor(self):
-
+        # generate original brt data
         self.brt_data = self.BRT_generation()
 
         step_robot_zs = 0.05
         robot_zs = np.arange(start=0.0, stop=1.10+0.01, step=step_robot_zs)
-        robot_gamma = np.arange(start=20.0/180.0*np.pi, stop=70.0/180.0*np.pi, step=5.0/180.0*np.pi)
+        robot_gamma = np.arange(start=np.pi/9, stop=7*np.pi/9, step=np.pi / 36)
 
         bzstart = min(robot_zs) - step_robot_zs * np.ceil((min(robot_zs) - min(self.brt_data[:, 1])) / step_robot_zs)
         brt_zs = np.arange(start=bzstart, stop=max(self.brt_data[:, 1]) + 0.01, step=step_robot_zs)
@@ -89,6 +84,7 @@ class BRT:
 
         brt_chunk = [[[] for j in range(num_gammas)] for i in range(num_zs)]
         states_num = 0
+        # x = [r, z, r_dot, z_dot]
         for x in self.brt_data:
             # calculate z, gamma, v
             z = x[1]
@@ -96,9 +92,11 @@ class BRT:
             # filter some states
             if gamma < min(robot_gamma) or gamma > max(robot_gamma):
                 continue
+
             v = np.sqrt(x[2]**2 + x[3]**2)
             z_idx = self.insert_idx(brt_zs, z)
             ga_idx = self.insert_idx(robot_gamma, gamma)
+            # (z, gamma) -> (r, z, r_dot, z_dot, v)
             brt_chunk[z_idx][ga_idx].append(list(x) + [v])
             states_num += 1
 
@@ -125,7 +123,7 @@ class BRT:
             stillhasvalue = False
             for i in range(num_zs):
                 for j in range(num_gammas):
-                    if len(brt_chunk[i][j]) < l+1:
+                    if len(brt_chunk[i][j]) < l + 1:
                         new_layer_brt[i, j, :] = np.nan
                     else:
                         stillhasvalue = True
@@ -136,9 +134,10 @@ class BRT:
             l += 1
         brt_tensor = np.array(brt_tensor)
         brt_tensor = np.moveaxis(brt_tensor, 0, 2)
+        # expend tensor for (dis, phi)
+
+        # (z, dis, phi, gamma, 5):(r, z, r_dot, z_dot, v)
         brt_tensor = np.expand_dims(brt_tensor, axis=(1, 2))
-        print("Tensor Size: {0} with {1} states( occupation rate {2:0.1f}%)".format(
-            brt_tensor.shape, states_num, 100 * states_num * 5.0 / (np.prod(brt_tensor.shape))))
 
         np.save(prefix + "/brt_tensor.npy", brt_tensor)
         np.save(prefix+ "/brt_zs.npy", brt_zs)
@@ -163,7 +162,8 @@ class BRT:
 if __name__ == "__main__":
     prefix = "../brt_data/"
     r_dot0 = np.arange(0.2, 2.0, 0.5)
-    z_dot0 = np.arange(-5.0, -2, 0.5)
+    z_dot0 = np.arange(-5.0, -2.0, 0.5)
     BRT_generator = BRT(r_dot0, z_dot0, prefix=prefix)
     BRT_generator.convert2tensor()
+    print("Done")
 

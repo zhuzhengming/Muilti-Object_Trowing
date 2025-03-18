@@ -23,7 +23,7 @@ import rospy
 
 
 class VelocityHedgehog:
-    def __init__(self, q_min, q_max, q_dot_min, q_dot_max, robot_path):
+    def __init__(self, q_min, q_max, q_dot_min, q_dot_max, robot_path, train_mode=False):
         self.q_min = q_min
         self.q_max = q_max
         self.q_dot_min = q_dot_min
@@ -31,14 +31,13 @@ class VelocityHedgehog:
         self.model = mujoco.MjModel.from_xml_path(robot_path)
         self.data = mujoco.MjData(self.model)
 
-        self.view = viewer.launch_passive(self.model, self.data)
-
-        self.q0 = np.array([-0.32032486, 0.02707055, -0.22881525, -1.42611918, 1.38608943, 0.5596685, -1.34659665 + np.pi])
-        self.hand_home_pose = np.array(rospy.get_param('/hand_home_pose'))
-        self.envelop_pose = np.array(rospy.get_param('/envelop_pose'))
-        self._set_joints(self.q0.tolist(), render=True)
-
-        self.viewer_setup()
+        if train_mode is False:
+            self.view = viewer.launch_passive(self.model, self.data)
+            self.q0 = np.array([-0.32032486, 0.02707055, -0.22881525, -1.42611918, 1.38608943, 0.5596685, -1.34659665 + np.pi])
+            self.hand_home_pose = np.array(rospy.get_param('/hand_home_pose'))
+            self.envelop_pose = np.array(rospy.get_param('/envelop_pose'))
+            self._set_joints(self.q0.tolist(), render=True)
+            self.viewer_setup()
 
     def viewer_setup(self):
         """
@@ -75,21 +74,57 @@ class VelocityHedgehog:
 
     def _set_object_position(self, id, x, vel=None):
         jnt_adr = self.model.body_jntadr[id]
-        self.data.qpos[jnt_adr:jnt_adr+3] = x
-        if vel is not None:
-            dof_adr = self.model.body_dofadr[id]
-            self.data.qvel[dof_adr:dof_adr+3] = vel[:3]
+        if jnt_adr != -1:
+            self.data.qpos[jnt_adr:jnt_adr + 3] = x
+            if vel is not None:
+                dof_adr = self.model.body_dofadr[id]
+                self.data.qvel[dof_adr:dof_adr + 3] = vel[:3]
+        else:
+            self.data.xpos[id] = x
+        mujoco.mj_step(self.model, self.data)
+        self.view.sync()
 
     def forward(self, q: list) -> (np.ndarray, np.ndarray):
         self._set_joints(q)
         J_shape = (3, self.model.nv)
         jacp = np.zeros(J_shape)
         jacr = np.zeros(J_shape)
-        mujoco.mj_jacSite(self.model, self.data, jacp, jacr, 0)
+        # ee_site id is 0
+        site_id = self.model.site("ee_site").id
+        mujoco.mj_jacSite(self.model, self.data, jacp, jacr, site_id)
         J = np.vstack((jacp[:3, :7], jacr[:3, :7]))
-        AE = self.data.body("allegro_base").xpos.copy()
+        AE = self.data.site("ee_site").xpos.copy()
 
         return AE, J
+
+    def print_simulator_info(self):
+        print("===== Body Information =====")
+        for i in range(self.model.nbody):
+            body_name = self.model.body(i).name
+            body_id = i
+            body_jntadr = self.model.body_jntadr[i]
+            print(f"Body {i}: Name = {body_name}, ID = {body_id}, Joint Address = {body_jntadr}")
+        print("\n")
+
+        print("===== Joint Information =====")
+        for i in range(self.model.njnt):
+            joint_name = self.model.jnt(i).name
+            joint_id = i
+            joint_type = self.model.jnt_type[i]
+            joint_qposadr = self.model.jnt_qposadr[i]
+            joint_dofadr = self.model.jnt_dofadr[i]
+            print(f"Joint {i}: Name = {joint_name}, ID = {joint_id}, Type = {joint_type}, "
+                  f"Qpos Address = {joint_qposadr}, DOF Address = {joint_dofadr}")
+        print("\n")
+
+        print("===== Site Information =====")
+        for i in range(self.model.nsite):
+            site_name = self.model.site(i).name
+            site_id = i
+            site_bodyid = self.model.site_bodyid[i]
+            print(f"Site {i}: Name = {site_name}, ID = {site_id}, Body ID = {site_bodyid}")
+        print("\n")
+
 
     @property
     def dq(self):
@@ -141,7 +176,7 @@ def filter(Q, VelocityHedgehog: VelocityHedgehog,
         Returns:
             Qzd (list): Grouped joint configurations, shape (M, K).
             aezd (list): Grouped end-effector positions, shape (M, K).
-            jzd (list): Grouped Jacobian matrices, shape (M, K).
+            jzd (list): Grouped Jacobain matrices, shape (M, K).
         """
 
 
@@ -150,6 +185,7 @@ def filter(Q, VelocityHedgehog: VelocityHedgehog,
     Jlist = []
     with tqdm(total=len(Q), desc="Filtering configurations", unit="config") as pbar:
         for q in Q:
+            # do not planning joint 0 and joint 6
             q = [0.0] + q.tolist() + [0.0]
             AE, J = VelocityHedgehog.forward(q)
             u, s, vh = np.linalg.svd(J)
@@ -180,7 +216,7 @@ def filter(Q, VelocityHedgehog: VelocityHedgehog,
                 num += 1
             pbar.update(1)
 
-    print("total num:", num)
+    # print("total num:", num)
     return Qzd, aezd, jzd
 
 def LP(phi, gamma, Jinv, fracyx, qdmin, qdmax):
@@ -208,7 +244,9 @@ def LP(phi, gamma, Jinv, fracyx, qdmin, qdmax):
 
     prob = cp.Problem(objective, constraints)
 
-    result = prob.solve(warm_start=True)
+    result = prob.solve(solver=cp.SCS, warm_start=True)
+    if s.value is None:
+        return 0
     return s.value[0]
 
 
@@ -231,35 +269,36 @@ def main(VelocityHedgehog: VelocityHedgehog, delta_q, Dis, Z, Phi, Gamma,
                             Z_TOLERANCE=z_tolerance, DIS_TOLERANCE=dis_tolerance
                             )
 
-    print("Filtering done!")
-
     # initialize velocity hedgehog_data
     num_z = Z.shape[0]
     num_dis = Dis.shape[0]
     num_phi = Phi.shape[0]
     num_gamma = Gamma.shape[0]
+
     vel_max = np.zeros((num_z, num_dis, num_phi, num_gamma))
-    argmax_q = np.zeros((num_z, num_dis, num_phi, num_gamma, num_joints))
+    argmax_q = np.zeros((num_z, num_dis, num_phi, num_gamma, num_joints)) # the configuration with max_velocity
     q_ae = np.zeros((num_z, num_dis, num_phi, num_gamma, 3))
 
     # Build velocity hedgehog_data
     with tqdm(total=total_combinations, desc="Overall Progress", unit="comb") as pbar:
         for i in range(Z.shape[0]):
             for j in range(Dis.shape[0]):
+                # for every z and distance
                 qzd = Qzd[i][j]
                 if len(qzd) == 0:
-                    # filtered q
+                    # filtered q without result
                     pbar.update(len(Phi) * len(Gamma))
                     continue
 
-                print("height: {:.2f}, AE: {:.2f}, Num(q): {}".format(Z[i], Dis[j], len(qzd)))
+                # print("height: {:.2f}, DIS: {:.2f}, Num(q): {}".format(Z[i], Dis[j], len(qzd)))
+
+                # for processing visualization
                 current_z = Z[i]
                 current_dis = Dis[j]
                 group_info = f"Z={current_z:.2f}, Dis={current_dis:.2f}"
 
-                start = time.time()
                 vels = np.zeros((len(qzd), num_phi, num_gamma))
-                # check all the q in the same z and d
+                # check all the joint configuration in the specific z and d
                 # solve specific max velocity using LP
                 for k, q in enumerate(qzd):
                     AE = aezd[i][j][k]
@@ -268,18 +307,18 @@ def main(VelocityHedgehog: VelocityHedgehog, delta_q, Dis, Z, Phi, Gamma,
                     Jinv = np.linalg.pinv(J[:3, :]) # pseudo inverse of Jacobian
                     qdmin, qdmax = VelocityHedgehog.q_dot_min, VelocityHedgehog.q_dot_max
 
+                    # fix z, dis, for every gamma and phi
                     vels[k, :, :] = np.array([[LP(phi, gamma, Jinv, fracyx, qdmin, qdmax) for gamma in Gamma] for phi in Phi])
 
                     pbar.update(1)
                     pbar.set_postfix_str(group_info)
 
-                # get the maximum velocity wrt z,d,gamma,phi
+                # get the only one maximum velocity, and relative configuration, AE position
+                # for every (z,d,gamma,phi)
                 vel_max[i,j,:,:] = np.max(vels, axis=0)
                 argmax_q[i,j,:,:] = np.array(qzd)[np.argmax(vels, axis=0), :]
                 q_ae[i,j,:,:] = np.array(aezd[i][j])[np.argmax(vels, axis=0), :]
 
-                timecost = time.time() - start
-                print("use {0:.2f}s for {1} q, {2:.3f} s per q".format(timecost, len(qzd), timecost / len(qzd)))
     return vel_max, argmax_q, q_ae
 
 if __name__ == '__main__':
@@ -289,32 +328,38 @@ if __name__ == '__main__':
 
     q_min = np.array([-2.96705972839, -2.09439510239, -2.96705972839, -2.09439510239, -2.96705972839,
                                       -2.09439510239, -3.05432619099])
-    q_max = np.array([2.96705972839, 2.09439510239, 2.96705972839, 2.09439510239, 2.96705972839,
-                                      2.09439510239, 3.05432619099])
-    q_dot_min = -np.array([1.71, 0.5, 1.745, 1.6, 2.443, 3.142, 3.142])
-    q_dot_max = np.array([1.71, 0.5, 1.745, 1.6, 2.443, 3.142, 3.142])
+    q_max = -q_min
+
+    q_dot_min = -np.array([1.71, 1.74, 1.745, 2.269, 2.443, 3.142, 3.142])
+    q_dot_max = -q_dot_min
 
     # for iiwa configuration
-    Z = np.arange(0, 1.2, 0.05)
-    Dis = np.arange(0, 1.0, 0.05) # remove the length of joint0
-    Phi = np.arange(-np.pi / 2, np.pi / 2, np.pi / 12)
+    delta_z = 0.05
+    delta_dis = 0.05
+    delta_phi = np.pi / 12
+    delta_gamma = np.pi / 36
     gamma_offset = np.pi / 9
-    Gamma = np.arange(gamma_offset, np.pi / 2 - gamma_offset, np.pi / 36 )
+    delta_q = 0.3
+
+    Z = np.arange(0, 1.2, delta_z)
+    Dis = np.arange(0, 1.0, delta_dis) # remove the length of joint0
+    Phi = np.arange(-np.pi / 2, np.pi / 2, delta_phi)
+    Gamma = np.arange(gamma_offset, np.pi / 2 - gamma_offset, gamma_offset)
 
     np.save(prefix+'robot_zs.npy', Z)
     np.save(prefix+'robot_diss.npy', Dis)
     np.save(prefix+'robot_phis.npy', Phi)
     np.save(prefix+'robot_gammas.npy', Gamma)
 
-    delta_q = 0.3
 
-    Robot = VelocityHedgehog(q_min, q_max, q_dot_min, q_dot_max, robot_path)
+    Robot = VelocityHedgehog(q_min, q_max, q_dot_min, q_dot_max, robot_path, train_mode=True)
     vel_max, argmax_q, q_ae = main(Robot, delta_q, Dis, Z, Phi, Gamma)
     np.save(prefix+'argmax_q.npy', argmax_q)
     np.save(prefix+'q_idx.npy', q_ae)
     np.save(prefix+'z_dis_phi_gamma_vel_max.npy', vel_max)
 
     # hash construct
+    # construct an id for quick search
     print("Constructing q_idx")
     num_z, num_dis, num_phi, num_gamma = len(Z), len(Dis), len(Phi), len(Gamma)
     qs = []
@@ -326,7 +371,7 @@ if __name__ == '__main__':
             for k in range(num_phi):
                 for l in range(num_gamma):
                     q = argmax_q[i, j, k, l, :]
-                    ae = argmax_q[i, j, k, l, :]
+                    ae = q_ae[i, j, k, l, :]
                     exist = False
                     for d, qi in enumerate(qs):
                         if np.allclose(qi, q):

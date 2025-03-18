@@ -157,8 +157,11 @@
       - 分为两个阶段：
         - 根据落点计算释放状态，但是需要考虑释放延迟和影响
         
-          - velocity hedgehog generation:针对fixed-based的改进，第一个轴用于调整角度，mapping的key变为(phi, gamma, dis, z)，离线跑了8个小时
-        
+          - velocity hedgehog generation:
+            - mapping的key变为(phi, gamma, dis, z)，离线跑了8个小时
+          
+            - 针对fixed-based的改进，joint 0和joint 6都不贡献末端速度，第一个轴用于调整角度，最后一个轴用于调整hand的姿势
+          
           - BRT：
         - 根据释放状态规划轨迹进行跟踪
       - 如果针对多物体投掷
