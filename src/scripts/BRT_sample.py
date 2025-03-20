@@ -72,32 +72,41 @@ class BRT:
     def convert2tensor(self):
         # generate original brt data
         self.brt_data = self.BRT_generation()
+        GAMMA_TOLERANCE = 0.2 / 180.0 * np.pi
+        Z_TOLERANCE = 0.01
 
-        step_robot_zs = 0.05
-        robot_zs = np.arange(start=0.0, stop=1.10+0.01, step=step_robot_zs)
-        robot_gamma = np.arange(start=np.pi/9, stop=7*np.pi/9, step=np.pi / 36)
+        zs_step = 0.05
+        delta_gamma = np.pi / 36
+        gamma_offset = np.pi / 9
+        robot_zs = np.arange(0, 1.2, zs_step)
 
-        bzstart = min(robot_zs) - step_robot_zs * np.ceil((min(robot_zs) - min(self.brt_data[:, 1])) / step_robot_zs)
-        brt_zs = np.arange(start=bzstart, stop=max(self.brt_data[:, 1]) + 0.01, step=step_robot_zs)
+        robot_gamma = np.arange(gamma_offset, np.pi / 2 - gamma_offset, delta_gamma)
+
+        bzstart = min(robot_zs) - zs_step * np.ceil((min(robot_zs) - min(self.brt_data[:, 1])) / zs_step)
+        brt_zs = np.arange(start=bzstart, stop=max(self.brt_data[:, 1]) + 0.01, step=zs_step)
         num_zs = brt_zs.shape[0]
         num_gammas = len(robot_gamma)  # brt_chunk.shape[1]
 
         brt_chunk = [[[] for j in range(num_gammas)] for i in range(num_zs)]
         states_num = 0
+        pad_gamma = np.r_[-np.inf, robot_gamma]
+        pad_zs = np.r_[-np.inf, brt_zs]
         # x = [r, z, r_dot, z_dot]
         for x in self.brt_data:
-            # calculate z, gamma, v
             z = x[1]
             gamma = np.arctan2(x[3], x[2])
-            # filter some states
+            # drop some states
+            # consider the maximum velocity robot can archive
             if gamma < min(robot_gamma) or gamma > max(robot_gamma):
                 continue
-
-            v = np.sqrt(x[2]**2 + x[3]**2)
-            z_idx = self.insert_idx(brt_zs, z)
-            ga_idx = self.insert_idx(robot_gamma, gamma)
-            # (z, gamma) -> (r, z, r_dot, z_dot, v)
-            brt_chunk[z_idx][ga_idx].append(list(x) + [v])
+            v = np.sqrt(x[2] ** 2 + x[3] ** 2)
+            # if v > max: continue
+            # argmax will be faster than where
+            gi = np.argmax(abs(pad_gamma - gamma) < GAMMA_TOLERANCE)
+            if gi == 0: continue
+            zi = np.argmax(abs(pad_zs - z) < Z_TOLERANCE)
+            if zi == 0: continue
+            brt_chunk[zi - 1][gi - 1].append(list(x) + [v])
             states_num += 1
 
         # delete empty chunks

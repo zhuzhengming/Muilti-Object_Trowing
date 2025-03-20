@@ -54,7 +54,6 @@ class VelocityHedgehog:
         self.view.cam.elevation = -21.105028822285007  # camera rotation around the axis in the plane going through the frame origin (if 0 you just see a line)
         self.view.cam.azimuth = 94.61867426942274  # camera rotation around the camera's vertical axis
 
-
     def _set_joints(self, q: list, q_dot: list=None, render=False):
         self.data.qpos[:7] = q
         if q_dot is not None:
@@ -244,11 +243,8 @@ def LP(phi, gamma, Jinv, fracyx, qdmin, qdmax):
 
     prob = cp.Problem(objective, constraints)
 
-    result = prob.solve(solver=cp.SCS, warm_start=True)
-    if s.value is None:
-        return 0
+    result = prob.solve(warm_start=True)
     return s.value[0]
-
 
 
 def main(VelocityHedgehog: VelocityHedgehog, delta_q, Dis, Z, Phi, Gamma,
@@ -324,7 +320,7 @@ def main(VelocityHedgehog: VelocityHedgehog, delta_q, Dis, Z, Phi, Gamma,
 if __name__ == '__main__':
 
     prefix = '../hedgehog_data/'
-    robot_path = '../description/iiwa7_allegro_ycb.xml'
+    robot_path = '../description/iiwa7_allegro_throwing.xml.xml'
 
     q_min = np.array([-2.96705972839, -2.09439510239, -2.96705972839, -2.09439510239, -2.96705972839,
                                       -2.09439510239, -3.05432619099])
@@ -344,7 +340,7 @@ if __name__ == '__main__':
     Z = np.arange(0, 1.2, delta_z)
     Dis = np.arange(0, 1.0, delta_dis) # remove the length of joint0
     Phi = np.arange(-np.pi / 2, np.pi / 2, delta_phi)
-    Gamma = np.arange(gamma_offset, np.pi / 2 - gamma_offset, gamma_offset)
+    Gamma = np.arange(gamma_offset, np.pi / 2 - gamma_offset, delta_gamma)
 
     np.save(prefix+'robot_zs.npy', Z)
     np.save(prefix+'robot_diss.npy', Dis)
