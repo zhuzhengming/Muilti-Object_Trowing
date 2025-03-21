@@ -12,6 +12,9 @@ Data:
 * D, Z, Phi, Gamma -- velocity hedgehog_data grids
 """
 import sys
+
+from vtk.numpy_interface.algorithms import arctan2
+
 sys.path.append("../")
 import time
 import cvxpy as cp
@@ -85,13 +88,12 @@ class VelocityHedgehog:
 
     def forward(self, q: list) -> (np.ndarray, np.ndarray):
         self._set_joints(q)
-        J_shape = (3, self.model.nv)
-        jacp = np.zeros(J_shape)
-        jacr = np.zeros(J_shape)
+        jacp = np.zeros((3, self.model.nv))
+        jacr = np.zeros((3, self.model.nv))
         # ee_site id is 0
         site_id = self.model.site("ee_site").id
         mujoco.mj_jacSite(self.model, self.data, jacp, jacr, site_id)
-        J = np.vstack((jacp[:3, :7], jacr[:3, :7]))
+        J = np.vstack((jacp, jacr))[:, :7]
         AE = self.data.site("ee_site").xpos.copy()
 
         return AE, J
@@ -299,7 +301,8 @@ def main(VelocityHedgehog: VelocityHedgehog, delta_q, Dis, Z, Phi, Gamma,
                 for k, q in enumerate(qzd):
                     AE = aezd[i][j][k]
                     J = Jzd[i][j][k]
-                    fracyx = AE[1] / AE[0]
+                    # fracyx = AE[1] / AE[0]
+                    fracyx = arctan2(AE[1], AE[0])
                     Jinv = np.linalg.pinv(J[:3, :]) # pseudo inverse of Jacobian
                     qdmin, qdmax = VelocityHedgehog.q_dot_min, VelocityHedgehog.q_dot_max
 
@@ -319,26 +322,30 @@ def main(VelocityHedgehog: VelocityHedgehog, delta_q, Dis, Z, Phi, Gamma,
 
 if __name__ == '__main__':
 
-    prefix = '../hedgehog_data/'
-    robot_path = '../description/iiwa7_allegro_throwing.xml.xml'
+    prefix = '../hedgehog_revised/'
+    robot_path = '../description/iiwa7_allegro_throwing.xml'
 
     q_min = np.array([-2.96705972839, -2.09439510239, -2.96705972839, -2.09439510239, -2.96705972839,
                                       -2.09439510239, -3.05432619099])
     q_max = -q_min
 
-    q_dot_min = -np.array([1.71, 1.74, 1.745, 2.269, 2.443, 3.142, 3.142])
-    q_dot_max = -q_dot_min
+    # q_dot_max = np.array([1.71, 1.74, 1.745, 2.269, 2.443, 3.142, 3.142])
+    # q_dot_min = -q_dot_max
+
+    q_dot_max = np.array([2.1750, 2.1750, 2.1750, 2.1750, 2.6100, 2.6100, 2.6100])
+    q_dot_min = -q_dot_max
+
 
     # for iiwa configuration
-    delta_z = 0.05
-    delta_dis = 0.05
+    delta_z = 0.05 * 2
+    delta_dis = 0.05 * 2
     delta_phi = np.pi / 12
-    delta_gamma = np.pi / 36
+    delta_gamma = np.pi / 36 * 2
     gamma_offset = np.pi / 9
-    delta_q = 0.3
+    delta_q = 0.3 * 1.5
 
     Z = np.arange(0, 1.2, delta_z)
-    Dis = np.arange(0, 1.0, delta_dis) # remove the length of joint0
+    Dis = np.arange(0, 1.1, delta_dis) # remove the length of joint0
     Phi = np.arange(-np.pi / 2, np.pi / 2, delta_phi)
     Gamma = np.arange(gamma_offset, np.pi / 2 - gamma_offset, delta_gamma)
 

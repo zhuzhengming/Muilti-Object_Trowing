@@ -117,13 +117,14 @@ class TrajectoryGenerator:
         # Filter because of fixed base
         # 1.AB
         b = np.linalg.norm(AB) # from target position
-        robot_tensor_v = robot_tensor_v[:, np.where(self.robot_dis < b)[0], ...]
+        # robot_tensor_v = robot_tensor_v[:, np.where(self.robot_dis < b)[0], ...]
 
         # 2 calculate desired r
         # given [dis, phi, target_position] -> [r, z, r_dot, z_dot] -> [r, gamma]
         cos_phi = np.cos(self.robot_phis)
         d_cosphi = self.robot_dis[self.robot_dis < b, np.newaxis] @ cos_phi[np.newaxis, :]
-        r = np.sqrt(b**2 - self.robot_dis[self.robot_dis < b, None]**2 + d_cosphi**2) - d_cosphi
+        r = np.sqrt(b**2 - self.robot_dis[:, None]**2 + d_cosphi**2) - d_cosphi
+        # r = np.sqrt(b**2 - self.robot_dis[self.robot_dis < b, None]**2 + d_cosphi**2) - d_cosphi
         r_tensor = r[None, :, :, None, None] #[None, dis, phi, None, None]
         mask_r = abs(-self.brt_tensor[:, :, :, :, :, 0] - r_tensor) < thres_dis
 
@@ -425,7 +426,7 @@ if __name__ == "__main__":
     hedgehog_path = '../hedgehog_data'
     brt_path = '../brt_data'
     robot_path = '../description/iiwa7_allegro_throwing.xml'
-    box_position = np.array([0.2, -1.0, 0.0])
+    box_position = np.array([0.2, -1.5, 0.0])
 
     trajectory_generator = TrajectoryGenerator(q_max, q_min,
                                                hedgehog_path, brt_path,
