@@ -322,27 +322,27 @@ def main(VelocityHedgehog: VelocityHedgehog, delta_q, Dis, Z, Phi, Gamma,
 
 if __name__ == '__main__':
 
-    prefix = '../hedgehog_revised/'
+    prefix = '../hedgehog_data/'
     robot_path = '../description/iiwa7_allegro_throwing.xml'
 
     q_min = np.array([-2.96705972839, -2.09439510239, -2.96705972839, -2.09439510239, -2.96705972839,
                                       -2.09439510239, -3.05432619099])
     q_max = -q_min
 
-    # q_dot_max = np.array([1.71, 1.74, 1.745, 2.269, 2.443, 3.142, 3.142])
-    # q_dot_min = -q_dot_max
-
-    q_dot_max = np.array([2.1750, 2.1750, 2.1750, 2.1750, 2.6100, 2.6100, 2.6100])
+    q_dot_max = np.array([1.71, 1.74, 1.745, 2.269, 2.443, 3.142, 3.142])
     q_dot_min = -q_dot_max
+
+    # q_dot_max = np.array([2.1750, 2.1750, 2.1750, 2.1750, 2.6100, 2.6100, 2.6100])
+    # q_dot_min = -q_dot_max
 
 
     # for iiwa configuration
-    delta_z = 0.05 * 2
-    delta_dis = 0.05 * 2
+    delta_z = 0.05
+    delta_dis = 0.05
     delta_phi = np.pi / 12
-    delta_gamma = np.pi / 36 * 2
+    delta_gamma = np.pi / 36
     gamma_offset = np.pi / 9
-    delta_q = 0.3 * 1.5
+    delta_q = 0.2
 
     Z = np.arange(0, 1.2, delta_z)
     Dis = np.arange(0, 1.1, delta_dis) # remove the length of joint0
