@@ -4,14 +4,13 @@ input: box_position
 output: target[q, q_dot]
 """
 import sys
+from lxml import etree
+
 sys.path.append("../")
 from hedgehog import VelocityHedgehog
-import argparse
 import time
 import math
 import numpy as np
-from pathlib import Path
-from sys import path
 from ruckig import InputParameter, Ruckig, Trajectory, Result
 import rospy
 import mujoco
@@ -33,16 +32,19 @@ class TrajectoryGenerator:
 
         # mujoco similator
         if robot_path is None:
-            self.robot_path = '../description/iiwa7_allegro_ycb.xml'
+            self.robot_path = '../description/iiwa7_allegro_throwing.xml'
 
-        q_dot_min = -np.array([1.71, 0.5, 1.745, 1.6, 2.443, 3.142, 3.142])
-        q_dot_max = np.array([1.71, 0.5, 1.745, 1.6, 2.443, 3.142, 3.142])
+        q_dot_max = np.array([1.71, 1.74, 1.745, 2.269, 2.443, 3.142, 3.142])
+        q_dot_min = -q_dot_max
 
         self.robot = VelocityHedgehog(self.q_ll, self.q_ul, q_dot_min, q_dot_max, robot_path)
+
+        self.max_velocity = np.array([1.71, 1.74, 1.745, 2.269, 2.443, 3.142, 3.142])
+        self.max_acceleration = np.array([15, 7.5, 10, 12.5, 15, 20, 20])
+        self.max_jerk = np.array([7500, 3750, 5000, 6250, 7500, 10000, 10000])
         # self.max_velocity = np.array(rospy.get_param('/max_velocity'))
-        self.max_velocity = np.array([2.1750, 2.1750, 2.1750, 2.1750, 2.6100, 2.6100, 2.6100])
-        self.max_acceleration = np.array(rospy.get_param('/max_acceleration'))
-        self.max_jerk = np.array(rospy.get_param('/max_jerk'))
+        # self.max_acceleration = np.array(rospy.get_param('/max_acceleration'))
+        # self.max_jerk = np.array(rospy.get_param('/max_jerk'))
         self.MARGIN_VELOCITY = rospy.get_param('/MARGIN_VELOCITY')
         self.MARGIN_ACCELERATION = rospy.get_param('/MARGIN_ACCELERATION')
         self.MARGIN_JERK = rospy.get_param('/MARGIN_JERK')
@@ -80,7 +82,6 @@ class TrajectoryGenerator:
         :param thres_v:
         :return: candidates of q, phi, x
         """
-        start = time.time()
         z_target_to_base = self.box_position[-1]
         AB = self.box_position[:2]
 
@@ -110,23 +111,26 @@ class TrajectoryGenerator:
         self.brt_tensor = self.brt_tensor[bzs_idx_start:bzs_idx_end + 1, ...]
 
         # Fixed-base limitation
-        # Robot tensor = {z, dis, phi, gamma} -> max_v
+        # Robot tensor = [z, dis, phi, gamma] -> [r, z, r_dot, z_dot, max_v]
         robot_tensor_v = np.expand_dims(self.robot_phi_gamma_velos_naive[rzs_idx_start: rzs_idx_end + 1, ...], axis=4)
 
-        # Filter
+        # Filter because of fixed base
         # 1.AB
-        b = np.linalg.norm(AB)
-        robot_tensor_v = robot_tensor_v[:, np.where(self.robot_dis < b)[0], ...]
+        b = np.linalg.norm(AB) # from target position
+        # robot_tensor_v = robot_tensor_v[:, np.where(self.robot_dis < b)[0], ...]
 
         # 2 calculate desired r
+        # given [dis, phi, target_position] -> [r, z, r_dot, z_dot] -> [r, gamma]
         cos_phi = np.cos(self.robot_phis)
         d_cosphi = self.robot_dis[self.robot_dis < b, np.newaxis] @ cos_phi[np.newaxis, :]
-        r = np.sqrt(b**2 - self.robot_dis[self.robot_dis < b, None]**2 + d_cosphi**2) - d_cosphi
-        r_tensor = r[None, :, :, None, None]
+        r = np.sqrt(b**2 - self.robot_dis[:, None]**2 + d_cosphi**2) - d_cosphi
+        # r = np.sqrt(b**2 - self.robot_dis[self.robot_dis < b, None]**2 + d_cosphi**2) - d_cosphi
+        r_tensor = r[None, :, :, None, None] #[None, dis, phi, None, None]
         mask_r = abs(-self.brt_tensor[:, :, :, :, :, 0] - r_tensor) < thres_dis
 
         # choose these brt data which are close to r wrt thres_v
-        validate = np.argwhere((robot_tensor_v - thres_v - self.brt_tensor[:, :, :, :, :, 4] > 0)  # velocity satisfy
+        validate = np.argwhere((robot_tensor_v -
+                                thres_v - self.brt_tensor[:, :, :, :, :, 4] > 0)  # velocity satisfy
                                * mask_r)
 
         q_indices = np.copy(validate[:, :4])
@@ -148,14 +152,15 @@ class TrajectoryGenerator:
             x_candidates = np.delete(x_candidates, error_index, axis=0)
 
         # calculate alpha
+        # (beta, dis)
         beta = np.arctan2(AB[1], AB[0])
         dis = np.linalg.norm(q_ae[:, :2], axis=1)
         alpha = (-np.arccos(np.clip((dis - x_candidates[:, 0] * np.cos(phi_candidates)) / b,
-                    -1, 1)) *
+                                    -1, 1)) *
                  np.sign(phi_candidates) + beta)
         AE_alpha = np.arctan2(q_ae[:, 1], q_ae[:, 0])
 
-        # use joint 1 to control alpha
+        # use joint 0 to control alpha
         q_candidates[:, 0] += alpha - AE_alpha
         q_candidates[q_candidates[:, 0] > np.pi, 0] -= 2 * np.pi
         q_candidates[q_candidates[:, 0] < -np.pi, 0] += 2 * np.pi
@@ -176,6 +181,7 @@ class TrajectoryGenerator:
         # kinemetic forward
         AE, J = self.robot.forward(q)
 
+        # in ee_site space
         throwing_angle = np.arctan2(AE[1], AE[0]) + phi
         EB_dir = np.array([np.cos(throwing_angle), np.sin(throwing_angle)])
 
@@ -188,7 +194,7 @@ class TrajectoryGenerator:
         box_position = AE + np.array([-r * EB_dir[0], -r * EB_dir[1], -z]) # 3 dim
 
         # control last one joint to make end effector towards box
-        eef_id = mujoco.mj_name2id(self.robot.model, mujoco.mjtObj.mjOBJ_SITE, "allegro_base")
+        eef_id = mujoco.mj_name2id(self.robot.model, mujoco.mjtObj.mjOBJ_SITE, "ee_site")
         gripperPos = self.robot.data.xpos[eef_id]
         gripperRot = self.robot.data.xmat[eef_id].reshape(3,3)
 
@@ -244,8 +250,7 @@ class TrajectoryGenerator:
 
             traj_throw = self.get_traj_from_ruckig(q0=self.q0, q0_dot=self.q0_dot,
                                                    qd=throw_config_full[0],
-                                                   qd_dot=throw_config_full[3],
-                                                   base0=base0, based=-throw_config_full[-1][:-1])
+                                                   qd_dot=throw_config_full[3])
 
             if traj_throw.duration < 1e-10:
                 num_ruckigerr += 1
@@ -254,6 +259,7 @@ class TrajectoryGenerator:
             deviation = throw_config_full[-1][:2] + base0
             if np.linalg.norm(deviation) < 0.01:
                 num_small_deviation += 1
+                # continue
 
             traj_durations.append(traj_throw.duration)
             trajs.append(traj_throw)
@@ -266,7 +272,7 @@ class TrajectoryGenerator:
 
 
     def get_traj_from_ruckig(self, q0, q0_dot,
-                             qd, qd_dot, base0, based,
+                             qd, qd_dot,
                              margin_velocity=1.0, margin_acceleration=0.7,
                              margin_jerk=None):
 
@@ -291,21 +297,20 @@ class TrajectoryGenerator:
         if margin_jerk is None:
             margin_jerk = self.MARGIN_JERK
 
-        zeros2 = np.zeros(2)
 
-        input_length = len(q0) + len(zeros2)
+        input_length = len(q0)
         inp = InputParameter(input_length)
-        inp.current_position = np.concatenate((q0, base0))
-        inp.current_velocity = np.concatenate((q0_dot, zeros2))
-        inp.current_acceleration = np.zeros(9)
+        inp.current_position = q0
+        inp.current_velocity = q0_dot
+        inp.current_acceleration = np.zeros(input_length)
 
-        inp.target_position = np.concatenate((qd, based))
-        inp.target_velocity = np.concatenate((qd_dot, zeros2))
-        inp.target_acceleration = np.zeros(9)
+        inp.target_position = qd
+        inp.target_velocity = qd_dot
+        inp.target_acceleration = np.zeros(input_length)
 
-        inp.max_velocity = np.concatenate([self.max_velocity * margin_velocity, np.array([2.0, 2.0])])
-        inp.max_acceleration = np.concatenate([self.max_acceleration * margin_acceleration, np.array([4.0, 4.0])])
-        inp.max_jerk = np.concatenate([self.max_jerk * margin_jerk, np.array([500, 500])])
+        inp.max_velocity = np.array(self.max_velocity * margin_velocity)
+        inp.max_acceleration = np.array(self.max_acceleration * margin_acceleration)
+        inp.max_jerk = np.array(self.max_jerk * margin_jerk)
 
         otg = Ruckig(input_length)
         trajectory = Trajectory(input_length)
@@ -338,8 +343,7 @@ class TrajectoryGenerator:
         print("box_position: ", self.box_position)
         print("AB          : ", throw_config_full[-1])
         print("deviation   : ", throw_config_full[-1] - self.box_position)
-        print("\n\tthrowing range: {0:0.2f}".format(-throw_config_full[2][0]),
-              "\n\tthrowing height: {0:0.2f}".format(throw_config_full[2][1]))
+        print("throwing state: ", throw_config_full[2])
 
         if animate:
             self.throw_simulation_mujoco(traj_throw, throw_config_full)
@@ -349,8 +353,15 @@ class TrajectoryGenerator:
     def throw_simulation_mujoco(self, trajectory, throw_config_full):
         ROBOT_BASE_HEIGHT = 0.5
         box_position = throw_config_full[-1]
-        freq = 200
+        freq = 1000
         delta_t = 1.0 / freq
+        # self.robot.print_simulator_info() # output similator infos
+
+        # set the target box position for visualization
+        target_id = self.robot.model.body("box").id  # set box position
+        target_position = self.box_position
+        target_position[2] += ROBOT_BASE_HEIGHT
+        self.robot._set_object_position(target_id, target_position)
 
         AE = throw_config_full[-2]
         EB = box_position - AE
@@ -379,30 +390,30 @@ class TrajectoryGenerator:
             if flag:
                 ref_full = trajectory.at_time(tt)
                 ref = [ref_full[i][:7] for i in range(3)]
-                ref_base = [ref_full[i][-2:] for i in range(3)]
 
                 self.robot._set_joints(ref[0], ref[1], render=True)
-                # self.robot._set_joints(ref_base[0], ref_base[1], render=True)
             else:
                 ref_full = trajectory.at_time(plan_time)
                 ref = [ref_full[i][:7] for i in range(3)]
-                ref_base = [ref_full[i][-2:] for i in range(3)]
-
                 self.robot._set_joints(ref[0], ref[1], render=True)
-                # self.robot._set_joints(ref_base[0], ref_base[1], render=True)
+
 
             if tt > plan_time - 1 * delta_t:
-                print("release gripper")
+                self.robot._set_hand_joints(self.robot.hand_home_pose, render=True)
             else:
-                AE_pos = self.robot.data.site("ee_site").xpos
-                # set ball position stick to AE
+                ee_pos = self.robot.data.site("ee_site").xpos.copy()
+                ee_vel = self.robot.dx  # velocity of ee_site
+                object_id = self.robot.model.body("sphere").id
+                self.robot._set_hand_joints(self.robot.envelop_pose.tolist(), render=True)
+                # stick object to the ee_site
+                self.robot._set_object_position(object_id, ee_pos, ee_vel[:3])
 
             tt += delta_t
             if tt > trajectory.duration:
                 flag = False
             time.sleep(delta_t)
 
-            if tt > 6.0:
+            if tt > 10.0:
                 break
 
 
@@ -414,8 +425,8 @@ if __name__ == "__main__":
                       2.09439510239, 3.05432619099])
     hedgehog_path = '../hedgehog_data'
     brt_path = '../brt_data'
-    robot_path = '../description/iiwa7_allegro_ycb.xml'
-    box_position = np.array([0.3, 0.6, 0.6])
+    robot_path = '../description/iiwa7_allegro_throwing.xml'
+    box_position = np.array([0.8, 0.8, 0.0])
 
     trajectory_generator = TrajectoryGenerator(q_max, q_min,
                                                hedgehog_path, brt_path,
