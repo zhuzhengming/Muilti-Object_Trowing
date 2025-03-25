@@ -12,9 +12,6 @@ Data:
 * D, Z, Phi, Gamma -- velocity hedgehog_data grids
 """
 import sys
-
-from vtk.numpy_interface.algorithms import arctan2
-
 sys.path.append("../")
 import time
 import cvxpy as cp
@@ -50,7 +47,7 @@ class VelocityHedgehog:
         """
         self.view.cam.trackbodyid = 0  # id of the body to track ()
         # self.viewer.cam.distance = self.sim.model.stat.extent * 0.05  # how much you "zoom in", model.stat.extent is the max limits of the arena
-        self.view.cam.distance = 0.6993678113883466 * 3  # how much you "zoom in", model.stat.extent is the max limits of the arena
+        self.view.cam.distance = 0.6993678113883466 * 4  # how much you "zoom in", model.stat.extent is the max limits of the arena
         self.view.cam.lookat[0] = 0.55856114  # x,y,z offset from the object (works if trackbodyid=-1)
         self.view.cam.lookat[1] = 0.00967048
         self.view.cam.lookat[2] = 1.20266637
@@ -302,7 +299,7 @@ def main(VelocityHedgehog: VelocityHedgehog, delta_q, Dis, Z, Phi, Gamma,
                     AE = aezd[i][j][k]
                     J = Jzd[i][j][k]
                     # fracyx = AE[1] / AE[0]
-                    fracyx = arctan2(AE[1], AE[0])
+                    fracyx = np.arctan2(AE[1], AE[0])
                     Jinv = np.linalg.pinv(J[:3, :]) # pseudo inverse of Jacobian
                     qdmin, qdmax = VelocityHedgehog.q_dot_min, VelocityHedgehog.q_dot_max
 

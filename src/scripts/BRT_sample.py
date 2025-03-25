@@ -170,8 +170,8 @@ class BRT:
 
 if __name__ == "__main__":
     prefix = "../brt_data/"
-    r_dot0 = np.arange(0.2, 2.0, 0.5)
-    z_dot0 = np.arange(-5.0, -2.0, 0.5)
+    r_dot0 = np.arange(0.1, 3.0, 0.5)
+    z_dot0 = np.arange(-5.0, -0.1, 0.5)
     BRT_generator = BRT(r_dot0, z_dot0, prefix=prefix)
     BRT_generator.convert2tensor()
     print("Done")

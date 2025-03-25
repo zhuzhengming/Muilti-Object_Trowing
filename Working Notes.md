@@ -202,7 +202,22 @@
     - #### 数据分析
     
       - Velocity需要生成可视化可以看到有问题
-      - 
+        - panda max v: 4.3m/s
+        - iiwa max v: 3.4m/s
+      - distance也可视化出来了：
+        - panda max dis: 2.0m
+        - iiwa max dis: 1.5m
+      
+    - #### 问题记录：
+    
+      - 经常找不到解:
+        - iiwa的速度太小了,末端生成的速度也小
+        - brt的分辨率提高
+      - 自己训练出来的数据在panda的match过程是可以用的:
+        - brt数据和hedgehog数据没有问题
+        - 区别一是底盘的移动,这是为了补偿deviation
+        - 还有可能的问题在simulation,碰撞问题
+        - 轨迹的筛选准则
 
 
 

@@ -145,11 +145,11 @@
           <joint name="box_joint_z" type="slide" axis="0 0 1"/>
           <inertial pos="0 0 0" mass="5.0" diaginertia="0.01 0.01 0.01"/>
 
-          <geom name="box_bottom" type="box" size="0.1 0.1 0.005" pos="0 0 -0.02" rgba="0 0 1 1" class="collision0" contype="1" conaffinity="1"/>
-<!--          <geom name="box_front" type="box" size="0.1 0.005 0.03" pos="0 0.1 0" rgba="0 0 1 1" class="collision0" contype="0" conaffinity="0"/>-->
-<!--          <geom name="box_back" type="box" size="0.1 0.005 0.03" pos="0 -0.1 0" rgba="0 0 1 1" class="collision0" contype="0" conaffinity="0"/>-->
-<!--          <geom name="box_left" type="box" size="0.005 0.1 0.03" pos="-0.1 0 0" rgba="0 0 1 1" class="collision0" contype="0" conaffinity="0"/>-->
-<!--          <geom name="box_right" type="box" size="0.005 0.1 0.03" pos="0.1 0 0" rgba="0 0 1 1" class="collision0" contype="0" conaffinity="0"/>-->
+          <geom name="box_bottom" type="box" size="0.1 0.1 0.005" pos="0 0 -0.02" rgba="0 0 1 1" class="collision0" contype="0" conaffinity="0"/>
+          <geom name="box_front" type="box" size="0.1 0.005 0.03" pos="0 0.1 0" rgba="0 0 1 1" class="collision0" contype="0" conaffinity="0"/>
+          <geom name="box_back" type="box" size="0.1 0.005 0.03" pos="0 -0.1 0" rgba="0 0 1 1" class="collision0" contype="0" conaffinity="0"/>
+          <geom name="box_left" type="box" size="0.005 0.1 0.03" pos="-0.1 0 0" rgba="0 0 1 1" class="collision0" contype="0" conaffinity="0"/>
+          <geom name="box_right" type="box" size="0.005 0.1 0.03" pos="0.1 0 0" rgba="0 0 1 1" class="collision0" contype="0" conaffinity="0"/>
         </body>
 
         <body name="sphere" pos="0 0.0 0.0">

@@ -39,9 +39,9 @@ class TrajectoryGenerator:
 
         self.robot = VelocityHedgehog(self.q_ll, self.q_ul, q_dot_min, q_dot_max, robot_path)
 
-        self.max_velocity = np.array([1.71, 1.74, 1.745, 2.269, 2.443, 3.142, 3.142])
-        self.max_acceleration = np.array([15, 7.5, 10, 12.5, 15, 20, 20])
-        self.max_jerk = np.array([7500, 3750, 5000, 6250, 7500, 10000, 10000])
+        self.max_velocity = np.array([1.71, 1.74, 1.745, 2.269, 2.443, 3.142, 3.142]) * 20
+        self.max_acceleration = np.array([15, 7.5, 10, 12.5, 15, 20, 20])*20
+        self.max_jerk = np.array([7500, 3750, 5000, 6250, 7500, 10000, 10000])*20
         # self.max_velocity = np.array(rospy.get_param('/max_velocity'))
         # self.max_acceleration = np.array(rospy.get_param('/max_acceleration'))
         # self.max_jerk = np.array(rospy.get_param('/max_jerk'))
@@ -70,7 +70,6 @@ class TrajectoryGenerator:
         # load brt data
         self.brt_tensor = np.load(self.brt_path + '/brt_tensor.npy')
         self.brt_zs = np.load(self.brt_path + '/brt_zs.npy')
-
 
 
     def brt_robot_data_matching(self, thres_v=0.1, thres_dis=0.01, thres_phi=0.04):
@@ -117,14 +116,14 @@ class TrajectoryGenerator:
         # Filter because of fixed base
         # 1.AB
         b = np.linalg.norm(AB) # from target position
-        # robot_tensor_v = robot_tensor_v[:, np.where(self.robot_dis < b)[0], ...]
+        robot_tensor_v = robot_tensor_v[:, np.where(self.robot_dis < b)[0], ...]
 
         # 2 calculate desired r
         # given [dis, phi, target_position] -> [r, z, r_dot, z_dot] -> [r, gamma]
         cos_phi = np.cos(self.robot_phis)
         d_cosphi = self.robot_dis[self.robot_dis < b, np.newaxis] @ cos_phi[np.newaxis, :]
-        r = np.sqrt(b**2 - self.robot_dis[:, None]**2 + d_cosphi**2) - d_cosphi
-        # r = np.sqrt(b**2 - self.robot_dis[self.robot_dis < b, None]**2 + d_cosphi**2) - d_cosphi
+        # r = np.sqrt(b**2 - self.robot_dis[:, None]**2 + d_cosphi**2) - d_cosphi
+        r = np.sqrt(b**2 - self.robot_dis[self.robot_dis < b, None]**2 + d_cosphi**2) - d_cosphi
         r_tensor = r[None, :, :, None, None] #[None, dis, phi, None, None]
         mask_r = abs(-self.brt_tensor[:, :, :, :, :, 0] - r_tensor) < thres_dis
 
@@ -425,8 +424,11 @@ if __name__ == "__main__":
                       2.09439510239, 3.05432619099])
     hedgehog_path = '../hedgehog_data'
     brt_path = '../brt_data'
+    # hedgehog_path = '../fix_hedgehog'
+    # brt_path = '../fix_hedgehog'
+
     robot_path = '../description/iiwa7_allegro_throwing.xml'
-    box_position = np.array([0.8, 0.8, 0.0])
+    box_position = np.array([0.0, -1.0, 0.0])
 
     trajectory_generator = TrajectoryGenerator(q_max, q_min,
                                                hedgehog_path, brt_path,
