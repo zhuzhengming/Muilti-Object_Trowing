@@ -271,13 +271,13 @@ class LandingVisualizer3D(QMainWindow):
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
-    # PATH = '../hedgehog_revised'
-    PATH = '../../../mobile-throwing/robot_data/panda_5_joint_fix_0.3'
+    PATH = '../hedgehog_data'
+    # PATH = '../../../mobile-throwing/robot_data/panda_5_joint_fix_0.3'
 
-    # Hedgehog_viewer = HedgehogVisualizer3D(PATH)
-    # Hedgehog_viewer.show()
+    Hedgehog_viewer = HedgehogVisualizer3D(PATH)
+    Hedgehog_viewer.show()
 
-    Landing_viewer = LandingVisualizer3D(PATH)
-    Landing_viewer.show()
+    # Landing_viewer = LandingVisualizer3D(PATH)
+    # Landing_viewer.show()
 
     sys.exit(app.exec_())

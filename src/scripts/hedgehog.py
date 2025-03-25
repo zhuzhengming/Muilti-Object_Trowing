@@ -332,8 +332,6 @@ if __name__ == '__main__':
     q_dot_max = np.array([1.71, 1.74, 1.745, 2.269, 2.443, 3.142, 3.142])
     q_dot_min = -q_dot_max
 
-    # q_dot_max = np.array([2.1750, 2.1750, 2.1750, 2.1750, 2.6100, 2.6100, 2.6100])
-    # q_dot_min = -q_dot_max
 
 
     # for iiwa configuration
@@ -342,7 +340,7 @@ if __name__ == '__main__':
     delta_phi = np.pi / 12
     delta_gamma = np.pi / 36
     gamma_offset = np.pi / 9
-    delta_q = 0.2
+    delta_q = 0.3
 
     Z = np.arange(0, 1.2, delta_z)
     Dis = np.arange(0, 1.1, delta_dis) # remove the length of joint0

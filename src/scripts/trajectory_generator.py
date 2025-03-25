@@ -426,7 +426,7 @@ if __name__ == "__main__":
     hedgehog_path = '../hedgehog_data'
     brt_path = '../brt_data'
     robot_path = '../description/iiwa7_allegro_throwing.xml'
-    box_position = np.array([0.2, -1.5, 0.0])
+    box_position = np.array([0.8, 0.8, 0.0])
 
     trajectory_generator = TrajectoryGenerator(q_max, q_min,
                                                hedgehog_path, brt_path,
