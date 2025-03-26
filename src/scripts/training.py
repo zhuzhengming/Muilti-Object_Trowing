@@ -73,53 +73,53 @@ model.save("robot_throw_ppo_final")
 print("Model saved successfully")
 
 
-# 6. evaluate
-def evaluate_model(model, env, n_episodes=10):
-    success_count = 0
-    total_reward = 0
-    error_list = []
-
-    for i in range(n_episodes):
-        obs = env.reset()
-        episode_reward = 0
-        done = False
-
-        while not done:
-            action, _ = model.predict(obs, deterministic=True)
-            obs, reward, terminated, truncated, info = env.step(action)
-            done = terminated
-            episode_reward += reward
-
-            if done:
-                if info[0]['feasible']:
-                    error = np.linalg.norm(info[0]['landing'] - env.envs[0].x_target)
-                    error_list.append(error)
-                    if error < 0.1:
-                        success_count += 1
-                total_reward += episode_reward
-
-                print(f"Episode {i + 1}:")
-                print(f"  Reward: {episode_reward:.2f}")
-                print(f"  Landing Error: {error:.4f} m")
-                print(f"  Landing Velocity: {np.linalg.norm(info[0].get('landing_velocity', 0)):.2f} m/s")
-                print("  Reward Components:")
-                for k, v in info[0]['reward_components'].items():
-                    print(f"    {k}: {v:.2f}")
-
-    print("\nEvaluation Summary:")
-    print(f"Success Rate: {success_count / n_episodes * 100:.1f}%")
-    print(f"Average Reward: {total_reward / n_episodes:.2f}")
-    print(f"Mean Landing Error: {np.mean(error_list):.4f} m")
-    print(f"Std Landing Error: {np.std(error_list):.4f} m")
-
-
-eval_env = make_vec_env(lambda: RobotThrowEnv(path_prefix=""), n_envs=1)
-
-
-if os.path.exists("../best_models/best_model.zip"):
-    model = PPO.load("../best_models/best_model", env=eval_env)
-    print("Loaded best model for evaluation")
-else:
-    print("Using final model for evaluation")
-
-evaluate_model(model, eval_env, n_episodes=10)
+# # 6. evaluate
+# def evaluate_model(model, env, n_episodes=10):
+#     success_count = 0
+#     total_reward = 0
+#     error_list = []
+#
+#     for i in range(n_episodes):
+#         obs = env.reset()
+#         episode_reward = 0
+#         done = False
+#
+#         while not done:
+#             action, _ = model.predict(obs, deterministic=True)
+#             obs, reward, terminated, truncated, info = env.step(action)
+#             done = terminated
+#             episode_reward += reward
+#
+#             if done:
+#                 if info[0]['feasible']:
+#                     error = np.linalg.norm(info[0]['landing'] - env.envs[0].x_target)
+#                     error_list.append(error)
+#                     if error < 0.1:
+#                         success_count += 1
+#                 total_reward += episode_reward
+#
+#                 print(f"Episode {i + 1}:")
+#                 print(f"  Reward: {episode_reward:.2f}")
+#                 print(f"  Landing Error: {error:.4f} m")
+#                 print(f"  Landing Velocity: {np.linalg.norm(info[0].get('landing_velocity', 0)):.2f} m/s")
+#                 print("  Reward Components:")
+#                 for k, v in info[0]['reward_components'].items():
+#                     print(f"    {k}: {v:.2f}")
+#
+#     print("\nEvaluation Summary:")
+#     print(f"Success Rate: {success_count / n_episodes * 100:.1f}%")
+#     print(f"Average Reward: {total_reward / n_episodes:.2f}")
+#     print(f"Mean Landing Error: {np.mean(error_list):.4f} m")
+#     print(f"Std Landing Error: {np.std(error_list):.4f} m")
+#
+#
+# eval_env = make_vec_env(lambda: RobotThrowEnv(path_prefix=""), n_envs=1)
+#
+#
+# if os.path.exists("../best_models/best_model.zip"):
+#     model = PPO.load("../best_models/best_model", env=eval_env)
+#     print("Loaded best model for evaluation")
+# else:
+#     print("Using final model for evaluation")
+#
+# evaluate_model(model, eval_env, n_episodes=10)

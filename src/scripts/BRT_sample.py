@@ -15,6 +15,10 @@ import numpy as np
 from scipy.integrate import odeint
 from sys import getsizeof
 from bisect import bisect_left
+import matplotlib.pyplot as plt
+from scipy.interpolate import griddata
+import matplotlib
+matplotlib.use('Qt5Agg')
 
 def flying_dynamics(t, s):
     g = 9.81
@@ -26,10 +30,12 @@ def flying_dynamics(t, s):
 
 
 class BRT:
-    def __init__(self, r_dot0, z_dot0, prefix=None):
+    def __init__(self, r_dot0, z_dot0, prefix=None, robot_path=None):
         self.r_dot0 = r_dot0
         self.z_dot0 = z_dot0
         self.brt_path = (prefix if prefix else "") + 'brt_data'
+        self.robot_zs_path = robot_path + '/robot_zs.npy'
+        self.robot_gamma_path = robot_path + '/robot_gammas.npy'
 
 
     def BRT_generation(self):
@@ -69,18 +75,76 @@ class BRT:
 
         return brt_data
 
-    def convert2tensor(self):
+    def visualize_brt(self, BRT_data_path=None, max_velo=4.0, arrow_scale=0.1, density=0.01):
+        """
+            max_velo :
+            arrow_scale :
+            density : sample density
+        """
+        if BRT_data_path is not None:
+            data = np.load(BRT_data_path)
+        else:
+            data = self.BRT_generation()
+
+        speeds = np.sqrt(data[:, 2] ** 2 + data[:, 3] ** 2)
+        mask = speeds < max_velo
+        filtered_data = data[mask]
+
+        n_samples = max(10, int(len(filtered_data) * density))
+        sampled_idx = np.random.choice(len(filtered_data), n_samples, replace=False)
+        sampled_data = filtered_data[sampled_idx]
+        sampled_speeds = speeds[mask][sampled_idx]
+
+        plt.figure(figsize=(12, 8))
+
+        q = plt.quiver(sampled_data[:, 0], sampled_data[:, 1],
+                       sampled_data[:, 2] * arrow_scale, sampled_data[:, 3] * arrow_scale,
+                       sampled_speeds,
+                       cmap='plasma',
+                       angles='xy',
+                       scale_units='xy',
+                       scale=1,
+                       width=0.003,
+                       headwidth=3,
+                       headlength=4,
+                       pivot='mid')
+
+        cbar = plt.colorbar(q, shrink=0.8)
+        cbar.set_label('True Speed Magnitude (m/s)', fontsize=12)
+
+        plt.scatter([0], [0], c='red', s=100, zorder=10, label='Origin')
+
+        info_text = (
+            f"|v| < {max_velo} m/s\n"
+            f"Arrows scaled by {arrow_scale}x\n"
+            f"Showing {n_samples} samples"
+        )
+        plt.text(0.98, 0.02, info_text,
+                 ha='right', va='bottom',
+                 transform=plt.gca().transAxes,
+                 bbox=dict(facecolor='white', alpha=0.8),
+                 fontsize=10)
+
+        plt.axhline(0, color='gray', linestyle=':', alpha=0.5)
+        plt.axvline(0, color='gray', linestyle=':', alpha=0.5)
+        plt.grid(True, alpha=0.2)
+
+        plt.title(f'BRT Velocity Field (Filtered)', fontsize=14)
+        plt.xlabel('r Position (m)', fontsize=12)
+        plt.ylabel('z Position (m)', fontsize=12)
+        plt.legend(fontsize=10)
+        plt.tight_layout()
+        plt.show()
+
+    def convert2tensor(self ):
         # generate original brt data
         self.brt_data = self.BRT_generation()
         GAMMA_TOLERANCE = 0.2 / 180.0 * np.pi
         Z_TOLERANCE = 0.01
 
-        zs_step = 0.05
-        delta_gamma = np.pi / 36
-        gamma_offset = np.pi / 9
-        robot_zs = np.arange(0, 1.2, zs_step)
-
-        robot_gamma = np.arange(gamma_offset, np.pi / 2 - gamma_offset, delta_gamma)
+        robot_zs = np.load(self.robot_zs_path)
+        robot_gamma = np.load(self.robot_gamma_path)
+        zs_step = (robot_zs[-1] - robot_zs[0]) / (len(robot_zs)-1)
 
         bzstart = min(robot_zs) - zs_step * np.ceil((min(robot_zs) - min(self.brt_data[:, 1])) / zs_step)
         brt_zs = np.arange(start=bzstart, stop=max(self.brt_data[:, 1]) + 0.01, step=zs_step)
@@ -141,11 +205,12 @@ class BRT:
                 break
             brt_tensor.append(new_layer_brt)
             l += 1
+
+        # (z, gamma, layers, 5):(r, z, r_dot, z_dot, v)
         brt_tensor = np.array(brt_tensor)
         brt_tensor = np.moveaxis(brt_tensor, 0, 2)
         # expend tensor for (dis, phi)
-
-        # (z, dis, phi, gamma, 5):(r, z, r_dot, z_dot, v)
+        # (z, dis, phi, gamma, layers, 5):(r, z, r_dot, z_dot, v)
         brt_tensor = np.expand_dims(brt_tensor, axis=(1, 2))
 
         np.save(prefix + "/brt_tensor.npy", brt_tensor)
@@ -170,9 +235,12 @@ class BRT:
 
 if __name__ == "__main__":
     prefix = "../brt_data/"
-    r_dot0 = np.arange(0.1, 3.0, 0.5)
-    z_dot0 = np.arange(-5.0, -0.1, 0.5)
-    BRT_generator = BRT(r_dot0, z_dot0, prefix=prefix)
+    robot_path = "../hedgehog_data/"
+    brt_path = "../../../mobile-throwing/object_data/brt_gravity_only/brt_data.npy"
+    r_dot0 = np.arange(0.0, 3.0, 0.1)
+    z_dot0 = np.arange(-5.0, 0.0, 0.1)
+    BRT_generator = BRT(r_dot0, z_dot0, prefix=prefix, robot_path=robot_path)
+    # BRT_generator.visualize_brt(brt_path)
     BRT_generator.convert2tensor()
     print("Done")
 

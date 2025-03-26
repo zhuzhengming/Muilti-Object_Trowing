@@ -83,15 +83,15 @@ class VelocityHedgehog:
         mujoco.mj_step(self.model, self.data)
         self.view.sync()
 
-    def forward(self, q: list) -> (np.ndarray, np.ndarray):
-        self._set_joints(q)
+    def forward(self, q: list, render=False) -> (np.ndarray, np.ndarray):
+        self._set_joints(q, render=render)
         jacp = np.zeros((3, self.model.nv))
         jacr = np.zeros((3, self.model.nv))
         # ee_site id is 0
         site_id = self.model.site("ee_site").id
         mujoco.mj_jacSite(self.model, self.data, jacp, jacr, site_id)
         J = np.vstack((jacp, jacr))[:, :7]
-        AE = self.data.site("ee_site").xpos.copy()
+        AE = self.x2base
 
         return AE, J
 
@@ -153,6 +153,16 @@ class VelocityHedgehog:
         """
         dx = self.J @ self.dq
         return dx.flatten()
+
+    @property
+    def x2base(self):
+        """
+        Cartesian position of end_effector to kuka_base
+        """
+        ee_global_pos = self.data.site("ee_site").xpos.copy()
+        kuka_base_pos = self.data.body("kuka_base").xpos.copy()
+
+        return ee_global_pos - kuka_base_pos
 
 def computeMesh(q_min, q_max, delta_q):
     qs = [np.arange(qn, qa, delta_q) for qn, qa in zip(q_min, q_max)]
@@ -329,8 +339,6 @@ if __name__ == '__main__':
     q_dot_max = np.array([1.71, 1.74, 1.745, 2.269, 2.443, 3.142, 3.142])
     q_dot_min = -q_dot_max
 
-
-
     # for iiwa configuration
     delta_z = 0.05
     delta_dis = 0.05
@@ -344,16 +352,17 @@ if __name__ == '__main__':
     Phi = np.arange(-np.pi / 2, np.pi / 2, delta_phi)
     Gamma = np.arange(gamma_offset, np.pi / 2 - gamma_offset, delta_gamma)
 
-    np.save(prefix+'robot_zs.npy', Z)
-    np.save(prefix+'robot_diss.npy', Dis)
-    np.save(prefix+'robot_phis.npy', Phi)
-    np.save(prefix+'robot_gammas.npy', Gamma)
-
-
     Robot = VelocityHedgehog(q_min, q_max, q_dot_min, q_dot_max, robot_path, train_mode=True)
     vel_max, argmax_q, q_ae = main(Robot, delta_q, Dis, Z, Phi, Gamma)
-    np.save(prefix+'argmax_q.npy', argmax_q)
-    np.save(prefix+'q_idx.npy', q_ae)
+
+    # save file
+    np.save(prefix + 'robot_zs.npy', Z)
+    np.save(prefix + 'robot_diss.npy', Dis)
+    np.save(prefix + 'robot_phis.npy', Phi)
+    np.save(prefix + 'robot_gammas.npy', Gamma)
+
+    # np.save(prefix+'argmax_q.npy', argmax_q)
+    # np.save(prefix+'q_idx.npy', q_ae)
     np.save(prefix+'z_dis_phi_gamma_vel_max.npy', vel_max)
 
     # hash construct
@@ -381,6 +390,8 @@ if __name__ == '__main__':
                         qid_iter += 1
                         qs.append(q)
                         aes.append(ae)
+                    # [z, dis, phi, gamma] -> q_id
+                    # q_id -> q, ae
                     q_idxs[i, j, k, l] = qid
     np.save(prefix + 'z_dis_phi_gamma_vel_max_q_idxs', q_idxs)
     np.save(prefix + 'q_idx_qs', np.array(qs))

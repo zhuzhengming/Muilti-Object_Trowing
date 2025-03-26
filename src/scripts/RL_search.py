@@ -25,15 +25,17 @@ class RobotThrowEnv(gym.Env):
             'scale': 0.05,
             'decay_rate': 0.999
         }
+        self.q0 = np.array(
+            [-0.32032486, 0.02707055, -0.22881525, -1.42611918, 1.38608943, 0.5596685, -1.34659665 + np.pi])
 
         self.joint_limits = {
             'q_min': np.array([-2.96705972839, -2.09439510239, -2.96705972839,
-                               -2.09439510239, -2.96705972839, -2.09439510239]),
+                               -2.09439510239, -2.96705972839, -2.09439510239, -3.05432619099]),
             'q_max': np.array([2.96705972839, 2.09439510239, 2.96705972839,
-                               2.09439510239, 2.96705972839, 2.09439510239]),
-            'q_dot_max': np.array([1.71, 1.74, 1.745, 2.269, 2.443, 3.142]),
-            'q_ddot_max': np.array([1.35, 1.35, 2.0, 2.0, 7.5, 10.0]),
-            'jerk_max': np.array([6.75, 6.75, 10.0, 10.0, 30.0, 30.0])
+                               2.09439510239, 2.96705972839, 2.09439510239, -3.05432619099]),
+            'q_dot_max': np.array([1.71, 1.74, 1.745, 2.269, 2.443, 3.142, 3.142]),
+            'q_ddot_max': np.array([1.35, 1.35, 2.0, 2.0, 7.5, 10.0, 10.0]),
+            'jerk_max': np.array([6.75, 6.75, 10.0, 10.0, 30.0, 30.0, 30.0])
         }
 
         self.robot_path = '../description/iiwa7_allegro_throwing.xml'
@@ -61,10 +63,7 @@ class RobotThrowEnv(gym.Env):
         return: (obs, info)
         """
         self.episode_count += 1
-        self.q_init = np.random.uniform(
-            low=self.joint_limits['q_min'],
-            high=self.joint_limits['q_max']
-        )
+        self.q_init = self.q0[:6]
         self.q_dot_init = np.zeros(6)
 
         self.x_target = np.random.uniform(low=[-1.5, -1.5, 0], high=[1.5, 1.5, 0.5])
@@ -139,17 +138,13 @@ class RobotThrowEnv(gym.Env):
 
     def _denormalize_action(self, action):
         action = np.clip(action, -1.0, 1.0)
-        q_desired = ((action[0:6] + 1) * (
-                self.joint_limits['q_max'] - self.joint_limits['q_min']) / 2
-                     + self.joint_limits['q_min'])
-
-        q_dot_desired = action[6:12] * self.joint_limits['q_dot_max']
+        q_desired = action[6:12] * self.joint_limits['q_max'][:6]
+        q_dot_desired = action[6:12] * self.joint_limits['q_dot_max'][:6]
         return q_desired, q_dot_desired
 
     def _normalize_state(self):
-        q_norm = 2 * (self.q_init - self.joint_limits['q_min']) / (
-                    self.joint_limits['q_max'] - self.joint_limits['q_min']) - 1
-        q_dot_norm = self.q_dot_init / self.joint_limits['q_dot_max']
+        q_norm = self.q_init / self.joint_limits['q_max'][:6]
+        q_dot_norm = self.q_dot_init / self.joint_limits['q_dot_max'][:6]
         x_target_norm = self.x_target / np.array([1.0, 1.0, 0.5])
         return np.concatenate([q_norm, q_dot_norm, x_target_norm]).astype(np.float32)
 

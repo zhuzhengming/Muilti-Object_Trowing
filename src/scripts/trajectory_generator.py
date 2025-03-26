@@ -106,15 +106,15 @@ class TrajectoryGenerator:
         if z_num == 0 or rzs_idx_end <= 0:
             return [], [], []
 
-        # BRT-Tensor = {z, dis(length=1), phi(length=1), gamma, idx} -> brt state,
+        # BRT-Tensor = {z, dis, phi, gamma, layers} -> [r, z, r_dot, z_dot]
         self.brt_tensor = self.brt_tensor[bzs_idx_start:bzs_idx_end + 1, ...]
 
         # Fixed-base limitation
-        # Robot tensor = [z, dis, phi, gamma] -> [r, z, r_dot, z_dot, max_v]
+        # Robot tensor = [z, dis, phi, gamma, layers] -> [r, z, r_dot, z_dot, max_v]
         robot_tensor_v = np.expand_dims(self.robot_phi_gamma_velos_naive[rzs_idx_start: rzs_idx_end + 1, ...], axis=4)
 
-        # Filter because of fixed base
-        # 1.AB
+        # Selection
+        # 1.distance < b
         b = np.linalg.norm(AB) # from target position
         robot_tensor_v = robot_tensor_v[:, np.where(self.robot_dis < b)[0], ...]
 
@@ -122,12 +122,11 @@ class TrajectoryGenerator:
         # given [dis, phi, target_position] -> [r, z, r_dot, z_dot] -> [r, gamma]
         cos_phi = np.cos(self.robot_phis)
         d_cosphi = self.robot_dis[self.robot_dis < b, np.newaxis] @ cos_phi[np.newaxis, :]
-        # r = np.sqrt(b**2 - self.robot_dis[:, None]**2 + d_cosphi**2) - d_cosphi
         r = np.sqrt(b**2 - self.robot_dis[self.robot_dis < b, None]**2 + d_cosphi**2) - d_cosphi
         r_tensor = r[None, :, :, None, None] #[None, dis, phi, None, None]
         mask_r = abs(-self.brt_tensor[:, :, :, :, :, 0] - r_tensor) < thres_dis
 
-        # choose these brt data which are close to r wrt thres_v
+        #3.choose these brt data which are close to r wrt thres_v
         validate = np.argwhere((robot_tensor_v -
                                 thres_v - self.brt_tensor[:, :, :, :, :, 4] > 0)  # velocity satisfy
                                * mask_r)
@@ -171,6 +170,7 @@ class TrajectoryGenerator:
         Return full throwing configurations
         :input param robot description, q, phi, x
         :return: (q, phi, x, q_dot, blockPosInGripper, eef_velo, AE, box_position)
+        calculate from the throwing aspect
         """
         r = x[0]
         z = x[1]
@@ -190,12 +190,13 @@ class TrajectoryGenerator:
 
         eef_velo = np.array([EB_dir[0] * r_dot, EB_dir[1] * r_dot, z_dot])
         q_dot = J_xyz_pinv @ eef_velo
+        # AB = AE - EB
         box_position = AE + np.array([-r * EB_dir[0], -r * EB_dir[1], -z]) # 3 dim
 
         # control last one joint to make end effector towards box
-        eef_id = mujoco.mj_name2id(self.robot.model, mujoco.mjtObj.mjOBJ_SITE, "ee_site")
-        gripperPos = self.robot.data.xpos[eef_id]
-        gripperRot = self.robot.data.xmat[eef_id].reshape(3,3)
+        gripper = mujoco.mj_name2id(self.robot.model, mujoco.mjtObj.mjOBJ_SITE, "ee_site")
+        gripperPos = self.robot.data.xpos[gripper] - 0.5 # position based on kuka_base
+        gripperRot = self.robot.data.xmat[gripper].reshape(3,3)
 
         eef_velo_dir_3d = eef_velo / np.linalg.norm(eef_velo)
 
@@ -385,6 +386,8 @@ class TrajectoryGenerator:
 
         tt = 0
         flag = True
+        throw_flag = False
+
         while True:
             if flag:
                 ref_full = trajectory.at_time(tt)
@@ -396,16 +399,20 @@ class TrajectoryGenerator:
                 ref = [ref_full[i][:7] for i in range(3)]
                 self.robot._set_joints(ref[0], ref[1], render=True)
 
+            # get the state of ee_site in the frame of kuka_base
+            ee_pos = self.robot.x2base
+            ee_vel = self.robot.dx  # velocity of ee_site
+            object_id = self.robot.model.body("sphere").id
 
-            if tt > plan_time - 1 * delta_t:
-                self.robot._set_hand_joints(self.robot.hand_home_pose, render=True)
+            if throw_flag is False:
+                self.robot._set_object_position(object_id, ee_pos, ee_vel[:3])
+
+            if tt > plan_time - 1 * delta_t and not throw_flag:
+                self.robot._set_hand_joints(self.robot.hand_home_pose.tolist(), render=True)
+                throw_flag = True
             else:
-                ee_pos = self.robot.data.site("ee_site").xpos.copy()
-                ee_vel = self.robot.dx  # velocity of ee_site
-                object_id = self.robot.model.body("sphere").id
                 self.robot._set_hand_joints(self.robot.envelop_pose.tolist(), render=True)
                 # stick object to the ee_site
-                self.robot._set_object_position(object_id, ee_pos, ee_vel[:3])
 
             tt += delta_t
             if tt > trajectory.duration:
@@ -422,13 +429,13 @@ if __name__ == "__main__":
                       -2.09439510239, -3.05432619099])
     q_max = np.array([2.96705972839, 2.09439510239, 2.96705972839, 2.09439510239, 2.96705972839,
                       2.09439510239, 3.05432619099])
-    hedgehog_path = '../hedgehog_data'
-    brt_path = '../brt_data'
-    # hedgehog_path = '../fix_hedgehog'
-    # brt_path = '../fix_hedgehog'
+    # hedgehog_path = '../hedgehog_data'
+    # brt_path = '../brt_data'
+    hedgehog_path = '../fix_hedgehog'
+    brt_path = '../fix_hedgehog'
 
     robot_path = '../description/iiwa7_allegro_throwing.xml'
-    box_position = np.array([0.0, -1.0, 0.0])
+    box_position = np.array([0.0, -1.2, 0.0])
 
     trajectory_generator = TrajectoryGenerator(q_max, q_min,
                                                hedgehog_path, brt_path,
