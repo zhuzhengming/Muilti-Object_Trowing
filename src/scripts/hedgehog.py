@@ -46,18 +46,19 @@ class VelocityHedgehog:
         :return:
         """
         self.view.cam.trackbodyid = 0  # id of the body to track ()
-        # self.viewer.cam.distance = self.sim.model.stat.extent * 0.05  # how much you "zoom in", model.stat.extent is the max limits of the arena
-        self.view.cam.distance = 0.6993678113883466 * 4  # how much you "zoom in", model.stat.extent is the max limits of the arena
-        self.view.cam.lookat[0] = 0.55856114  # x,y,z offset from the object (works if trackbodyid=-1)
+        self.view.cam.distance = 0.6993678113883466 * 6  # how much you "zoom in", model.stat.extent is the max limits of the arena
+        self.view.cam.lookat[0] = 0.5856114  # x,y,z offset from the object (works if trackbodyid=-1)
         self.view.cam.lookat[1] = 0.00967048
         self.view.cam.lookat[2] = 1.20266637
         self.view.cam.elevation = -21.105028822285007  # camera rotation around the axis in the plane going through the frame origin (if 0 you just see a line)
         self.view.cam.azimuth = 94.61867426942274  # camera rotation around the camera's vertical axis
 
     def _set_joints(self, q: list, q_dot: list=None, render=False):
-        self.data.qpos[:7] = q
+        size_q = len(q)
+        self.data.qpos[:size_q] = q
         if q_dot is not None:
-            self.data.qvel[:7] = q_dot
+            size_qdot = len(q_dot)
+            self.data.qvel[:size_qdot] = q_dot
         mujoco.mj_forward(self.model, self.data)
         if render:
             mujoco.mj_step(self.model, self.data)
@@ -123,6 +124,20 @@ class VelocityHedgehog:
             print(f"Site {i}: Name = {site_name}, ID = {site_id}, Body ID = {site_bodyid}")
         print("\n")
 
+    def _update_velocity_arrow(self, pos, direction):
+        direction = direction / np.linalg.norm(direction)
+        arrow_id = self.model.body("velocity_arrow").id
+
+        z_axis = np.array([0, 0, 1])
+        rot_axis = np.cross(z_axis, direction)
+        rot_angle = np.arccos(np.dot(z_axis, direction))
+        mujoco.mju_axisAngle2Quat(self.data.body(arrow_id).xquat,
+                                  rot_axis, rot_angle)
+
+
+        self.data.body(arrow_id).xpos = pos
+        mujoco.mj_step(self.model, self.data)
+        self.view.sync()
 
     @property
     def dq(self):

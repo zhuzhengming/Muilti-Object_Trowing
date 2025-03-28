@@ -39,9 +39,9 @@ class TrajectoryGenerator:
 
         self.robot = VelocityHedgehog(self.q_ll, self.q_ul, q_dot_min, q_dot_max, robot_path)
 
-        self.max_velocity = np.array([1.71, 1.74, 1.745, 2.269, 2.443, 3.142, 3.142]) * 20
-        self.max_acceleration = np.array([15, 7.5, 10, 12.5, 15, 20, 20])*20
-        self.max_jerk = np.array([7500, 3750, 5000, 6250, 7500, 10000, 10000])*20
+        self.max_velocity = np.array([1.71, 1.74, 1.745, 2.269, 2.443, 3.142, 3.142])
+        self.max_acceleration = np.array([15, 7.5, 10, 12.5, 15, 20, 20])
+        self.max_jerk = np.array([7500, 3750, 5000, 6250, 7500, 10000, 10000])
         # self.max_velocity = np.array(rospy.get_param('/max_velocity'))
         # self.max_acceleration = np.array(rospy.get_param('/max_acceleration'))
         # self.max_jerk = np.array(rospy.get_param('/max_jerk'))
@@ -72,7 +72,7 @@ class TrajectoryGenerator:
         self.brt_zs = np.load(self.brt_path + '/brt_zs.npy')
 
 
-    def brt_robot_data_matching(self, thres_v=0.1, thres_dis=0.01, thres_phi=0.04):
+    def brt_robot_data_matching(self, thres_v=0.1, thres_dis=0.01, thres_phi=0.04, thres_r=0.1):
         """
         original point is the base of robot
         Given target position, find out initial guesses of (q, phi, x)
@@ -121,12 +121,15 @@ class TrajectoryGenerator:
         # 2 calculate desired r
         # given [dis, phi, target_position] -> [r, z, r_dot, z_dot] -> [r, gamma]
         cos_phi = np.cos(self.robot_phis)
+        sin_phi = np.sin(self.robot_phis)
         d_cosphi = self.robot_dis[self.robot_dis < b, np.newaxis] @ cos_phi[np.newaxis, :]
-        r = np.sqrt(b**2 - self.robot_dis[self.robot_dis < b, None]**2 + d_cosphi**2) - d_cosphi
+        d_sinphi = self.robot_dis[self.robot_dis < b, np.newaxis] @ sin_phi[np.newaxis, :]
+        r = np.sqrt(b ** 2 - d_sinphi ** 2) - d_cosphi
+        # r = np.sqrt(b**2 - self.robot_dis[self.robot_dis < b, None]**2 + d_cosphi**2) - d_cosphi
         r_tensor = r[None, :, :, None, None] #[None, dis, phi, None, None]
         mask_r = abs(-self.brt_tensor[:, :, :, :, :, 0] - r_tensor) < thres_dis
 
-        #3.choose these brt data which are close to r wrt thres_v
+        # 3.choose these brt data which are close to r wrt thres_v
         validate = np.argwhere((robot_tensor_v -
                                 thres_v - self.brt_tensor[:, :, :, :, :, 4] > 0)  # velocity satisfy
                                * mask_r)
@@ -148,6 +151,17 @@ class TrajectoryGenerator:
             q_ae = np.delete(q_ae, error_index, axis=0)
             phi_candidates = np.delete(phi_candidates, error_index, axis=0)
             x_candidates = np.delete(x_candidates, error_index, axis=0)
+
+        # 4. close to target wrt r
+        sorted_indices = np.argsort(abs(x_candidates[:, 0]))
+        n_total = len(sorted_indices)
+        n_keep = max(1, int(n_total * thres_r))
+        final_indices = sorted_indices[:n_keep]
+
+        q_candidates = q_candidates[final_indices]
+        phi_candidates = phi_candidates[final_indices]
+        x_candidates = x_candidates[final_indices]
+        q_ae = q_ae[final_indices]
 
         # calculate alpha
         # (beta, dis)
@@ -194,9 +208,9 @@ class TrajectoryGenerator:
         box_position = AE + np.array([-r * EB_dir[0], -r * EB_dir[1], -z]) # 3 dim
 
         # control last one joint to make end effector towards box
-        gripper = mujoco.mj_name2id(self.robot.model, mujoco.mjtObj.mjOBJ_SITE, "ee_site")
-        gripperPos = self.robot.data.xpos[gripper] - 0.5 # position based on kuka_base
-        gripperRot = self.robot.data.xmat[gripper].reshape(3,3)
+
+        gripperPos = self.robot.data.site("ee_site").xpos.copy() - 0.5 # position based on kuka_base
+        gripperRot = self.robot.data.site("ee_site").xmat.copy().reshape(3,3)
 
         eef_velo_dir_3d = eef_velo / np.linalg.norm(eef_velo)
 
@@ -204,9 +218,9 @@ class TrajectoryGenerator:
         blockPosInGripper = gripperRot.T @ (tmp - gripperPos)
         velo_angle_in_eef = np.arctan2(blockPosInGripper[1], blockPosInGripper[0])
 
-        if (velo_angle_in_eef < 0.5 * math.pi) and (velo_angle_in_eef > -0.5 * math.pi):
+        if (velo_angle_in_eef < math.pi) and (velo_angle_in_eef > -math.pi):
             eef_angle_near = velo_angle_in_eef
-        elif velo_angle_in_eef > 0.5 * math.pi:
+        elif velo_angle_in_eef > math.pi:
             eef_angle_near = velo_angle_in_eef - math.pi
         else:
             eef_angle_near = velo_angle_in_eef + math.pi
@@ -353,7 +367,7 @@ class TrajectoryGenerator:
     def throw_simulation_mujoco(self, trajectory, throw_config_full):
         ROBOT_BASE_HEIGHT = 0.5
         box_position = throw_config_full[-1]
-        freq = 1000
+        freq = 100
         delta_t = 1.0 / freq
         # self.robot.print_simulator_info() # output similator infos
 
@@ -401,13 +415,14 @@ class TrajectoryGenerator:
 
             # get the state of ee_site in the frame of kuka_base
             ee_pos = self.robot.x2base
+            ee_pos[2] += ROBOT_BASE_HEIGHT
             ee_vel = self.robot.dx  # velocity of ee_site
             object_id = self.robot.model.body("sphere").id
 
             if throw_flag is False:
                 self.robot._set_object_position(object_id, ee_pos, ee_vel[:3])
 
-            if tt > plan_time - 1 * delta_t and not throw_flag:
+            if tt > plan_time - 1 * delta_t:
                 self.robot._set_hand_joints(self.robot.hand_home_pose.tolist(), render=True)
                 throw_flag = True
             else:
@@ -429,13 +444,13 @@ if __name__ == "__main__":
                       -2.09439510239, -3.05432619099])
     q_max = np.array([2.96705972839, 2.09439510239, 2.96705972839, 2.09439510239, 2.96705972839,
                       2.09439510239, 3.05432619099])
-    # hedgehog_path = '../hedgehog_data'
-    # brt_path = '../brt_data'
-    hedgehog_path = '../fix_hedgehog'
-    brt_path = '../fix_hedgehog'
+    hedgehog_path = '../hedgehog_data'
+    brt_path = '../brt_data'
+    # hedgehog_path = '../fix_hedgehog'
+    # brt_path = '../fix_hedgehog'
 
     robot_path = '../description/iiwa7_allegro_throwing.xml'
-    box_position = np.array([0.0, -1.2, 0.0])
+    box_position = np.array([0.0, -1.4, -0.1])
 
     trajectory_generator = TrajectoryGenerator(q_max, q_min,
                                                hedgehog_path, brt_path,

@@ -236,11 +236,11 @@ class BRT:
 if __name__ == "__main__":
     prefix = "../brt_data/"
     robot_path = "../hedgehog_data/"
-    brt_path = "../../../mobile-throwing/object_data/brt_gravity_only/brt_data.npy"
+    brt_path = "../brt_data/brt_data.npy"
     r_dot0 = np.arange(0.0, 3.0, 0.1)
     z_dot0 = np.arange(-5.0, 0.0, 0.1)
     BRT_generator = BRT(r_dot0, z_dot0, prefix=prefix, robot_path=robot_path)
-    # BRT_generator.visualize_brt(brt_path)
-    BRT_generator.convert2tensor()
+    BRT_generator.visualize_brt(brt_path)
+    # BRT_generator.convert2tensor()
     print("Done")
 

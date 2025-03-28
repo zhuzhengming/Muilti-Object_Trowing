@@ -145,11 +145,11 @@
           <joint name="box_joint_z" type="slide" axis="0 0 1"/>
           <inertial pos="0 0 0" mass="5.0" diaginertia="0.01 0.01 0.01"/>
 
-          <geom name="box_bottom" type="box" size="0.1 0.1 0.005" pos="0 0 -0.02" rgba="0 0 1 1" class="collision0" contype="0" conaffinity="0"/>
-          <geom name="box_front" type="box" size="0.1 0.005 0.03" pos="0 0.1 0" rgba="0 0 1 1" class="collision0" contype="0" conaffinity="0"/>
-          <geom name="box_back" type="box" size="0.1 0.005 0.03" pos="0 -0.1 0" rgba="0 0 1 1" class="collision0" contype="0" conaffinity="0"/>
-          <geom name="box_left" type="box" size="0.005 0.1 0.03" pos="-0.1 0 0" rgba="0 0 1 1" class="collision0" contype="0" conaffinity="0"/>
-          <geom name="box_right" type="box" size="0.005 0.1 0.03" pos="0.1 0 0" rgba="0 0 1 1" class="collision0" contype="0" conaffinity="0"/>
+<!--          <geom name="box_bottom" type="box" size="0.1 0.1 0.005" pos="0 0 -0.02" rgba="0 0 1 1" class="collision0" contype="1" conaffinity="1"/>-->
+          <geom name="box_front" type="box" size="0.1 0.005 0.01" pos="0 0.1 0" rgba="0 0 1 1" class="collision0" contype="0" conaffinity="0"/>
+          <geom name="box_back" type="box" size="0.1 0.005 0.01" pos="0 -0.1 0" rgba="0 0 1 1" class="collision0" contype="0" conaffinity="0"/>
+          <geom name="box_left" type="box" size="0.005 0.1 0.01" pos="-0.1 0 0" rgba="0 0 1 1" class="collision0" contype="0" conaffinity="0"/>
+          <geom name="box_right" type="box" size="0.005 0.1 0.01" pos="0.1 0 0" rgba="0 0 1 1" class="collision0" contype="0" conaffinity="0"/>
         </body>
 
         <body name="sphere" pos="0 0.0 0.0">
@@ -162,7 +162,7 @@
               size="0.02"
               rgba="0 1 0 1"
               class="collision0"
-              contype="0" conaffinity="0"/>
+              contype="1" conaffinity="1"/>
         </body>
 
         <body name="axes" pos="0 0 0">
@@ -170,6 +170,13 @@
             <geom name="y_axis" type="cylinder" size="0.002 3.0" pos="0 3.0 0" euler="1.570796 0 0" rgba="0 1 0 1" contype="0" conaffinity="0"/>
             <geom name="z_axis" type="cylinder" size="0.002 3.0" pos="0 0 3.0" rgba="0 0 1 1" contype="0" conaffinity="0"/>
         </body>
+
+        <body name="velocity_arrow" pos="0 0 0">
+            <geom name="vel_arrow" type="cylinder" size="0.01 0.05"
+                rgba="1 0 0 0.8" euler="90 0 0"/>
+            <geom name="vel_arrow_head" type="sphere" size="0.02"
+                rgba="1 0 0 0.8" pos="0 0 0.07"/>
+</body>
 
     </worldbody>
 
@@ -197,12 +204,6 @@
       <motor name="thumb_joint_1" ctrllimited="true" ctrlrange="-15 15" joint="thumb_joint_1"/>
       <motor name="thumb_joint_2" ctrllimited="true" ctrlrange="-15 15" joint="thumb_joint_2"/>
       <motor name="thumb_joint_3" ctrllimited="true" ctrlrange="-15 15" joint="thumb_joint_3"/>
-      <motor name="box_motor_x" joint="box_joint_x" ctrllimited="true" ctrlrange="-15 15"/>
-      <motor name="box_motor_y" joint="box_joint_y" ctrllimited="true" ctrlrange="-15 15"/>
-      <motor name="box_motor_z" joint="box_joint_z" ctrllimited="true" ctrlrange="-15 15"/>
-      <motor name="sphere_motor_x" joint="sphere_joint_x" ctrllimited="true" ctrlrange="-15 15"/>
-      <motor name="sphere_motor_y" joint="sphere_joint_y" ctrllimited="true" ctrlrange="-15 15"/>
-      <motor name="sphere_motor_z" joint="sphere_joint_z" ctrllimited="true" ctrlrange="-15 15"/>
   </actuator>
 
     <contact>

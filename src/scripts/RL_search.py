@@ -1,4 +1,7 @@
 import sys
+
+from sympy import false
+
 sys.path.append("../")
 
 import gymnasium as gym
@@ -12,11 +15,12 @@ class RobotThrowEnv(gym.Env):
         super(RobotThrowEnv, self).__init__()
 
         self.reward_params = {
-            'target_error': -10.0,
+            'success': 1000,
+            'target_error': -20.0,
             'boundary_violation': -2.0,
-            'singularity': -0.5,
-            'velocity_horizontal': -1.0,
-            'velocity_vertical': -0.5,
+            'singularity': -1.0,
+            'velocity_horizontal': 0.0,
+            'velocity_vertical': 0.0,
             'infeasible_penalty': -1000
         }
 
@@ -34,8 +38,8 @@ class RobotThrowEnv(gym.Env):
             'q_max': np.array([2.96705972839, 2.09439510239, 2.96705972839,
                                2.09439510239, 2.96705972839, 2.09439510239, -3.05432619099]),
             'q_dot_max': np.array([1.71, 1.74, 1.745, 2.269, 2.443, 3.142, 3.142]),
-            'q_ddot_max': np.array([1.35, 1.35, 2.0, 2.0, 7.5, 10.0, 10.0]),
-            'jerk_max': np.array([6.75, 6.75, 10.0, 10.0, 30.0, 30.0, 30.0])
+            'q_ddot_max': np.array([15, 7.5, 10, 12.5, 15, 20, 20]),
+            'jerk_max': np.array([7500, 3750, 5000, 6250, 7500, 10000, 10000])
         }
 
         self.robot_path = '../description/iiwa7_allegro_throwing.xml'
@@ -47,6 +51,7 @@ class RobotThrowEnv(gym.Env):
                                       self.robot_path,
                                       train_mode=True)
 
+        self.error_threshold = 0.2
         self.observation_space = spaces.Box(
             low=-np.inf, high=np.inf, shape=(15,), dtype=np.float32
         )
@@ -62,11 +67,28 @@ class RobotThrowEnv(gym.Env):
         """
         return: (obs, info)
         """
+        if options is None:
+            mode = 'training'
+        else:
+            mode = 'testing'
+
         self.episode_count += 1
         self.q_init = self.q0[:6]
         self.q_dot_init = np.zeros(6)
-
-        self.x_target = np.random.uniform(low=[-1.5, -1.5, 0], high=[1.5, 1.5, 0.5])
+        # move the target gradually
+        progress = min(self.episode_count / 5000, 1.0)
+        if mode == 'testing':
+            self.x_target = np.array([
+                np.random.uniform(-1.5, 1.4),
+                np.random.uniform(-1.4, 1.4),
+                np.random.uniform(0.0, 0.4)
+            ])
+        elif mode == 'training':
+            self.x_target = np.array([
+                np.random.uniform(-1.4 * progress, 1.4 * progress),
+                np.random.uniform(-1.4 * progress, 1.4 * progress),
+                np.random.uniform(0.0 * progress, 0.4 * progress)
+            ])
 
         obs = self._normalize_state()
         info = {}
@@ -138,7 +160,7 @@ class RobotThrowEnv(gym.Env):
 
     def _denormalize_action(self, action):
         action = np.clip(action, -1.0, 1.0)
-        q_desired = action[6:12] * self.joint_limits['q_max'][:6]
+        q_desired = action[:6] * self.joint_limits['q_max'][:6]
         q_dot_desired = action[6:12] * self.joint_limits['q_dot_max'][:6]
         return q_desired, q_dot_desired
 
@@ -180,19 +202,26 @@ class RobotThrowEnv(gym.Env):
         inp.target_velocity = qd_dot
         inp.target_acceleration = qd_dotdot
 
-        inp.max_velocity = self.joint_limits['q_dot_max']
-        inp.max_acceleration = self.joint_limits['q_ddot_max']
-        inp.max_jerk = self.joint_limits['jerk_max']
+        inp.max_velocity = self.joint_limits['q_dot_max'][:6]
+        inp.max_acceleration = self.joint_limits['q_ddot_max'][:6]
+        inp.max_jerk = self.joint_limits['jerk_max'][:6]
 
         otg = Ruckig(len(q0))
         trajectory = Trajectory(len(q0))
-        result = otg.calculate(inp, trajectory)
+        _ = otg.calculate(inp, trajectory)
 
-        return result==Result.Finished
+        if trajectory.duration < 1e-10:
+            result = False
+        else:
+            result = True
+
+        return result
 
     def _compute_release_state(self, q_desired, q_dot_desired):
-        x_release, J = self.robot.forward(q_desired)
-        v_release = J @ q_dot_desired
+        q_full = np.append(q_desired, self.q0[6])
+        q_dot_full = np.append(q_dot_desired, 0.0)
+        x_release, J = self.robot.forward(q_full.tolist())
+        v_release = J @ q_dot_full
 
         return x_release[:3], v_release[:3]
 
@@ -213,9 +242,12 @@ class RobotThrowEnv(gym.Env):
         error = np.linalg.norm(x_landing - self.x_target)
         reward_info['target_error'] = self.reward_params['target_error'] * error
 
+        if error < self.error_threshold:
+            reward_info['success'] = self.reward_params['success']
+
         q_violation = np.sum(
-            np.maximum(q_desired - self.joint_limits['q_max'], 0) +
-            np.maximum(self.joint_limits['q_min'] - q_desired, 0)
+            np.maximum(q_desired - self.joint_limits['q_max'][:6], 0) +
+            np.maximum(self.joint_limits['q_min'][:6] - q_desired, 0)
         )
         reward_info['boundary'] = self.reward_params['boundary_violation'] * q_violation
 
