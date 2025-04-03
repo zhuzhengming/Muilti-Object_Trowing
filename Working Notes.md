@@ -198,20 +198,17 @@
             - 机器人状态
             - 投掷轨迹已经经过的时间，用于判断投掷轨迹的阶段
             - 历史action
-        - **动作空间**：关节位置和速度，可以计算到末端的状态
-          - 添加高斯噪声模拟跟踪误差
-          - 直接搜q, q_dot不大行，搜ee_site的位置
+        - **动作空间**：
           - 论文参考：
             - PD控制器的输出在关节空间下
         - **状态转移**：
           - model-based：理想状态，只有重力影响，飞行的动态方程
-          - model-free：和mujoco交互
+          - model-free：和mujoco交互，自己定义接口
         - **奖励函数**：
           - 接近程度
-          - 关节限制
+          - action scale
           - 落点速度大小
-          - q状态的奇异值条件数
-          - 参加论文：
+          - 参考论文：
             - 动作幅度
       - 训练：
         - stable-baselines3：PPO通过gym和mujoco模拟器交互
@@ -220,11 +217,11 @@
           - 状态空间定义
           - 奖励函数定义
       - sim2real：
-        - domain randomization：末端质量的不同
-        - 建模电机延迟，饱和，噪声等
-        - 观测噪声
-        - 生成镜像数据
-        - 用部分真实数据来fine-tuning 模型
+        - domain randomization：增加噪声
+        - PD控制辨识
+          - 利用real robot和mujoco来进行系统辨识对齐PD控制器
+            - real robot进行正弦，脉冲响应记录
+            - 利用MLP来mapping使得响应误差最小
       
     - #### 底层控制和跟踪
     
@@ -256,6 +253,13 @@
       - 利用灵巧手的抛掷问题
       - 强化学习搜索解的方案：
         - 采样的解全部都是不可用的
+      
+    - ### 待办
+    
+      - 在mujoco里面生成在手指之间的末端hedgehog数据，并测试
+      - 实物测试，使用optitrack
+      - 测试release delay，参考tube acceleration
+      - 考虑异步投掷两个物体的motion planning
 
 
 
