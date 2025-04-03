@@ -58,22 +58,29 @@ class TrajectoryGenerator:
         self.robot_dis = np.load(self.hedgehog_path + '/robot_diss.npy')
         self.robot_phis = np.load(self.hedgehog_path + '/robot_phis.npy')
         self.robot_gamma = np.load(self.hedgehog_path + '/robot_gammas.npy')
-        self.num_gammas = len(self.robot_gamma)
-
-        self.mesh = np.load(self.hedgehog_path + '/q_idx_qs.npy')
-        self.robot_phi_gamma_velos_naive = np.load(self.hedgehog_path + '/z_dis_phi_gamma_vel_max.npy')
-        self.robot_phi_gamma_q_idxs_naive = np.load(self.hedgehog_path + '/z_dis_phi_gamma_vel_max_q_idxs.npy')
-        self.ae = np.load(self.hedgehog_path + '/q_idx_ae.npy')
-
         self.zs_step = 0.05
-        assert self.num_gammas == self.robot_phi_gamma_q_idxs_naive.shape[3]
+
+        self.robot_phi_gamma_velos_naive_all = np.load(self.hedgehog_path + '/z_dis_phi_gamma_vel_max.npy')
+
+        # different hedgehog data for different posture
+        # posture1
+        self.p1_robot_phi_gamma_velos_naive = self.robot_phi_gamma_velos_naive_all[0]
+        self.p1_robot_phi_gamma_q_idxs_naive = np.load(self.hedgehog_path + '/q_idxs_posture1.npy')
+        self.p1_ae = np.load(self.hedgehog_path + '/q_idx_ae_posture1.npy')
+        self.p1_mesh = np.load(self.hedgehog_path + '/q_idx_qs_posture1.npy')
+
+        # posture2
+        self.p2_robot_phi_gamma_velos_naive = self.robot_phi_gamma_velos_naive_all[1]
+        self.p2_robot_phi_gamma_q_idxs_naive = np.load(self.hedgehog_path + '/q_idxs_posture2.npy')
+        self.p2_ae = np.load(self.hedgehog_path + '/q_idx_ae_posture2.npy')
+        self.p2_mesh = np.load(self.hedgehog_path + '/q_idx_qs_posture2.npy')
 
         # load brt data
         self.brt_tensor = np.load(self.brt_path + '/brt_tensor.npy')
         self.brt_zs = np.load(self.brt_path + '/brt_zs.npy')
 
 
-    def brt_robot_data_matching(self, thres_v=0.1, thres_dis=0.01, thres_phi=0.04, thres_r=0.1):
+    def brt_robot_data_matching(self, posture, thres_v=0.1, thres_dis=0.01, thres_phi=0.04, thres_r=0.1):
         """
         original point is the base of robot
         Given target position, find out initial guesses of (q, phi, x)
@@ -82,6 +89,17 @@ class TrajectoryGenerator:
         :param thres_v:
         :return: candidates of q, phi, x
         """
+        if posture == "posture1":
+            ae = self.p1_ae
+            mesh = self.p1_mesh
+            robot_phi_gamma_velos_naive = self.p1_robot_phi_gamma_velos_naive
+            robot_phi_gamma_q_idxs_naive = self.p1_robot_phi_gamma_q_idxs_naive
+        else:
+            ae = self.p2_ae
+            mesh = self.p2_mesh
+            robot_phi_gamma_velos_naive = self.p2_robot_phi_gamma_velos_naive
+            robot_phi_gamma_q_idxs_naive = self.p2_robot_phi_gamma_q_idxs_naive
+
         z_target_to_base = self.box_position[-1]
         AB = self.box_position[:2]
 
@@ -112,7 +130,7 @@ class TrajectoryGenerator:
 
         # Fixed-base limitation
         # Robot tensor = [z, dis, phi, gamma, layers] -> [r, z, r_dot, z_dot, max_v]
-        robot_tensor_v = np.expand_dims(self.robot_phi_gamma_velos_naive[rzs_idx_start: rzs_idx_end + 1, ...], axis=4)
+        robot_tensor_v = np.expand_dims(robot_phi_gamma_velos_naive[rzs_idx_start: rzs_idx_end + 1, ...], axis=4)
 
         # Selection
         # 1.distance < b
@@ -126,7 +144,6 @@ class TrajectoryGenerator:
         d_cosphi = self.robot_dis[self.robot_dis < b, np.newaxis] @ cos_phi[np.newaxis, :]
         d_sinphi = self.robot_dis[self.robot_dis < b, np.newaxis] @ sin_phi[np.newaxis, :]
         r = np.sqrt(b ** 2 - d_sinphi ** 2) - d_cosphi
-        # r = np.sqrt(b**2 - self.robot_dis[self.robot_dis < b, None]**2 + d_cosphi**2) - d_cosphi
         r_tensor = r[None, :, :, None, None] #[None, dis, phi, None, None]
         mask_r = abs(-self.brt_tensor[:, :, :, :, :, 0] - r_tensor) < thres_dis
 
@@ -137,12 +154,12 @@ class TrajectoryGenerator:
 
         q_indices = np.copy(validate[:, :4])
         q_indices[:, 0] += rzs_idx_start
-        if np.any(q_indices >= self.robot_phi_gamma_q_idxs_naive.shape[0]):
+        if np.any(q_indices >= robot_phi_gamma_q_idxs_naive.shape[0]):
             return [], [], []
 
-        qids = self.robot_phi_gamma_q_idxs_naive[tuple(q_indices.T)].astype(int)
-        q_candidates = self.mesh[qids, :]
-        q_ae = self.ae[qids]
+        qids = robot_phi_gamma_q_idxs_naive[tuple(q_indices.T)].astype(int)
+        q_candidates = mesh[qids, :]
+        q_ae = ae[qids]
         phi_candidates = self.robot_phis[validate[:, 2]]
         x_candidates = self.brt_tensor[:, 0, 0, :, :, :][tuple(np.r_['-1', validate[:, :1], validate[:, 3:5]].T)][:, :4]
         error_index = np.nonzero(np.sum(np.isnan(x_candidates), axis=1))
@@ -334,9 +351,10 @@ class TrajectoryGenerator:
         return trajectory
 
 
-    def solve(self, animate=False, pose_mode=None):
+    def solve(self, animate=False, posture=None):
         base0 = -self.box_position[:2]
-        q_candidates, phi_candidates, x_candidates = self.brt_robot_data_matching()
+        # search result for specific posture
+        q_candidates, phi_candidates, x_candidates = self.brt_robot_data_matching(posture)
         if len(q_candidates) == 0:
             print("No result found")
             return 0
@@ -361,14 +379,12 @@ class TrajectoryGenerator:
         print("throwing state: ", throw_config_full[2])
 
         if animate:
-            self.throw_simulation_mujoco(traj_throw, throw_config_full, pose_mode=pose_mode)
-
-
+            self.throw_simulation_mujoco(traj_throw, throw_config_full, pose_mode=posture)
 
     def throw_simulation_mujoco(self, trajectory, throw_config_full, pose_mode=None):
         ROBOT_BASE_HEIGHT = 0.5
         box_position = throw_config_full[-1]
-        freq = 100
+        freq = 1000
         delta_t = 1.0 / freq
         # self.robot.print_simulator_info() # output similator infos
 
@@ -417,13 +433,13 @@ class TrajectoryGenerator:
             # get the state of ee_site in the frame of kuka_base
             object_id = self.robot.model.body("sphere").id
             if pose_mode == "posture1":
-                ee_pos = (self.robot.obj_x2base("thumb_site1")+ self.robot.obj_x2base("index_site1")) / 2
+                ee_pos = (self.robot.obj_x2base("thumb_site")+ self.robot.obj_x2base("middle_site")) / 2
                 ee_pos[2] += ROBOT_BASE_HEIGHT
-                ee_vel = (self.robot.obj_v("thumb_site1")+self.robot.obj_v("index_site1")) / 2
+                ee_vel = (self.robot.obj_v("thumb_site")+self.robot.obj_v("middle_site")) / 2
             elif pose_mode == "posture2":
-                ee_pos = (self.robot.obj_x2base("middle_site2") + self.robot.obj_x2base("ring_site2")) / 2
+                ee_pos = (self.robot.obj_x2base("index_site") + self.robot.obj_x2base("ring_site")) / 2
                 ee_pos[2] += ROBOT_BASE_HEIGHT
-                ee_vel = (self.robot.obj_v("middle_site2") + self.robot.obj_v("ring_site2")) / 2
+                ee_vel = (self.robot.obj_v("index_site") + self.robot.obj_v("ring_site")) / 2
             else:
                 ee_pos = self.robot.x2base
                 ee_pos[2] += ROBOT_BASE_HEIGHT
@@ -460,12 +476,12 @@ if __name__ == "__main__":
     # brt_path = '../fix_hedgehog'
 
     robot_path = '../description/iiwa7_allegro_throwing.xml'
-    box_position = np.array([1.3, 0.2, 0.0])
+    box_position = np.array([1.3, 0.1, 0.0])
 
     trajectory_generator = TrajectoryGenerator(q_max, q_min,
                                                hedgehog_path, brt_path,
                                                box_position, robot_path)
-    trajectory_generator.solve(animate=True, pose_mode="posture1")
+    trajectory_generator.solve(animate=True, posture="posture2")
 
 
 
