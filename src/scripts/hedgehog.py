@@ -31,11 +31,13 @@ class VelocityHedgehog:
         self.model = mujoco.MjModel.from_xml_path(robot_path)
         self.data = mujoco.MjData(self.model)
 
+        self.q0 = np.array(
+            [-0.32032486, 0.02707055, -0.22881525, -1.42611918, 1.38608943, 0.5596685, -1.34659665 + np.pi])
+        self.hand_home_pose = np.array(rospy.get_param('/hand_home_pose'))
+        self.envelop_pose = np.array(rospy.get_param('/envelop_pose'))
+
         if train_mode is False:
             self.view = viewer.launch_passive(self.model, self.data)
-            self.q0 = np.array([-0.32032486, 0.02707055, -0.22881525, -1.42611918, 1.38608943, 0.5596685, -1.34659665 + np.pi])
-            self.hand_home_pose = np.array(rospy.get_param('/hand_home_pose'))
-            self.envelop_pose = np.array(rospy.get_param('/envelop_pose'))
             self._set_joints(self.q0.tolist(), render=True)
             self.viewer_setup()
 
@@ -84,15 +86,41 @@ class VelocityHedgehog:
         mujoco.mj_step(self.model, self.data)
         self.view.sync()
 
-    def forward(self, q: list, render=False) -> (np.ndarray, np.ndarray):
+    def forward(self, q: list, render=False, pose_mode=None) -> (np.ndarray, np.ndarray):
         self._set_joints(q, render=render)
-        jacp = np.zeros((3, self.model.nv))
-        jacr = np.zeros((3, self.model.nv))
-        # ee_site id is 0
-        site_id = self.model.site("ee_site").id
-        mujoco.mj_jacSite(self.model, self.data, jacp, jacr, site_id)
-        J = np.vstack((jacp, jacr))[:, :7]
-        AE = self.x2base
+
+        if pose_mode == "posture1":
+            self._set_hand_joints(self.hand_home_pose.tolist(), render=render)
+            jacp1 = np.zeros((3, self.model.nv))
+            jacr1 = np.zeros((3, self.model.nv))
+            jacp2 = np.zeros((3, self.model.nv))
+            jacr2 = np.zeros((3, self.model.nv))
+            site_id1 = self.model.site("thumb_site1").id
+            site_id2 = self.model.site("index_site1").id
+            mujoco.mj_jacSite(self.model, self.data, jacp1, jacr1, site_id1)
+            mujoco.mj_jacSite(self.model, self.data, jacp2, jacr2, site_id2)
+            AE = (self.obj_x2base("thumb_site1") + self.obj_x2base("index_site1"))/2
+            J = (np.vstack((jacp1, jacr1))[:, :7] + np.vstack((jacp2, jacr2))[:, :7]) /2
+        elif pose_mode == "posture2":
+            self._set_hand_joints(self.hand_home_pose.tolist(), render=render)
+            jacp1 = np.zeros((3, self.model.nv))
+            jacr1 = np.zeros((3, self.model.nv))
+            jacp2 = np.zeros((3, self.model.nv))
+            jacr2 = np.zeros((3, self.model.nv))
+            site_id1 = self.model.site("middle_site2").id
+            site_id2 = self.model.site("ring_site2").id
+            mujoco.mj_jacSite(self.model, self.data, jacp1, jacr1, site_id1)
+            mujoco.mj_jacSite(self.model, self.data, jacp2, jacr2, site_id2)
+            AE = (self.obj_x2base("middle_site2") + self.obj_x2base("ring_site2"))/2
+            J = (np.vstack((jacp1, jacr1))[:, :7] + np.vstack((jacp2, jacr2))[:, :7]) / 2
+        else:
+            jacp = np.zeros((3, self.model.nv))
+            jacr = np.zeros((3, self.model.nv))
+            # ee_site id is 0
+            site_id = self.model.site("ee_site").id
+            mujoco.mj_jacSite(self.model, self.data, jacp, jacr, site_id)
+            J = np.vstack((jacp, jacr))[:, :7]
+            AE = self.x2base
 
         return AE, J
 
@@ -176,8 +204,24 @@ class VelocityHedgehog:
         """
         ee_global_pos = self.data.site("ee_site").xpos.copy()
         kuka_base_pos = self.data.body("kuka_base").xpos.copy()
-
         return ee_global_pos - kuka_base_pos
+
+    def obj_x2base(self, name:str):
+        ee_global_pos = self.data.site(name).xpos.copy()
+        kuka_base_pos = self.data.body("kuka_base").xpos.copy()
+        return ee_global_pos - kuka_base_pos
+
+    def obj_v(self, name:str):
+        jacp = np.zeros((3, self.model.nv))
+        jacr = np.zeros((3, self.model.nv))
+        # ee_site id is 0
+        site_id = self.model.site(name).id
+        mujoco.mj_jacSite(self.model, self.data, jacp, jacr, site_id)
+        J = np.vstack((jacp, jacr))[:, :7]
+        ee_vel = J @ self.dq
+        return ee_vel
+
+
 
 def computeMesh(q_min, q_max, delta_q):
     qs = [np.arange(qn, qa, delta_q) for qn, qa in zip(q_min, q_max)]
@@ -185,7 +229,7 @@ def computeMesh(q_min, q_max, delta_q):
 
 def filter(Q, VelocityHedgehog: VelocityHedgehog,
            singularity_thres, ZList, DISList,
-           Z_TOLERANCE=0.01, DIS_TOLERANCE=0.01):
+           Z_TOLERANCE=0.01, DIS_TOLERANCE=0.01, pose_mode=None):
     """
         Inputs:
             Q (np.ndarray or list): Joint configurations, shape (N, D).
@@ -210,7 +254,7 @@ def filter(Q, VelocityHedgehog: VelocityHedgehog,
         for q in Q:
             # do not planning joint 0 and joint 6
             q = [0.0] + q.tolist() + [0.0]
-            AE, J = VelocityHedgehog.forward(q)
+            AE, J = VelocityHedgehog.forward(q,pose_mode=pose_mode)
             u, s, vh = np.linalg.svd(J)
             if np.min(s) < singularity_thres:
                 pbar.update(1)
@@ -272,7 +316,7 @@ def LP(phi, gamma, Jinv, fracyx, qdmin, qdmax):
 
 
 def main(VelocityHedgehog: VelocityHedgehog, delta_q, Dis, Z, Phi, Gamma,
-         svthres=0.1, z_tolerance=0.01, dis_tolerance=0.01):
+         svthres=0.1, z_tolerance=0.01, dis_tolerance=0.01, pose_mode=None):
 
     num_joints = VelocityHedgehog.q_min.shape[0]
     total_combinations = len(Z) * len(Dis) * len(Phi) * len(Gamma)
@@ -287,7 +331,7 @@ def main(VelocityHedgehog: VelocityHedgehog, delta_q, Dis, Z, Phi, Gamma,
     Qzd, aezd, Jzd = filter(Q=q_candidates, VelocityHedgehog=VelocityHedgehog,
                             singularity_thres=svthres, ZList=Z, DISList=Dis,
                             Z_TOLERANCE=z_tolerance, DIS_TOLERANCE=dis_tolerance
-                            )
+                            ,pose_mode=pose_mode)
 
     # initialize velocity hedgehog_data
     num_z = Z.shape[0]
@@ -344,13 +388,14 @@ def main(VelocityHedgehog: VelocityHedgehog, delta_q, Dis, Z, Phi, Gamma,
 
 if __name__ == '__main__':
 
-    prefix = '../hedgehog_data/'
+    prefix = '../hedgehog_revised/'
     robot_path = '../description/iiwa7_allegro_throwing.xml'
 
     q_min = np.array([-2.96705972839, -2.09439510239, -2.96705972839, -2.09439510239, -2.96705972839,
                                       -2.09439510239, -3.05432619099])
     q_max = -q_min
 
+    # set the q_dot limitation of last joint as 0 because I assume it is pre-defined
     q_dot_max = np.array([1.71, 1.74, 1.745, 2.269, 2.443, 3.142, 3.142])
     q_dot_min = -q_dot_max
 
@@ -368,7 +413,7 @@ if __name__ == '__main__':
     Gamma = np.arange(gamma_offset, np.pi / 2 - gamma_offset, delta_gamma)
 
     Robot = VelocityHedgehog(q_min, q_max, q_dot_min, q_dot_max, robot_path, train_mode=True)
-    vel_max, argmax_q, q_ae = main(Robot, delta_q, Dis, Z, Phi, Gamma)
+    vel_max, argmax_q, q_ae = main(Robot, delta_q, Dis, Z, Phi, Gamma, pose_mode="posture1")
 
     # save file
     np.save(prefix + 'robot_zs.npy', Z)
@@ -376,8 +421,6 @@ if __name__ == '__main__':
     np.save(prefix + 'robot_phis.npy', Phi)
     np.save(prefix + 'robot_gammas.npy', Gamma)
 
-    # np.save(prefix+'argmax_q.npy', argmax_q)
-    # np.save(prefix+'q_idx.npy', q_ae)
     np.save(prefix+'z_dis_phi_gamma_vel_max.npy', vel_max)
 
     # hash construct

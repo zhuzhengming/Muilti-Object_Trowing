@@ -14,6 +14,7 @@ import numpy as np
 from ruckig import InputParameter, Ruckig, Trajectory, Result
 import rospy
 import mujoco
+import glfw
 
 
 class TrajectoryGenerator:
@@ -192,7 +193,7 @@ class TrajectoryGenerator:
         z_dot = x[3]
 
         # kinemetic forward
-        AE, J = self.robot.forward(q)
+        AE, J = self.robot.forward(q, pose_mode="posture1")
 
         # in ee_site space
         throwing_angle = np.arctan2(AE[1], AE[0]) + phi
@@ -333,7 +334,7 @@ class TrajectoryGenerator:
         return trajectory
 
 
-    def solve(self, animate=False):
+    def solve(self, animate=False, pose_mode=None):
         base0 = -self.box_position[:2]
         q_candidates, phi_candidates, x_candidates = self.brt_robot_data_matching()
         if len(q_candidates) == 0:
@@ -360,11 +361,11 @@ class TrajectoryGenerator:
         print("throwing state: ", throw_config_full[2])
 
         if animate:
-            self.throw_simulation_mujoco(traj_throw, throw_config_full)
+            self.throw_simulation_mujoco(traj_throw, throw_config_full, pose_mode=pose_mode)
 
 
 
-    def throw_simulation_mujoco(self, trajectory, throw_config_full):
+    def throw_simulation_mujoco(self, trajectory, throw_config_full, pose_mode=None):
         ROBOT_BASE_HEIGHT = 0.5
         box_position = throw_config_full[-1]
         freq = 100
@@ -414,10 +415,19 @@ class TrajectoryGenerator:
                 self.robot._set_joints(ref[0], ref[1], render=True)
 
             # get the state of ee_site in the frame of kuka_base
-            ee_pos = self.robot.x2base
-            ee_pos[2] += ROBOT_BASE_HEIGHT
-            ee_vel = self.robot.dx  # velocity of ee_site
             object_id = self.robot.model.body("sphere").id
+            if pose_mode == "posture1":
+                ee_pos = (self.robot.obj_x2base("thumb_site1")+ self.robot.obj_x2base("index_site1")) / 2
+                ee_pos[2] += ROBOT_BASE_HEIGHT
+                ee_vel = (self.robot.obj_v("thumb_site1")+self.robot.obj_v("index_site1")) / 2
+            elif pose_mode == "posture2":
+                ee_pos = (self.robot.obj_x2base("middle_site2") + self.robot.obj_x2base("ring_site2")) / 2
+                ee_pos[2] += ROBOT_BASE_HEIGHT
+                ee_vel = (self.robot.obj_v("middle_site2") + self.robot.obj_v("ring_site2")) / 2
+            else:
+                ee_pos = self.robot.x2base
+                ee_pos[2] += ROBOT_BASE_HEIGHT
+                ee_vel = self.robot.dx
 
             if throw_flag is False:
                 self.robot._set_object_position(object_id, ee_pos, ee_vel[:3])
@@ -444,18 +454,18 @@ if __name__ == "__main__":
                       -2.09439510239, -3.05432619099])
     q_max = np.array([2.96705972839, 2.09439510239, 2.96705972839, 2.09439510239, 2.96705972839,
                       2.09439510239, 3.05432619099])
-    hedgehog_path = '../hedgehog_data'
+    hedgehog_path = '../hedgehog_revised'
     brt_path = '../brt_data'
     # hedgehog_path = '../fix_hedgehog'
     # brt_path = '../fix_hedgehog'
 
     robot_path = '../description/iiwa7_allegro_throwing.xml'
-    box_position = np.array([0.0, -1.4, -0.1])
+    box_position = np.array([1.3, 0.2, 0.0])
 
     trajectory_generator = TrajectoryGenerator(q_max, q_min,
                                                hedgehog_path, brt_path,
                                                box_position, robot_path)
-    trajectory_generator.solve(animate=True)
+    trajectory_generator.solve(animate=True, pose_mode="posture1")
 
 
 
