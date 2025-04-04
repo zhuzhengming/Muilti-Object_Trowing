@@ -56,7 +56,7 @@ class Robot:
         """
         self.view.cam.trackbodyid = 0  # id of the body to track ()
         # self.viewer.cam.distance = self.sim.model.stat.extent * 0.05  # how much you "zoom in", model.stat.extent is the max limits of the arena
-        self.view.cam.distance = 0.6993678113883466  # how much you "zoom in", model.stat.extent is the max limits of the arena
+        self.view.cam.distance = 0.6993678113883466*5  # how much you "zoom in", model.stat.extent is the max limits of the arena
         self.view.cam.lookat[0] = 0.55856114  # x,y,z offset from the object (works if trackbodyid=-1)
         self.view.cam.lookat[1] = 0.00967048
         self.view.cam.lookat[2] = 1.20266637
@@ -100,7 +100,7 @@ class Robot:
 
         return qacc_des
 
-    def iiwa_hand_go(self, q, qh, d_pose=None, dqh=None, u_add=None, kh_scale=None, render=True):
+    def iiwa_hand_go(self, q, qh, dq=None, dqh=None, u_add=None, kh_scale=None, render=True):
         """
         Give the desired pose of ee and joint positions of hand, using the Cartesian space impedance controller for iiwa
          and joint-space impedance controller for hand to calculate the desired joint torque and send it to MuJoCo
@@ -113,12 +113,12 @@ class Robot:
         :return:
         """
 
-        iiwa_torque = self.iiwa_joint_impedance(q, d_qd=d_pose)
+        iiwa_torque = self.iiwa_joint_impedance(q, d_qd=dq)
         hand_torque = self.hand_move_torque(qh=qh, dqh=dqh, u_add=u_add, kh_scale=kh_scale)
         u = np.concatenate([iiwa_torque, hand_torque])
         self.send_torque(u, render=render)
 
-    def hand_move_torque(self, qh=None, dqh=None, u_add=None, kh_scale=None):
+    def hand_move_torque(self, qh=None, dqh=None, u_add=None, kh_scale=None, move_hand_only=False):
         """
         impedance control for the allegro hand
         :param qh: (16, ), desired positions of joints for hand
@@ -153,9 +153,9 @@ class Robot:
         # print('vel', self.dqh[:4])
         # print('pos_error', error_q[:4])
         # print('control torque:', qacc_des[12:])
-
-        # u = np.concatenate([np.zeros(7), qacc_des])
-        # self.send_torque(u)
+        if move_hand_only:
+            u = np.concatenate([np.zeros(7), qacc_des])
+            self.send_torque(u)
         return qacc_des
 
     def modify_joint(self, joints: np.ndarray) -> None:

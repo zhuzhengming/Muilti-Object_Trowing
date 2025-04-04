@@ -26,7 +26,7 @@ def training(env, eval_env):
         tensorboard_log="../logs/robot_throw"
     )
 
-    stop_callback = StopTrainingOnRewardThreshold(reward_threshold=998, verbose=1)
+    stop_callback = StopTrainingOnRewardThreshold(reward_threshold=1000, verbose=1)
     eval_callback = EvalCallback(
         eval_env,
         callback_on_new_best=stop_callback,
@@ -74,7 +74,7 @@ def evaluate_model(model, env, n_episodes=10):
                 if info['feasible']:
                     error = info['landing_error']
                     error_list.append(error)
-                    if error < 0.3:
+                    if error < 0.2:
                         success_count += 1
                 total_reward += episode_reward
 
