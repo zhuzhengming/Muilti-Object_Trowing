@@ -182,8 +182,10 @@
         - 异步投掷，解决的方案是进行两段motion planning
           - 可以扔的位置是相差远一点的
       - 实验：可以抛掷的距离最大大概在1.5m左右
+        - 先要重新修改urdf，也就是进行测试物体在手内的位置，增加一个固定关节来用mojuco推算
         - 测试release time
           - 论文 tube acceleration
+          - 保持机器人在释放点之后依然在brt之内
         - 减少release的影响，给反向的加速度
       
     - #### RL-based:

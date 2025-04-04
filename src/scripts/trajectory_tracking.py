@@ -2,13 +2,9 @@ import sys
 sys.path.append("../")
 import time
 import os
-import math
 import rospy
 import copy
 import numpy as np
-import pybullet as p
-import pybullet_data
-import pdb
 import matplotlib
 matplotlib.use('Qt5Agg')
 
@@ -20,6 +16,7 @@ from pathlib import Path
 from sys import path
 from ruckig import InputParameter, Ruckig, Trajectory
 from utils.mujoco_interface import Robot
+import kinematics.allegro_hand_sym as allegro
 
 from std_srvs.srv import Trigger
 import mujoco
@@ -32,18 +29,35 @@ REAL_ROBOT_STATE = False  # Set to True to use the real robot state to start the
 
 ## ---- ROS conversion and callbacks functions ---- ##
 class Throwing_controller:
-    def __init__(self, simulator='mujoco', test_id=None):
+    def __init__(self, simulator='mujoco', test_id=None, path_prefix='../'):
         rospy.init_node("throwing_controller", anonymous=True)
 
         # initialize ROS subscriber/publisher
         self.fsm_state_pub = rospy.Publisher('fsm_state', String, queue_size=1)
         self.target_state_pub = rospy.Publisher('/computed_torque_controller/target_state', JointState,
                                                 queue_size=10)  # for debug
-        self.command_pub = rospy.Publisher('/iiwa_impedance_joint', JointState, queue_size=10)
 
+        # allegro controller
+        self.hand_home_pose = np.array(rospy.get_param('/hand_home_pose'))
+        self.envelop_pose = np.array(rospy.get_param('/envelop_pose'))
+        self.joint_cmd_pub = rospy.Publisher('/allegroHand_0/joint_cmd', JointState, queue_size=10)
+        rospy.Subscriber('/allegroHand_0/joint_states', JointState, self._hand_joint_states_callback)
+        self.hand = allegro.Robot(right_hand=False, path_prefix=path_prefix)  # load the left hand kinematics
+        self.fingertip_sites = ['index_site', 'middle_site', 'ring_site',
+                                'thumb_site']
+        self._qh = np.zeros(16)
+        self.hand_joint_cmd = JointState()
+        self.hand_joint_cmd.name = ['joint_0', 'joint_1', 'joint_2', 'joint_3',
+                                    # index finger: ad/abduction, extensions
+                                    'joint_4', 'joint_5', 'joint_6', 'joint_7',  # middle finger
+                                    'joint_8', 'joint_9', 'joint_10', 'joint_11',  # ring finger
+                                    'joint_12', 'joint_13', 'joint_14', 'joint_15']  # thumb
+        self.hand_joint_cmd.position = []  # 0-3: index, 4-7: middle, 8-11: ring, 12-15: thumb
+
+        # iiwa controller
+        self.command_pub = rospy.Publisher('/iiwa_impedance_joint', JointState, queue_size=10)
         rospy.Subscriber('/iiwa/joint_states', JointState, self.joint_states_callback, queue_size=10)
         rospy.Subscriber('/throw_node/throw_state', Int64, self.scheduler_callback)
-        # rospy.wait_for_service('/franka_control/gripper_deactivate')
 
         # Initialize robot state, to be updated from robot
         self.robot_state = JointState()
@@ -53,7 +67,6 @@ class Throwing_controller:
 
         # Initialize target state, to be updated from planner
         self.target_state = JointState()
-
         self.simulator = simulator
 
         # Ruckig margins for throwing
@@ -135,10 +148,7 @@ class Throwing_controller:
 
         # Run simulation once for visualization
         if SIMULATION:
-            if self.simulator == 'pybullet':
-                self.run_simulation_pybullet()
-            # elif self.simulator == 'mujoco':
-                # self.run_simulation_mujoco()
+            self.run_simulation_mujoco()
 
         self.stamp = []
         self.real_pos = []
@@ -167,109 +177,6 @@ class Throwing_controller:
 
         self.nIter_time = 0.0
         time.sleep(1.0)
-
-
-    def run_simulation_pybullet(self):
-        clid = p.connect(p.GUI)
-        p.configureDebugVisualizer(p.COV_ENABLE_GUI, 0)
-        p.resetDebugVisualizerCamera(cameraDistance=2.5, cameraYaw=145, cameraPitch=-45,
-                                     cameraTargetPosition=[0.8, 0, 0])
-        p.setAdditionalSearchPath(pybullet_data.getDataPath())
-        p.setGravity(0, 0, -9.81)
-        delta_t = 0.002
-        p.setTimeStep(delta_t)
-        robotId = p.loadURDF("../description/iiwa_description/urdf/iiwa7_lasa.urdf",
-                             [0.0, 0.0, 0.0], useFixedBase=True, flags=p.URDF_USE_INERTIA_FROM_FILE)
-        controlled_joints = [0, 1, 2, 3, 4, 5, 6]
-        robotEndEffectorIndex = 6
-
-        if REAL_ROBOT_STATE:
-            # get initial robot state from ROS message
-            robot_state = rospy.wait_for_message("/iiwa/joint_states", JointState)
-            print("initial robot state")
-
-            q0 = np.array(robot_state.position)
-            q0_dot = np.array(robot_state.velocity)
-            self.qs[0] = q0[0]
-            # compute the nominal throwing and slowing trajectory
-            self.trajectory = self.get_traj_from_ruckig(self.qs, self.qs_dot, self.qs_dotdot,
-                                                   self.qd, self.qd_dot, self.qd_dotdot,
-                                                   margin_velocity=self.MARGIN_VELOCITY,
-                                                   margin_acceleration=self.MARGIN_ACCELERATION)
-            self.trajectory_back = self.get_traj_from_ruckig(self.qd, self.qd_dot, self.qd_dotdot,
-                                                        self.qs, self.qs_dot, self.qs_dotdot,
-                                                   margin_velocity=self.MARGIN_VELOCITY,
-                                                   margin_acceleration=self.MARGIN_ACCELERATION * 0.5)
-
-            if self.trajectory is None or self.trajectory_back is None:
-                rospy.logerr("Trajectory is None")
-
-            self.traj_time = self.trajectory.duration
-            self.traj_back_time = self.trajectory_back.duration
-        else:
-            # sample a random starting configuration
-            np.random.seed(0)
-            q0 = np.random.uniform(0.0, 1.5, 7)
-        # reset the robot to the random configuration
-        p.resetJointStatesMultiDof(robotId, controlled_joints, [[q0_i] for q0_i in q0],
-                                   targetVelocities=[[q0_i] for q0_i in np.zeros(7)])
-        # pdb.set_trace(header="PDB PAUSE: Press C to start simulation...")
-
-        # generate the trajectory to go to qs
-        trajectory_to_qs = self.get_traj_from_ruckig(q0, np.zeros(7), np.zeros(7),
-                                                     self.qs, self.qs_dot, self.qs_dotdot,
-                                                     margin_velocity=0.2, margin_acceleration=0.1)
-
-        if trajectory_to_qs is None:
-            rospy.logerr("Trajectory is None")
-
-        flag = True
-        landing_pos = None
-        video_path = None
-
-        # execute homing trajectory
-        tt = 0
-        while (True):
-            ref = trajectory_to_qs.at_time(tt)
-            p.resetJointStatesMultiDof(robotId, controlled_joints, [[q0_i] for q0_i in ref[0]],
-                                       targetVelocities=[[q0_i] for q0_i in ref[1]])
-            # REAL: publish joint velocity command
-            p.stepSimulation()
-            # pdb.set_trace()
-            time.sleep(delta_t)
-            tt += delta_t
-            if tt > trajectory_to_qs.duration:
-                break
-        waypoints = []
-        tt = 0
-        # video_path = "bsa_throw.mp4"
-        if not (video_path is None):
-            logId = p.startStateLogging(loggingType=p.STATE_LOGGING_VIDEO_MP4, fileName=video_path)
-        while (True):
-            if flag:
-                ref_full = self.trajectory.at_time(tt)
-
-                ref = [ref_full[i][:7] for i in range(3)]
-                # ref_base = [ref_full[i][-2:] for i in range(3)]
-                p.resetJointStatesMultiDof(robotId, controlled_joints, [[q0_i] for q0_i in ref[0]],
-                                           targetVelocities=[[q0_i] for q0_i in ref[1]])
-                eef_state = p.getLinkState(robotId, robotEndEffectorIndex, computeLinkVelocity=1)
-            else:
-                # slow down the robot
-                ref_full = self.trajectory_back.at_time(tt - self.traj_time)
-                ref = [ref_full[i][:7] for i in range(3)]
-                p.resetJointStatesMultiDof(robotId, controlled_joints, [[q0_i] for q0_i in ref[0]],
-                                           targetVelocities=[[q0_i] for q0_i in ref[1]])
-
-            p.stepSimulation()
-            tt = tt + delta_t
-            if tt > self.trajectory.duration and tt <= self.trajectory.duration + self.trajectory_back.duration:
-                flag = False
-
-            time.sleep(delta_t)
-            if tt > 6.0:
-                break
-        p.disconnect()
 
     def run_simulation_mujoco(self):
 
@@ -425,7 +332,7 @@ class Throwing_controller:
                 # Activate integrator term when close to target
                 error_position = np.array(q_cur) - np.array(self.qs)
                 if SIMULATION:
-                    self.ERROR_THRESHOLD *= 3
+                    self.ERROR_THRESHOLD *= 2
                 if np.linalg.norm(error_position) < self.ERROR_THRESHOLD:
                     # Jump to next state
                     self.fsm_state = "IDLE_THROWING"
@@ -539,6 +446,13 @@ class Throwing_controller:
         self.robot_state.velocity = copy.deepcopy(state.velocity)
         self.robot_state.effort = copy.deepcopy(state.effort)
 
+    def _hand_joint_states_callback(self, data):
+        self._qh = np.copy(np.array(data.position))
+
+    def _send_hand_position(self, joints: np.ndarray) -> None:
+        self.hand_joint_cmd.position = list(joints)
+        self.joint_cmd_pub.publish(self.hand_joint_cmd)
+
     def scheduler_callback(self, msg):
         # print("scheduler msg", msg)
         if self.fsm_state == "IDLE_THROWING" and msg.data == 1:
@@ -563,12 +477,10 @@ class Throwing_controller:
             # print("Throwing...")
 
     def deactivate_gripper(self):
-        rospy.wait_for_service('/franka_control/gripper_deactivate')
-        try:
-            gripper_deactivate = rospy.ServiceProxy('/franka_control/gripper_deactivate', Trigger)
-            gripper_deactivate()
-        except rospy.ServiceException as e:
-            rospy.logerr("Service call failed: %s", e)
+        if SIMULATION:
+            self.r.hand_move_torque(qh=self.r.home_pose, move_hand_only=True)
+        else:
+            self._send_hand_position(self.hand_home_pose)
 
 
     # Path to the build directory including a file similar to 'ruckig.cpython-37m-x86_64-linux-gnu'.
@@ -620,6 +532,9 @@ class Throwing_controller:
 
         return trajectory
 
+
+#######################################################################################################################
+# Test the parameters of KD controller
     def batch_test_kp_kd(self, kp_min=10, kp_max=1000,
                          kd_min=5, kd_max=500,
                          num_point=10, N_runs=5,

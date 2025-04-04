@@ -9,8 +9,9 @@ from mpl_toolkits.mplot3d import Axes3D
 
 
 class HedgehogVisualizer3D(QMainWindow):
-    def __init__(self, data_path):
+    def __init__(self, data_path, posture):
         super().__init__()
+        self.posture = posture
         self.data_path = data_path
         self.init_ui()
         self.load_data()
@@ -54,12 +55,15 @@ class HedgehogVisualizer3D(QMainWindow):
         export_action.triggered.connect(self.export_plot)
 
     def load_data(self):
-
         self.Z = np.load(f"{self.data_path}/robot_zs.npy")
         self.Dis = np.load(f"{self.data_path}/robot_diss.npy")
         self.Phi = np.load(f"{self.data_path}/robot_phis.npy")
         self.Gamma = np.load(f"{self.data_path}/robot_gammas.npy")
-        self.vel_max = np.load(f"{self.data_path}/z_dis_phi_gamma_vel_max.npy")
+
+        if self.posture == 'posture1':
+            self.vel_max = np.load(f"{self.data_path}/z_dis_phi_gamma_vel_max.npy")[0]
+        elif self.posture == 'posture2':
+            self.vel_max = np.load(f"{self.data_path}/z_dis_phi_gamma_vel_max.npy")[1]
 
         self.vmax = np.nanmax(self.vel_max)
 
@@ -106,7 +110,7 @@ class HedgehogVisualizer3D(QMainWindow):
     def export_plot(self):
         options = QFileDialog.Options()
         filename, _ = QFileDialog.getSaveFileName(
-            self, "保存图表", "", "PNG Files (*.png)", options=options)
+            self, "save picture", "", "PNG Files (*.png)", options=options)
 
         if filename:
             if not filename.endswith('.png'):
@@ -115,8 +119,9 @@ class HedgehogVisualizer3D(QMainWindow):
 
 
 class LandingVisualizer3D(QMainWindow):
-    def __init__(self, data_path):
+    def __init__(self, data_path, posture):
         super().__init__()
+        self.posture = posture
         self.data_path = data_path
         self.init_ui()
         self.load_data()
@@ -163,12 +168,17 @@ class LandingVisualizer3D(QMainWindow):
         export_action.triggered.connect(self.export_plot)
 
     def load_data(self):
-        """Load precomputed parameter grids and velocity data"""
-        self.Z = np.load(f"{self.data_path}/robot_zs.npy")  # Height grid
-        self.Dis = np.load(f"{self.data_path}/robot_diss.npy")  # Distance grid
-        self.Phi = np.load(f"{self.data_path}/robot_phis.npy")  # Pitch angle
-        self.Gamma = np.load(f"{self.data_path}/robot_gammas.npy")  # Yaw angle
-        self.vel_max = np.load(f"{self.data_path}/z_dis_phi_gamma_vel_max.npy")  # Max velocity data
+        self.Z = np.load(f"{self.data_path}/robot_zs.npy")
+        self.Dis = np.load(f"{self.data_path}/robot_diss.npy")
+        self.Phi = np.load(f"{self.data_path}/robot_phis.npy")
+        self.Gamma = np.load(f"{self.data_path}/robot_gammas.npy")
+
+        if self.posture == 'posture1':
+            self.vel_max = np.load(f"{self.data_path}/z_dis_phi_gamma_vel_max.npy")[0]
+        elif self.posture == 'posture2':
+            self.vel_max = np.load(f"{self.data_path}/z_dis_phi_gamma_vel_max.npy")[1]
+
+        self.vmax = np.nanmax(self.vel_max)
 
         # Initialize data container for flight distance
         self.flight_distance = np.zeros_like(self.vel_max)
@@ -271,13 +281,14 @@ class LandingVisualizer3D(QMainWindow):
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
-    # PATH = '../hedgehog_data'
-    PATH = '../../../mobile-throwing/robot_data/panda_5_joint_fix_0.3'
+    posture = 'posture2'
+    PATH = '../hedgehog_revised'
+    # PATH = '../../../mobile-throwing/robot_data/panda_5_joint_fix_0.3'
 
-    Hedgehog_viewer = HedgehogVisualizer3D(PATH)
-    Hedgehog_viewer.show()
+    # Hedgehog_viewer = HedgehogVisualizer3D(PATH, posture)
+    # Hedgehog_viewer.show()
 
-    # Landing_viewer = LandingVisualizer3D(PATH)
-    # Landing_viewer.show()
+    Landing_viewer = LandingVisualizer3D(PATH, posture)
+    Landing_viewer.show()
 
     sys.exit(app.exec_())
