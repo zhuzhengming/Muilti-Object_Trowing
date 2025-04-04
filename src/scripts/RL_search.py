@@ -41,6 +41,7 @@ class RobotThrowEnv(gym.Env):
         self.q0 = np.array(
             [-0.32032486, 0.02707055, -0.22881525, -1.42611918, 1.38608943, 0.5596685, -1.34659665 + np.pi])
 
+        self.increment_scale=0.05
         self.joint_limits = {
             'q_min': np.array([-2.96705972839, -2.09439510239, -2.96705972839,
                                -2.09439510239, -2.96705972839, -2.09439510239, -3.05432619099]),
@@ -50,7 +51,7 @@ class RobotThrowEnv(gym.Env):
         }
 
         self.target_max = np.array([1.5, 1.5, 0.4])
-        self.freq = 200
+        self.last_time = 0
 
         # create mujoco simulator
         self.robot_path = '../description/iiwa7_allegro_throwing.xml'
@@ -61,7 +62,7 @@ class RobotThrowEnv(gym.Env):
         self.robot = Robot(model, data, self.view, auto_sync=True)
 
         self.error_threshold = 0.15
-        self.last_action = np.zeros(14)
+        self.last_action = np.zeros(15)
         self.time_step = 0
         self.max_steps = 200
         self.release_state = 0
@@ -129,6 +130,11 @@ class RobotThrowEnv(gym.Env):
         """
         self.last_action = action.copy()
         self.time_step +=1
+
+        # current_time = time.time()
+        # dt = current_time - self.last_time
+        # self.last_time = current_time
+        # print(f"frequency = {1.0 / dt:.2f} Hz")
 
         release_control, q_desired, q_dot_desired = self._decode_action(action)
 
@@ -198,6 +204,7 @@ class RobotThrowEnv(gym.Env):
         if self.action_noise['enable']:
             noise_scale = self.action_noise['scale'] * (self.action_noise['decay_rate'] ** self.episode_count)
             joint_action = joint_action + np.random.normal(0, noise_scale, size=14)
+            joint_action = np.concatenate([self.robot.q, self.robot.dq]) + np.array(joint_action)*self.increment_scale
             joint_action = np.clip(joint_action, -1.0, 1.0)
 
         q_desired = joint_action[:7] * self.joint_limits['q_max']
