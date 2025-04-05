@@ -384,7 +384,7 @@ class TrajectoryGenerator:
     def throw_simulation_mujoco(self, trajectory, throw_config_full, pose_mode=None):
         ROBOT_BASE_HEIGHT = 0.5
         box_position = throw_config_full[-1]
-        freq = 1000
+        freq = 200
         delta_t = 1.0 / freq
         # self.robot.print_simulator_info() # output similator infos
 
@@ -476,12 +476,12 @@ if __name__ == "__main__":
     # brt_path = '../fix_hedgehog'
 
     robot_path = '../description/iiwa7_allegro_throwing.xml'
-    box_position = np.array([1.3, 0.1, 0.0])
+    box_position = np.array([0.0, -1.3, 0.1])
 
     trajectory_generator = TrajectoryGenerator(q_max, q_min,
                                                hedgehog_path, brt_path,
                                                box_position, robot_path)
-    trajectory_generator.solve(animate=True, posture="posture2")
+    trajectory_generator.solve(animate=True, posture="posture1")
 
 
 
