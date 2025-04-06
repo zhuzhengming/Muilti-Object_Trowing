@@ -223,3 +223,12 @@ WARNING: Nan, Inf or huge value in QVEL at DOF 0. The simulation is unstable. Ti
 Sun Apr  6 16:06:12 2025
 WARNING: Nan, Inf or huge value in QVEL at DOF 0. The simulation is unstable. Time = 0.0020.
 
+Sun Apr  6 16:06:56 2025
+WARNING: Nan, Inf or huge value in QVEL at DOF 0. The simulation is unstable. Time = 0.0020.
+
+Sun Apr  6 16:07:09 2025
+WARNING: Nan, Inf or huge value in QVEL at DOF 0. The simulation is unstable. Time = 0.0020.
+
+Sun Apr  6 16:07:11 2025
+WARNING: Nan, Inf or huge value in QVEL at DOF 0. The simulation is unstable. Time = 0.0020.
+
