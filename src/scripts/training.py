@@ -6,7 +6,21 @@ from gymnasium.envs.registration import register, registry
 import gymnasium as gym
 import numpy as np
 import os
+from stable_baselines3.common.callbacks import BaseCallback
 from RL_search import RobotThrowEnv
+
+class EpisodeCounterCallback(BaseCallback):
+    def __init__(self, verbose=0):
+        super().__init__(verbose)
+        self.episode_count = 0
+
+    def _on_step(self) -> bool:
+        for info in self.locals.get('infos', []):
+            if 'episode' in info:
+                self.episode_count += 1
+                if self.episode_count % 100 == 0:
+                    print(f"Global episode count: {self.episode_count}")
+        return True
 
 def training(env, eval_env):
 
@@ -26,7 +40,7 @@ def training(env, eval_env):
         tensorboard_log="../logs/robot_throw"
     )
 
-    stop_callback = StopTrainingOnRewardThreshold(reward_threshold=1000, verbose=1)
+    stop_callback = StopTrainingOnRewardThreshold(reward_threshold=3000, verbose=1)
     eval_callback = EvalCallback(
         eval_env,
         callback_on_new_best=stop_callback,
@@ -42,7 +56,7 @@ def training(env, eval_env):
     try:
         model.learn(
             total_timesteps=50_000_000,
-            callback=eval_callback,
+            callback=[EpisodeCounterCallback(), eval_callback],
             tb_log_name="ppo_robot_throw",
             progress_bar=True
         )

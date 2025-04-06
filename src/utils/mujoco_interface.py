@@ -158,7 +158,7 @@ class Robot:
             self.send_torque(u)
         return qacc_des
 
-    def modify_joint(self, joints: np.ndarray) -> None:
+    def modify_joint(self, joints: np.ndarray, vel: np.ndarray = None) -> None:
         """
         :param joints: (7,) or (16,) or (23,), modify joints for iiwa or/and allegro hand
         :return:
@@ -166,11 +166,14 @@ class Robot:
         assert len(joints) in [7, 16, 23]
         if len(joints) == 7:
             self.d.qpos[:7] = joints
-            self.d.qpos[:7] = joints
+            self.d.qvel[:7] = vel
         elif len(joints) == 16:
             self.d.qpos[7:23] = joints
         else:
             self.d.qpos[:23] = joints
+        self.step()
+        self.view.sync()
+
 
     def full_joint_space_control(self, q, qh=None):
 

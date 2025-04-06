@@ -18,13 +18,14 @@ class RobotThrowEnv(gym.Env):
         super(RobotThrowEnv, self).__init__()
 
         self.reward_params = {
-            'success': 1000,
-            'target_error': -20.0,
+            'success': 100,
+            'target_error': -10.0,
             'boundary_violation': -2.0,
-            'action_scale': -5.0,
+            'action_scale': -10.0,
             'velocity_horizontal': -2.0,
             'velocity_vertical': -2.0,
-            'motion_reward': 2.0
+            'motion_reward': 2.0,
+            'close_target': -5.0
         }
 
         self.action_noise = {
@@ -41,12 +42,12 @@ class RobotThrowEnv(gym.Env):
         self.q0 = np.array(
             [-0.32032486, 0.02707055, -0.22881525, -1.42611918, 1.38608943, 0.5596685, -1.34659665 + np.pi])
 
-        self.increment_scale=0.05
+        self.increment_scale=0.01
         self.joint_limits = {
             'q_min': np.array([-2.96705972839, -2.09439510239, -2.96705972839,
                                -2.09439510239, -2.96705972839, -2.09439510239, -3.05432619099]),
             'q_max': np.array([2.96705972839, 2.09439510239, 2.96705972839,
-                               2.09439510239, 2.96705972839, 2.09439510239, -3.05432619099]),
+                               2.09439510239, 2.96705972839, 2.09439510239, 3.05432619099]),
             'q_dot_max': np.array([1.71, 1.74, 1.745, 2.269, 2.443, 3.142, 3.142]),
         }
 
@@ -61,25 +62,27 @@ class RobotThrowEnv(gym.Env):
         self.view = viewer.launch_passive(model, data)
         self.robot = Robot(model, data, self.view, auto_sync=True)
 
-        self.error_threshold = 0.15
-        self.last_action = np.zeros(15)
+        self.error_threshold = 0.5
+        self.last_action = np.zeros(14)
         self.time_step = 0
-        self.max_steps = 200
+        self.max_steps = 500
         self.release_state = 0
+        self.terminated_num = 0
+        self.truncated_num = 0
 
 
         # 14:current joint state 3:target, 1:timestamp 15:last action, 1: release state
         self.observation_space = spaces.Box(
             low=-np.inf,
             high=np.inf,
-            shape=(34,),
+            shape=(32,),
             dtype=np.float32
         )
 
         self.action_space = spaces.Box(
             low=-1.0,
             high=1.0,
-            shape=(15,),
+            shape=(14,),
             dtype=np.float32
         )
 
@@ -96,13 +99,14 @@ class RobotThrowEnv(gym.Env):
             mode = 'testing'
 
         self.episode_count += 1
-        self.q_init = np.array(np.random.uniform(self.joint_limits['q_min'],self.joint_limits['q_max']))
+        self.q_init = self.q0
+        # self.q_init = np.array(np.random.uniform(self.joint_limits['q_min'],self.joint_limits['q_max']))
         self.q_dot_init = np.zeros(7)
         self.time_step = 0
-        self.last_action = np.zeros(15)
+        self.last_action = np.zeros(14)
         self.release_state = 0
 
-        self.robot.modify_joint(joints=self.q_init)
+        self.robot.modify_joint(joints=self.q_init, vel=self.q_dot_init)
 
         # move the target gradually
         progress = min(self.episode_count / 5000, 1.0)
@@ -113,11 +117,12 @@ class RobotThrowEnv(gym.Env):
                 np.random.uniform(0.0, 0.4)
             ])
         elif mode == 'training':
-            self.x_target = np.array([
-                np.random.uniform(-1.5 * progress, 1.5 * progress),
-                np.random.uniform(-1.5 * progress, 1.5 * progress),
-                np.random.uniform(0.0 * progress, 0.4 * progress)
-            ])
+            # self.x_target = np.array([
+            #     np.random.uniform(-1.5 * progress, 1.5 * progress),
+            #     np.random.uniform(-1.5 * progress, 1.5 * progress),
+            #     np.random.uniform(0.0 * progress, 0.4 * progress)
+            # ])
+            self.x_target = np.array([0.1, -1.2, 0.1])
 
         obs = self._observation()
         info = {}
@@ -131,12 +136,13 @@ class RobotThrowEnv(gym.Env):
         self.last_action = action.copy()
         self.time_step +=1
 
+        # test step frequency
         # current_time = time.time()
         # dt = current_time - self.last_time
         # self.last_time = current_time
         # print(f"frequency = {1.0 / dt:.2f} Hz")
 
-        release_control, q_desired, q_dot_desired = self._decode_action(action)
+        q_desired, q_dot_desired = self._decode_action(action)
 
         # execute action
         if not self.release_state:
@@ -145,7 +151,7 @@ class RobotThrowEnv(gym.Env):
                                     qh=np.zeros(16),
                                     render=True)
 
-            if release_control:
+            if self.time_step >= self.max_steps:
                 self.release_state = 1
 
         # calculate reward
@@ -166,50 +172,46 @@ class RobotThrowEnv(gym.Env):
 
         next_state = self._observation()
 
-        # if terminated:
-        #     self._render(np.array(x_landing))
+        if terminated:
+            self.terminated_num += 1
+        if truncated:
+            self.truncated_num += 1
+
+        print(self.time_step, self.terminated_num, self.truncated_num)
+        # self._render(x_landing)
 
         return next_state, reward, terminated, truncated, info
 
-    def _render(self,x_landing):
+    def _render(self, x_landing):
+        box_id = self.robot.m.body("box").id
+        sphere_id = self.robot.m.body("sphere").id
 
-        self.robot.view.add_marker(
-            pos=self.x_target,
-            size=[0.1, 0.1, 0.1],
-            rgba=[0, 1, 0, 0.5],
-            type=mujoco.mjtGeom.mjGEOM_SPHERE,
-            id=0
-        )
-
-        self.robot.view.add_marker(
-            pos=x_landing,
-            size=[0.08, 0.08, 0.08],
-            rgba=[1, 0, 0, 1],
-            type=mujoco.mjtGeom.mjGEOM_SPHERE,
-            id=1
-        )
+        self.robot.d.xpos[box_id] = self.x_target
+        self.robot.d.xpos[sphere_id] = x_landing
 
         self.robot.view.sync()
+
 
     def _check_joint_limits(self):
         return (np.any(self.robot.q < self.joint_limits['q_min']) or
             np.any(self.robot.q > self.joint_limits['q_max']) or
-            np.any(self.robot.qd > self.joint_limits['q_dot_max']) or
-            np.any(self.robot.qd < -self.joint_limits['q_dot_max']))
+            np.any(self.robot.dq > self.joint_limits['q_dot_max']) or
+            np.any(self.robot.dq < -self.joint_limits['q_dot_max']))
 
     def _decode_action(self, action):
-        release_control = (action[-1]+1) / 2 > 0.5
-        joint_action = action[:-1]
+        joint_action = action
+        add_joint_action = []
         # add noise to action
         if self.action_noise['enable']:
             noise_scale = self.action_noise['scale'] * (self.action_noise['decay_rate'] ** self.episode_count)
-            joint_action = joint_action + np.random.normal(0, noise_scale, size=14)
-            joint_action = np.concatenate([self.robot.q, self.robot.dq]) + np.array(joint_action)*self.increment_scale
-            joint_action = np.clip(joint_action, -1.0, 1.0)
+            add_joint_action = (joint_action + np.random.normal(0, noise_scale, size=14)) * self.increment_scale
+            add_joint_action[:7] *= self.joint_limits['q_max']
+            add_joint_action[7:14] *= self.joint_limits['q_dot_max']
 
-        q_desired = joint_action[:7] * self.joint_limits['q_max']
-        q_dot_desired = joint_action[7:14] * self.joint_limits['q_dot_max']
-        return release_control, q_desired, q_dot_desired
+        joint_action = np.concatenate([self.robot.q, self.robot.dq]) + np.array(add_joint_action)
+        q_desired = np.clip(joint_action[:7], self.joint_limits['q_min'], self.joint_limits['q_max'])
+        q_dot_desired = np.clip(joint_action[7:14], -self.joint_limits['q_dot_max'], self.joint_limits['q_dot_max'])
+        return q_desired, q_dot_desired
 
     def _observation(self):
         self.q_init = self.robot.q
@@ -227,15 +229,13 @@ class RobotThrowEnv(gym.Env):
         x_target_norm = self.x_target / self.target_max
         time_norm = np.array([self.time_step/self.max_steps])
         last_action = self.last_action
-        release_state = np.array([self.release_state])
 
         return np.concatenate([
             q_norm,
             q_dot_norm,
             x_target_norm,
             time_norm,
-            last_action,
-            release_state
+            last_action
         ]).astype(np.float32)
 
     def _simulate_throw(self):
@@ -289,6 +289,7 @@ class RobotThrowEnv(gym.Env):
             # 5.action scale penalty
             action_magnitude = np.linalg.norm(self.last_action)
             reward_info['action'] = self.reward_params['action_scale'] * action_magnitude
+
         else:
             # 1.boundary penalty
             q_violation = np.sum(
@@ -304,6 +305,10 @@ class RobotThrowEnv(gym.Env):
             # 3.speed up encourage
             ee_speed = np.linalg.norm(self.robot.dx[:3])
             reward_info['motion'] = self.reward_params['motion_reward'] * ee_speed
+
+            # 4.close to target
+            dis2target = np.linalg.norm(np.array(self.x_target) - np.array(x_release))
+            reward_info['close2target'] = self.reward_params['close_target'] * dis2target
 
         total_reward = sum(reward_info.values())
         reward_info['total'] = total_reward

@@ -200,7 +200,9 @@
             - 历史action
         - **动作空间**：
           - 论文参考：
-            - PD控制器的输出在关节空间下
+            - PD控制器的输出在关节空间下，改为输出增量
+            - 释放信号采样：不是很好采样
+            - 固定一定步数释放
         - **状态转移**：
           - model-based：理想状态，只有重力影响，飞行的动态方程
           - model-free：和mujoco交互，自己定义接口
@@ -222,6 +224,7 @@
           - 利用real robot和mujoco来进行系统辨识对齐PD控制器
             - real robot进行正弦，脉冲响应记录
             - 利用MLP来mapping使得响应误差最小
+        - 训练的step是170hz左右，接近iiwa的控制频率
       
     - #### 底层控制和跟踪
     
@@ -252,11 +255,10 @@
         - 坐标转换
       - 利用灵巧手的抛掷问题
       - 强化学习搜索解的方案：
-        - 采样的解全部都是不可用的
       
     - ### 待办
     
-      - 在mujoco里面生成在手指之间的末端hedgehog数据，并测试
+      - (done)在mujoco里面生成在手指之间的末端hedgehog数据，并测试
       - 实物测试，使用optitrack
       - 测试release delay，参考tube acceleration
       - 考虑异步投掷两个物体的motion planning
