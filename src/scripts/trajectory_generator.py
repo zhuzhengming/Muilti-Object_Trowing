@@ -22,7 +22,7 @@ class TrajectoryGenerator:
         rospy.init_node("trajectory_generator", anonymous=True)
         self.q_ul = q_ul
         self.q_ll = q_ll
-        self.q0 = np.array([-0.32032486, 0.02707055, -0.22881525, -1.42611918, 1.38608943, 0.5596685, -1.34659665 + np.pi])
+        self.q0 = np.array([-0.32032486, 0.02707055, -0.22881525, -1.42611918, 1.38608943, 0.5596685, 0])
         self.q0_dot = np.zeros(7)
         self.hedgehog_path = hedgehog_path
         self.brt_path = brt_path
@@ -40,10 +40,10 @@ class TrajectoryGenerator:
 
         self.robot = VelocityHedgehog(self.q_ll, self.q_ul, q_dot_min, q_dot_max, robot_path)
 
-        self.max_velocity = np.array([1.71, 1.74, 1.745, 2.269, 2.443, 3.142, 3.142])
+        # self.max_velocity = np.array([1.71, 1.74, 1.745, 2.269, 2.443, 3.142, 3.142])
         self.max_acceleration = np.array([15, 7.5, 10, 12.5, 15, 20, 20])
         self.max_jerk = np.array([7500, 3750, 5000, 6250, 7500, 10000, 10000])
-        # self.max_velocity = np.array(rospy.get_param('/max_velocity'))
+        self.max_velocity = np.array(rospy.get_param('/max_velocity'))
         # self.max_acceleration = np.array(rospy.get_param('/max_acceleration'))
         # self.max_jerk = np.array(rospy.get_param('/max_jerk'))
         self.MARGIN_VELOCITY = rospy.get_param('/MARGIN_VELOCITY')
@@ -90,11 +90,13 @@ class TrajectoryGenerator:
         :return: candidates of q, phi, x
         """
         if posture == "posture1":
+            print(posture)
             ae = self.p1_ae
             mesh = self.p1_mesh
             robot_phi_gamma_velos_naive = self.p1_robot_phi_gamma_velos_naive
             robot_phi_gamma_q_idxs_naive = self.p1_robot_phi_gamma_q_idxs_naive
-        else:
+        elif posture == "posture2":
+            print(posture)
             ae = self.p2_ae
             mesh = self.p2_mesh
             robot_phi_gamma_velos_naive = self.p2_robot_phi_gamma_velos_naive
@@ -210,7 +212,7 @@ class TrajectoryGenerator:
         z_dot = x[3]
 
         # kinemetic forward
-        AE, J = self.robot.forward(q, pose_mode="posture1")
+        AE, J = self.robot.forward(q, posture="posture1")
 
         # in ee_site space
         throwing_angle = np.arctan2(AE[1], AE[0]) + phi
@@ -280,18 +282,22 @@ class TrajectoryGenerator:
             #     num_hit += 1
             #     continue
 
-            traj_throw = self.get_traj_from_ruckig(q0=self.q0, q0_dot=self.q0_dot,
-                                                   qd=throw_config_full[0],
-                                                   qd_dot=throw_config_full[3])
+            # 3. valid trajectory
+            try:
+                traj_throw = self.get_traj_from_ruckig(q0=self.q0, q0_dot=self.q0_dot,
+                                                       qd=throw_config_full[0],
+                                                       qd_dot=throw_config_full[3])
 
-            if traj_throw.duration < 1e-10:
+                if traj_throw.duration < 1e-10:
+                    num_ruckigerr += 1
+                    continue
+            except Exception as e:
                 num_ruckigerr += 1
                 continue
 
             deviation = throw_config_full[-1][:2] + base0
             if np.linalg.norm(deviation) < 0.01:
                 num_small_deviation += 1
-                # continue
 
             traj_durations.append(traj_throw.duration)
             trajs.append(traj_throw)
@@ -377,16 +383,21 @@ class TrajectoryGenerator:
         print("AB          : ", throw_config_full[-1])
         print("deviation   : ", throw_config_full[-1] - self.box_position)
         print("throwing state: ", throw_config_full[2])
+        self.nominal_q = throw_config_full[0]
+        self.nominal_q_dot = throw_config_full[3]
+        self.nominal_AE, self.target_J = self.robot.forward(self.nominal_q, posture=posture)
+        self.nominal_vel = self.target_J @ self.nominal_q_dot
 
         if animate:
-            self.throw_simulation_mujoco(traj_throw, throw_config_full, pose_mode=posture)
+            self.throw_simulation_mujoco(traj_throw, throw_config_full, posture=posture)
 
-    def throw_simulation_mujoco(self, trajectory, throw_config_full, pose_mode=None):
+    def throw_simulation_mujoco(self, trajectory, throw_config_full, posture=None):
         ROBOT_BASE_HEIGHT = 0.5
         box_position = throw_config_full[-1]
         freq = 200
         delta_t = 1.0 / freq
         # self.robot.print_simulator_info() # output similator infos
+
 
         # set the target box position for visualization
         target_id = self.robot.model.body("box").id  # set box position
@@ -423,7 +434,6 @@ class TrajectoryGenerator:
             if flag:
                 ref_full = trajectory.at_time(tt)
                 ref = [ref_full[i][:7] for i in range(3)]
-
                 self.robot._set_joints(ref[0], ref[1], render=True)
             else:
                 ref_full = trajectory.at_time(plan_time)
@@ -432,11 +442,12 @@ class TrajectoryGenerator:
 
             # get the state of ee_site in the frame of kuka_base
             object_id = self.robot.model.body("sphere").id
-            if pose_mode == "posture1":
-                ee_pos = (self.robot.obj_x2base("thumb_site")+ self.robot.obj_x2base("middle_site")) / 2
+
+            if posture == "posture1":
+                ee_pos = (self.robot.obj_x2base("thumb_site") + self.robot.obj_x2base("middle_site")) / 2
                 ee_pos[2] += ROBOT_BASE_HEIGHT
                 ee_vel = (self.robot.obj_v("thumb_site")+self.robot.obj_v("middle_site")) / 2
-            elif pose_mode == "posture2":
+            elif posture == "posture2":
                 ee_pos = (self.robot.obj_x2base("index_site") + self.robot.obj_x2base("ring_site")) / 2
                 ee_pos[2] += ROBOT_BASE_HEIGHT
                 ee_vel = (self.robot.obj_v("index_site") + self.robot.obj_v("ring_site")) / 2
@@ -449,7 +460,7 @@ class TrajectoryGenerator:
                 self.robot._set_object_position(object_id, ee_pos, ee_vel[:3])
 
             if tt > plan_time - 1 * delta_t:
-                self.robot._set_hand_joints(self.robot.hand_home_pose.tolist(), render=True)
+                # self.robot._set_hand_joints(self.robot.hand_home_pose.tolist(), render=True)
                 throw_flag = True
             else:
                 self.robot._set_hand_joints(self.robot.envelop_pose.tolist(), render=True)
@@ -476,16 +487,9 @@ if __name__ == "__main__":
     # brt_path = '../fix_hedgehog'
 
     robot_path = '../description/iiwa7_allegro_throwing.xml'
-    box_position = np.array([0.0, -1.3, 0.1])
+    box_position = np.array([1.4, 0.6, 0.0])
 
     trajectory_generator = TrajectoryGenerator(q_max, q_min,
                                                hedgehog_path, brt_path,
                                                box_position, robot_path)
     trajectory_generator.solve(animate=True, posture="posture1")
-
-
-
-
-
-
-

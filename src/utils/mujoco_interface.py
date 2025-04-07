@@ -55,7 +55,6 @@ class Robot:
         :return:
         """
         self.view.cam.trackbodyid = 0  # id of the body to track ()
-        # self.viewer.cam.distance = self.sim.model.stat.extent * 0.05  # how much you "zoom in", model.stat.extent is the max limits of the arena
         self.view.cam.distance = 0.6993678113883466*5  # how much you "zoom in", model.stat.extent is the max limits of the arena
         self.view.cam.lookat[0] = 0.55856114  # x,y,z offset from the object (works if trackbodyid=-1)
         self.view.cam.lookat[1] = 0.00967048

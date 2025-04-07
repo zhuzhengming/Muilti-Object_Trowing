@@ -86,10 +86,10 @@ class VelocityHedgehog:
         mujoco.mj_step(self.model, self.data)
         self.view.sync()
 
-    def forward(self, q: list, render=False, pose_mode=None) -> (np.ndarray, np.ndarray):
+    def forward(self, q: list, render=False, posture=None) -> (np.ndarray, np.ndarray):
         self._set_joints(q, render=render)
 
-        if pose_mode == "posture1":
+        if posture == "posture1":
             self._set_hand_joints(self.hand_home_pose.tolist(), render=render)
             jacp1 = np.zeros((3, self.model.nv))
             jacr1 = np.zeros((3, self.model.nv))
@@ -101,7 +101,7 @@ class VelocityHedgehog:
             mujoco.mj_jacSite(self.model, self.data, jacp2, jacr2, site_id2)
             AE = (self.obj_x2base("thumb_site") + self.obj_x2base("middle_site"))/2
             J = (np.vstack((jacp1, jacr1))[:, :7] + np.vstack((jacp2, jacr2))[:, :7]) /2
-        elif pose_mode == "posture2":
+        elif posture == "posture2":
             self._set_hand_joints(self.hand_home_pose.tolist(), render=render)
             jacp1 = np.zeros((3, self.model.nv))
             jacr1 = np.zeros((3, self.model.nv))
@@ -229,7 +229,7 @@ def computeMesh(q_min, q_max, delta_q):
 
 def filter(Q, VelocityHedgehog: VelocityHedgehog,
            singularity_thres, ZList, DISList,
-           Z_TOLERANCE=0.01, DIS_TOLERANCE=0.01, pose_mode=None):
+           Z_TOLERANCE=0.01, DIS_TOLERANCE=0.01, posture=None):
     """
         Inputs:
             Q (np.ndarray or list): Joint configurations, shape (N, D).
@@ -254,7 +254,7 @@ def filter(Q, VelocityHedgehog: VelocityHedgehog,
         for q in Q:
             # do not planning joint 0 and joint 6
             q = [0.0] + q.tolist() + [0.0]
-            AE, J = VelocityHedgehog.forward(q,pose_mode=pose_mode)
+            AE, J = VelocityHedgehog.forward(q,posture=posture)
             u, s, vh = np.linalg.svd(J)
             if np.min(s) < singularity_thres:
                 pbar.update(1)
