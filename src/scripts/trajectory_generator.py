@@ -80,7 +80,7 @@ class TrajectoryGenerator:
         self.brt_zs = np.load(self.brt_path + '/brt_zs.npy')
 
 
-    def brt_robot_data_matching(self, posture, thres_v=0.1, thres_dis=0.01, thres_phi=0.04, thres_r=0.1):
+    def brt_robot_data_matching(self, posture, thres_v=0.1, thres_dis=0.01, thres_phi=0.04, thres_r=0.1, box_pos=None):
         """
         original point is the base of robot
         Given target position, find out initial guesses of (q, phi, x)
@@ -102,8 +102,12 @@ class TrajectoryGenerator:
             robot_phi_gamma_velos_naive = self.p2_robot_phi_gamma_velos_naive
             robot_phi_gamma_q_idxs_naive = self.p2_robot_phi_gamma_q_idxs_naive
 
-        z_target_to_base = self.box_position[-1]
-        AB = self.box_position[:2]
+        if box_pos is None:
+            z_target_to_base = self.box_position[-1]
+            AB = self.box_position[:2]
+        else:
+            z_target_to_base = box_pos[-1]
+            AB = box_pos[:2]
 
         # align the z idx
         num_robot_zs = self.robot_zs.shape[0]
@@ -262,7 +266,7 @@ class TrajectoryGenerator:
         throw_configs = []
 
         # record bad trajectories
-        num_outlimit, num_hit, num_ruckigerr, num_small_deviation = 0, 0, 0, 0
+        num_outlimit, num_hit, num_ruckiger, num_small_deviation = 0, 0, 0, 0
 
         for i in range(n_candidates):
             candidate_idx = i
@@ -289,10 +293,10 @@ class TrajectoryGenerator:
                                                        qd_dot=throw_config_full[3])
 
                 if traj_throw.duration < 1e-10:
-                    num_ruckigerr += 1
+                    num_ruckiger += 1
                     continue
             except Exception as e:
-                num_ruckigerr += 1
+                num_ruckiger += 1
                 continue
 
             deviation = throw_config_full[-1][:2] + base0
@@ -304,7 +308,7 @@ class TrajectoryGenerator:
             throw_configs.append(throw_config_full)
 
         print("\t\t out of joint limit: {}, hit the palm: {}, ruckig error: {}, small deviation:{}".format(
-                num_outlimit, num_hit, num_ruckigerr, num_small_deviation))
+                num_outlimit, num_hit, num_ruckiger, num_small_deviation))
 
         return trajs, throw_configs
 
@@ -383,17 +387,111 @@ class TrajectoryGenerator:
         print("AB          : ", throw_config_full[-1])
         print("deviation   : ", throw_config_full[-1] - self.box_position)
         print("throwing state: ", throw_config_full[2])
-        self.nominal_q = throw_config_full[0]
-        self.nominal_q_dot = throw_config_full[3]
-        self.nominal_AE, self.target_J = self.robot.forward(self.nominal_q, posture=posture)
-        self.nominal_vel = self.target_J @ self.nominal_q_dot
 
         if animate:
             self.throw_simulation_mujoco(traj_throw, throw_config_full, posture=posture)
 
+    def multi_waypoint_solve(self, box_positions, animate=False, posture=None):
+        base1 = box_positions[0][:2]
+        base2 = box_positions[1][:2]
+
+        q_candidates_1, phi_candidates_1, x_candidates_1 = (
+            self.brt_robot_data_matching(posture, box_pos=box_positions[0]))
+        q_candidates_2, phi_candidates_2, x_candidates_2 = (
+            self.brt_robot_data_matching(posture, box_pos=box_positions[1]))
+
+        if len(q_candidates_1) == 0 or len(q_candidates_2) == 0:
+            print("No result found")
+            return 0
+
+        trajs_1, throw_configs_1 = self.generate_throw_config(q_candidates_1,
+                                                              phi_candidates_1,
+                                                              x_candidates_1,
+                                                              base1)
+
+        trajs_2, throw_configs_2 = self.generate_throw_config(q_candidates_2,
+                                                              phi_candidates_2,
+                                                              x_candidates_2,
+                                                              base2)
+
+        if len(trajs_1) == 0 or len(trajs_2) == 0:
+            print("No trajectory found")
+            return 0
+
+        min_distance = float('inf')
+        best_pair = None
+        best_throw_config_pair = None
+
+        for i, cfg1 in enumerate(throw_configs_1):
+            vec1 = np.concatenate([cfg1[0], cfg1[3]])
+            for j, cfg2 in enumerate(throw_configs_2):
+                vec2 = np.concatenate([cfg2[0], cfg2[3]])
+                distance = np.linalg.norm(vec1 - vec2)
+                if distance < min_distance:
+                    min_distance = distance
+                    best_pair = np.array([[cfg1[0], cfg1[3]], [cfg2[0], cfg2[3]]])
+                    best_throw_config_pair = (cfg1, cfg2)
+
+        if not best_pair:
+            print("No valid pairs found")
+            return 0
+
+        forward_trajectory_1 = self.get_traj_from_ruckig(self.q0, self.q0_dot,
+                                                 best_pair[0][0], best_pair[0][1])
+
+        forward_trajectory_2 = self.get_traj_from_ruckig(best_pair[0][0], best_pair[0][1],
+                                                 best_pair[1][0], best_pair[1][1])
+
+        backward_trajectory_1 = self.get_traj_from_ruckig(self.q0, self.q0_dot,
+                                                         best_pair[1][0], best_pair[1][1])
+
+        backward_trajectory_2 = self.get_traj_from_ruckig(best_pair[1][0], best_pair[1][1],
+                                                         best_pair[0][0], best_pair[0][1])
+
+        # TODO: integrate two trajectories
+        if forward_trajectory_1.duration + forward_trajectory_2.duration < \
+            backward_trajectory_1.duration + backward_trajectory_2.duration:
+            final_trajectory = forward_trajectory_1.duration + forward_trajectory_2.duration
+        else:
+            final_trajectory = backward_trajectory_1.duration + backward_trajectory_2.duration
+            best_throw_config_pair = (best_throw_config_pair[1], best_throw_config_pair[0])
+
+
+        if animate:
+            self.throw_simulation_mujoco(final_trajectory, best_throw_config_pair, posture=posture)
+
+
     def throw_simulation_mujoco(self, trajectory, throw_config_full, posture=None):
         ROBOT_BASE_HEIGHT = 0.5
-        box_position = throw_config_full[-1]
+        if throw_config_full.shape[0] != 1:
+            box_position_1 = throw_config_full[0][-1]
+            AE_1 = throw_config_full[0][-1]
+            box_position_2 = throw_config_full[1][-1]
+            AE_2 = throw_config_full[1][-1]
+
+            # set the target box position for visualization
+            target_id_1 = self.robot.model.body("box").id  # set box position
+            target_id_2 = self.robot.model.body("box").id  # set box position
+            target_position_1 = box_position_1
+            target_position_1[2] += ROBOT_BASE_HEIGHT
+            target_position_2 = box_position_2
+            target_position_2[2] += ROBOT_BASE_HEIGHT
+            self.robot._set_object_position(target_id_1, target_position_1)
+            self.robot._set_object_position(target_id_2, target_position_2)
+
+        else:
+            box_position = throw_config_full[-1]
+            AE = throw_config_full[-2]
+            EB = box_position - AE
+
+            # set the target box position for visualization
+            target_id = self.robot.model.body("box").id  # set box position
+            target_position = self.box_position
+            target_position[2] += ROBOT_BASE_HEIGHT
+            self.robot._set_object_position(target_id, target_position)
+
+
+
         freq = 200
         delta_t = 1.0 / freq
         # self.robot.print_simulator_info() # output similator infos
@@ -405,8 +503,6 @@ class TrajectoryGenerator:
         target_position[2] += ROBOT_BASE_HEIGHT
         self.robot._set_object_position(target_id, target_position)
 
-        AE = throw_config_full[-2]
-        EB = box_position - AE
 
         t0, tf = 0, trajectory.duration
         plan_time = tf - t0
