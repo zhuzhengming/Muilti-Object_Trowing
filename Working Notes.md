@@ -38,6 +38,17 @@
   
   - **Opti-track**: 
   
+    - 用大一点的cube，贴四面
+  
+    - 在PC上创建一个新的object
+  
+    - 在lasa的github安装ros包
+  
+    - 修改名称和ip通过topic读取data
+    
+    - 数据频率大概在300hz
+  
+  
     ```
     rosla vrpn_client_ros sample.launch
     ```
