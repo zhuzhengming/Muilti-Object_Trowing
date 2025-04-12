@@ -11,14 +11,15 @@ matplotlib.use('Qt5Agg')
 from std_msgs.msg import String
 from sensor_msgs.msg import JointState
 from std_msgs.msg import Int64
+import threading
 
 from pathlib import Path
 from sys import path
 from ruckig import InputParameter, Ruckig, Trajectory
 from utils.mujoco_interface import Robot
 import kinematics.allegro_hand_sym as allegro
+from trajectory_generator import TrajectoryGenerator
 
-from std_srvs.srv import Trigger
 import mujoco
 from mujoco import viewer
 import matplotlib.pyplot as plt
@@ -29,8 +30,20 @@ REAL_ROBOT_STATE = False  # Set to True to use the real robot state to start the
 
 ## ---- ROS conversion and callbacks functions ---- ##
 class Throwing_controller:
-    def __init__(self, simulator='mujoco', test_id=None, path_prefix='../'):
+    def __init__(self, simulator='mujoco', test_id=None, path_prefix='../', box_position=None):
         rospy.init_node("throwing_controller", anonymous=True)
+        hedgehog_path = '../hedgehog_revised'
+        brt_path = '../brt_data'
+        xml_path = '../description/iiwa7_allegro_ycb.xml'
+        self.box_position = box_position if box_position is not None else 0
+
+        self.q_min = np.array([-2.96705972839, -2.09439510239, -2.96705972839, -2.09439510239, -2.96705972839,
+                          -2.09439510239, -3.05432619099])
+        self.q_max = np.array([2.96705972839, 2.09439510239, 2.96705972839, 2.09439510239, 2.96705972839,
+                          2.09439510239, 3.05432619099])
+        self.trajectoryGenerator = TrajectoryGenerator(self.q_max, self.q_min,
+                                                       hedgehog_path, brt_path,
+                                                       self.box_position, xml_path)
 
         # initialize ROS subscriber/publisher
         self.fsm_state_pub = rospy.Publisher('fsm_state', String, queue_size=1)
@@ -78,10 +91,6 @@ class Throwing_controller:
         self.max_velocity = np.array(rospy.get_param('/max_velocity'))
         self.max_acceleration = np.array(rospy.get_param('/max_acceleration'))
         self.max_jerk = np.array(rospy.get_param('/max_jerk'))
-
-        # allegro pre-defined pose
-        self.allegro_home = np.array(rospy.get_param('/hand_home_pose'))
-        self.envelop = np.array(rospy.get_param('/envelop_pose'))
 
         # q0 is the home state and control period
         if SIMULATION:
@@ -133,7 +142,6 @@ class Throwing_controller:
         self.traj_back_time = self.trajectory_back.duration
 
         if simulator == 'mujoco' and SIMULATION == True:
-            xml_path = '../description/iiwa7_allegro_ycb.xml'
             obj_name = ''
             model = mujoco.MjModel.from_xml_path(xml_path)
             data = mujoco.MjData(model)
@@ -239,7 +247,6 @@ class Throwing_controller:
             if tt > trajectory_to_qs.duration:
                 break
 
-        waypoints = []
         tt = 0
         while True:
             if flag:
@@ -290,6 +297,11 @@ class Throwing_controller:
         dT = self.dt
         rate = rospy.Rate(1.0 / dT)
 
+        if not SIMULATION:
+            qs, qs_dot, qs_dotdot = self.match_configuration()
+        else:
+            qs, qs_dot, qs_dotdot = self.qs, self.qs_dot, self.qs_dotdot
+
         while not rospy.is_shutdown():
             if (time.time() - start_time) > max_run_time:
                 rospy.logwarn("run() time limit exceeded, saving data and breaking...")
@@ -314,7 +326,7 @@ class Throwing_controller:
                 # print("HOMING...")
 
                 self.homing_traj = self.get_traj_from_ruckig(q_cur, q_cur_dot, np.zeros(7),
-                                                             self.qs, self.qs_dot, self.qs_dotdot,
+                                                             qs, qs_dot, qs_dotdot,
                                                              margin_velocity=self.MARGIN_VELOCITY,
                                                              margin_acceleration=self.MARGIN_ACCELERATION)
                 if self.homing_traj is None:
@@ -363,8 +375,8 @@ class Throwing_controller:
                 # execute throwing trajectory
                 time_now = rospy.get_time()
                 # release gripper
-                # if time_now - self.time_start_throwing > self.throwing_traj.duration - self.GRIPPER_DELAY:
-                #     threading.Thread(target=self.deactivate_gripper).start()
+                if time_now - self.time_start_throwing > self.throwing_traj.duration - self.GRIPPER_DELAY:
+                    threading.Thread(target=self.deactivate_gripper).start()
 
                 if time_now - self.time_start_throwing > self.throwing_traj.duration - dT:
                     self.fsm_state = "SLOWING"
@@ -428,12 +440,39 @@ class Throwing_controller:
 
             rate.sleep()
 
+    def match_configuration(self, posture=None):
+        base0 = -self.box_position[:2]
+        q_candidates, phi_candidates, x_candidates = (
+            self.trajectoryGenerator.brt_robot_data_matching(posture=posture))
+        if len(q_candidates) == 0:
+            print("No result found")
+            return 0
+
+        trajs, throw_configs = self.trajectoryGenerator.generate_throw_config(
+            q_candidates, phi_candidates, x_candidates, base0)
+
+        if len(trajs) == 0:
+            print("No trajectory found")
+            return 0
+
+        # select the minimum-time trajectory
+        traj_durations = [traj.duration for traj in trajs]
+        selected_idx = np.argmin(traj_durations)
+        traj_throw = trajs[selected_idx]
+        throw_config_full = throw_configs[selected_idx]
+
+        qs = throw_config_full[0]
+        qs_dot = throw_config_full[3]
+        qs_dotdot = np.zeros_like(qs)
+
+        return qs, qs_dot, qs_dotdot
+
     ## ---- ROS conversion and callbacks functions ---- ##
     def convert_command_to_ROS(self, time_now, qd, qd_dot, qd_dotdot):
         command = JointState()
         command.header.stamp = rospy.Time.from_sec(time_now)
-        command.name = ['panda_joint1', 'panda_joint2', 'panda_joint3', 'panda_joint4', 'panda_joint5', 'panda_joint6',
-                        'panda_joint7']
+        command.name = ['iiwa_joint1', 'iiwa_joint2', 'iiwa_joint3', 'iiwa_joint4', 'iiwa_joint5', 'iiwa_joint6',
+                        'iiwa_joint7']
         command.position =  qd
         command.velocity = qd_dot
         command.effort = qd_dotdot
@@ -480,7 +519,7 @@ class Throwing_controller:
         if SIMULATION:
             self.r.hand_move_torque(qh=self.r.home_pose, move_hand_only=True)
         else:
-            self._send_hand_position(self.hand_home_pose)
+            self.r.move_to_joints(self.hand_home_pose, vel=[0.2, 8.0])
 
 
     # Path to the build directory including a file similar to 'ruckig.cpython-37m-x86_64-linux-gnu'.

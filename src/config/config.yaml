@@ -50,45 +50,16 @@ release_pose2: [0.4642, 0.2106, 0.4723, 0.5606, -0.4761, 1.1154, 0.1699,
 #########################################################################
 
 ERROR_THRESHOLD: 0.1  # Threshold to switch from homing to throwing state
-GRIPPER_DELAY: 0.350
+GRIPPER_DELAY: 0.04
 
 # Ruckig margins for throwing
 MARGIN_VELOCITY: 0.8
-
-# for joint 0
-#MARGIN_ACCELERATION: 0.09
-#MARGIN_JERK: 0.0009
-
-# for joint 1
-#MARGIN_ACCELERATION: 0.03
-#MARGIN_JERK: 0.0001
-
-# for joint 2
-#MARGIN_ACCELERATION: 0.2
-#MARGIN_JERK: 0.002
-
-# for joint 3
-#MARGIN_ACCELERATION: 0.1
-#MARGIN_JERK: 0.0008
-
-# for joint 4
-#MARGIN_ACCELERATION: 0.5
-#MARGIN_JERK: 0.004
-
-# works for joint 5
-#MARGIN_ACCELERATION: 0.5
-#MARGIN_JERK: 0.003
-
-# works for joint 6
-#MARGIN_ACCELERATION: 0.5
-#MARGIN_JERK: 0.003
 
 MARGIN_ACCELERATION: 1
 MARGIN_JERK: 1
 
 # constraints of iiwa 7
 # joint 1 and joint 4 has lower max_velocity because of compensation of gravity
-# [1.71, 1.74, 1.745, 2.269, 2.443, 3.142, 3.142]
 max_velocity: [1.71, 1.74, 1.745, 2.269, 2.443, 3.142, 3.142]
 max_acceleration: [1.35, 1.35, 2.0, 2.0, 7.5, 10.0, 10.0]
 max_jerk: [6.75, 6.75, 10.0, 20.0, 30.0, 30.0, 30.0]

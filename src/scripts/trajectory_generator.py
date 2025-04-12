@@ -643,5 +643,5 @@ if __name__ == "__main__":
     trajectory_generator = TrajectoryGenerator(q_max, q_min,
                                                hedgehog_path, brt_path,
                                                box_position, robot_path)
-    # trajectory_generator.solve(animate=True, posture="posture1")
+    trajectory_generator.solve(animate=True, posture="posture1")
     trajectory_generator.multi_waypoint_solve(box_positions)
