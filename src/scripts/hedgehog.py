@@ -90,7 +90,7 @@ class VelocityHedgehog:
         self._set_joints(q, render=render)
 
         if posture == "posture1":
-            self._set_hand_joints(self.hand_home_pose.tolist(), render=render)
+            self._set_hand_joints(self.envelop_pose.tolist(), render=render)
             jacp1 = np.zeros((3, self.model.nv))
             jacr1 = np.zeros((3, self.model.nv))
             jacp2 = np.zeros((3, self.model.nv))
@@ -102,7 +102,7 @@ class VelocityHedgehog:
             AE = (self.obj_x2base("thumb_site") + self.obj_x2base("middle_site"))/2
             J = (np.vstack((jacp1, jacr1))[:, :7] + np.vstack((jacp2, jacr2))[:, :7]) /2
         elif posture == "posture2":
-            self._set_hand_joints(self.hand_home_pose.tolist(), render=render)
+            self._set_hand_joints(self.envelop_pose.tolist(), render=render)
             jacp1 = np.zeros((3, self.model.nv))
             jacr1 = np.zeros((3, self.model.nv))
             jacp2 = np.zeros((3, self.model.nv))
@@ -315,7 +315,7 @@ def LP(phi, gamma, Jinv, fracyx, qdmin, qdmax):
     return s.value[0]
 
 
-def main(prefix, VelocityHedgehog: VelocityHedgehog, delta_q, Dis, Z, Phi, Gamma, posture,
+def main(prefix, VelocityHedgehog: VelocityHedgehog, delta_q, Dis, Z, Phi, Gamma, postures,
          svthres=0.1, z_tolerance=0.01, dis_tolerance=0.01):
 
     num_joints = VelocityHedgehog.q_min.shape[0]
@@ -324,13 +324,13 @@ def main(prefix, VelocityHedgehog: VelocityHedgehog, delta_q, Dis, Z, Phi, Gamma
     num_dis = Dis.shape[0]
     num_phi = Phi.shape[0]
     num_gamma = Gamma.shape[0]
-    num_posture = len(posture)
+    num_posture = len(postures)
 
     vel_max = np.zeros((num_posture, num_z, num_dis, num_phi, num_gamma))
     argmax_q = np.zeros((num_posture, num_z, num_dis, num_phi, num_gamma, num_joints))  # the configuration with max_velocity
     q_ae = np.zeros((num_posture, num_z, num_dis, num_phi, num_gamma, 3))
 
-    for mode_idx, pose_mode in enumerate(posture):
+    for mode_idx, posture in enumerate(postures):
         total_combinations = len(Z) * len(Dis) * len(Phi) * len(Gamma)
         print("processing posture %d \n" % mode_idx)
         # Build robot dataset
@@ -343,7 +343,7 @@ def main(prefix, VelocityHedgehog: VelocityHedgehog, delta_q, Dis, Z, Phi, Gamma
         Qzd, aezd, Jzd = filter(Q=q_candidates, VelocityHedgehog=VelocityHedgehog,
                                 singularity_thres=svthres, ZList=Z, DISList=Dis,
                                 Z_TOLERANCE=z_tolerance, DIS_TOLERANCE=dis_tolerance
-                                ,pose_mode=pose_mode)
+                                ,posture=posture)
 
         # Build velocity hedgehog_data
         with tqdm(total=total_combinations, desc="Overall Progress", unit="comb") as pbar:
@@ -457,9 +457,9 @@ if __name__ == '__main__':
     Dis = np.arange(0, 1.1, delta_dis) # remove the length of joint0
     Phi = np.arange(-np.pi / 2, np.pi / 2, delta_phi)
     Gamma = np.arange(gamma_offset, np.pi / 2 - gamma_offset, delta_gamma)
-    posture = ["posture1", "posture2"]
+    postures = ["posture1", "posture2"]
 
     Robot = VelocityHedgehog(q_min, q_max, q_dot_min, q_dot_max, robot_path, train_mode=True)
-    vel_max, argmax_q, q_ae = main(prefix, Robot, delta_q, Dis, Z, Phi, Gamma, posture)
-    construct_quick_search(prefix, Dis, Z, Phi, Gamma, argmax_q, q_ae, posture)
+    vel_max, argmax_q, q_ae = main(prefix, Robot, delta_q, Dis, Z, Phi, Gamma, postures)
+    construct_quick_search(prefix, Dis, Z, Phi, Gamma, argmax_q, q_ae, postures)
 

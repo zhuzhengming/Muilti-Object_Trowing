@@ -661,8 +661,6 @@ class Throwing_controller:
 
         plt.show()
 
-
-
 if __name__ == '__main__':
 
     simulation_mode = 'mujoco'

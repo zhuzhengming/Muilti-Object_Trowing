@@ -425,12 +425,16 @@ class TrajectoryGenerator:
         min_distance = float('inf')
         best_pair = None
         best_throw_config_pair = None
+        all_pairs = []
+        all_pair_configs = []
 
         for i, cfg1 in enumerate(throw_configs_1):
             vec1 = np.concatenate([cfg1[0], cfg1[3]])
             for j, cfg2 in enumerate(throw_configs_2):
                 vec2 = np.concatenate([cfg2[0], cfg2[3]])
                 distance = np.linalg.norm(vec1 - vec2)
+                all_pairs.append(np.array([[cfg1[0], cfg1[3]], [cfg2[0], cfg2[3]]]))
+                all_pair_configs.append((cfg1, cfg2))
                 if distance < min_distance:
                     min_distance = distance
                     best_pair = np.array([[cfg1[0], cfg1[3]], [cfg2[0], cfg2[3]]])
@@ -442,39 +446,44 @@ class TrajectoryGenerator:
 
         print(best_throw_config_pair[0][-1] - box_positions[0])
         print(best_throw_config_pair[1][-1] - box_positions[1])
-        # print(f"box_position1 (x,y,z): {box_positions[0][0]:.1f}, {box_positions[0][1]:.1f}, {box_positions[0][2]:.1f}")
-        # print(f"box_position2 (x,y,z): {box_positions[1][0]:.1f}, {box_positions[1][1]:.1f}, {box_positions[1][2]:.1f}")
 
 
-        # print(f"deviation_1:(x,y,z) {best_throw_config_pair[0][-1][0] - box_positions[0][0]:.1f},"
-        #       f"{best_throw_config_pair[0][-1][1] - box_positions[0][1]:.1f},"
-        #       f"{best_throw_config_pair[0][-1][2] - box_positions[0][2]:.1f} "
-        #       f"deviation_2:(x,y,z) {best_throw_config_pair[1][-1][0] - box_positions[1][0]:.1f},"
-        #       f"{best_throw_config_pair[1][-1][1] - box_positions[1][1]:.1f},"
-        #       f"{best_throw_config_pair[1][-1][2] - box_positions[1][2]:.1f} "
-        #       )
+        #1. choose the closest q and q_dot pair
+        # forward_trajectory_1 = self.get_traj_from_ruckig(self.q0, self.q0_dot,
+        #                                          best_pair[0][0], best_pair[0][1])
+        #
+        # forward_trajectory_2 = self.get_traj_from_ruckig(best_pair[0][0], best_pair[0][1],
+        #                                          best_pair[1][0], best_pair[1][1])
+        #
+        # backward_trajectory_1 = self.get_traj_from_ruckig(self.q0, self.q0_dot,
+        #                                                  best_pair[1][0], best_pair[1][1])
+        #
+        # backward_trajectory_2 = self.get_traj_from_ruckig(best_pair[1][0], best_pair[1][1],
+        #                                                  best_pair[0][0], best_pair[0][1])
+        #
+        # if forward_trajectory_1.duration + forward_trajectory_2.duration < \
+        #     backward_trajectory_1.duration + backward_trajectory_2.duration:
+        #     intermediate_time, final_trajectory = self.concatenate_trajectories(forward_trajectory_1, forward_trajectory_2)
+        # else:
+        #     intermediate_time, final_trajectory = self.concatenate_trajectories(forward_trajectory_1, forward_trajectory_2)
+        #     best_throw_config_pair = (best_throw_config_pair[1], best_throw_config_pair[0])
 
-        forward_trajectory_1 = self.get_traj_from_ruckig(self.q0, self.q0_dot,
-                                                 best_pair[0][0], best_pair[0][1])
-
-        forward_trajectory_2 = self.get_traj_from_ruckig(best_pair[0][0], best_pair[0][1],
-                                                 best_pair[1][0], best_pair[1][1])
-
-        backward_trajectory_1 = self.get_traj_from_ruckig(self.q0, self.q0_dot,
-                                                         best_pair[1][0], best_pair[1][1])
-
-        backward_trajectory_2 = self.get_traj_from_ruckig(best_pair[1][0], best_pair[1][1],
-                                                         best_pair[0][0], best_pair[0][1])
-
-        if forward_trajectory_1.duration + forward_trajectory_2.duration < \
-            backward_trajectory_1.duration + backward_trajectory_2.duration:
-            intermediate_time, final_trajectory = self.concatenate_trajectories(forward_trajectory_1, forward_trajectory_2)
-        else:
-            intermediate_time, final_trajectory = self.concatenate_trajectories(forward_trajectory_1, forward_trajectory_2)
-            best_throw_config_pair = (best_throw_config_pair[1], best_throw_config_pair[0])
+        #2. choose the shortest trajectory
+        intermediate_time_all, final_trajectory_all = self.concatenate_all_pairs(all_pairs)
+        min_duration_group = min(
+            zip(intermediate_time_all, final_trajectory_all, all_pair_configs),
+            key=lambda x: len(x[1]['timestamp'])
+        )
+        intermediate_time, final_trajectory, best_throw_config_pair = min_duration_group
 
         if animate:
-            self.throw_simulation_mujoco(final_trajectory, best_throw_config_pair, intermediate_time=intermediate_time)
+            # for intermediate_time, final_trajectory, best_throw_config_pair \
+            #         in zip(intermediate_time_all, final_trajectory_all, all_pair_configs):
+                # self.throw_simulation_mujoco(final_trajectory, best_throw_config_pair, intermediate_time=intermediate_time)
+                # print("try once!")
+
+            self.throw_simulation_mujoco(final_trajectory, best_throw_config_pair,
+                                     intermediate_time=intermediate_time)
 
     def process_trajectory(self, traj, time_offset=0.0):
 
@@ -539,11 +548,25 @@ class TrajectoryGenerator:
 
         return time_offset, ref_sequence
 
+    def concatenate_all_pairs(self, all_pairs):
+        intermediate_time_all = []
+        final_trajectory_all = []
+        for i, pair in enumerate(all_pairs):
+            traj_1 = self.get_traj_from_ruckig(self.q0, self.q0_dot,
+                                                pair[0][0], pair[0][1])
+            traj_2 = self.get_traj_from_ruckig(pair[0][0], pair[0][1], pair[1][0], pair[1][1])
+            intermediate_time, final_trajectory = self.concatenate_trajectories(traj_1, traj_2)
+            intermediate_time_all.append(intermediate_time)
+            final_trajectory_all.append(final_trajectory)
+
+
+        return intermediate_time_all, final_trajectory_all
+
     def throw_simulation_mujoco(self, ref_sequence, throw_config_full, intermediate_time=None):
         ROBOT_BASE_HEIGHT = 0.5
         if len(throw_config_full) != 1:
-            box_position_1 = throw_config_full[0][-1]
-            box_position_2 = throw_config_full[1][-1]
+            box_position_1 = throw_config_full[0][-1].copy()
+            box_position_2 = throw_config_full[1][-1].copy()
 
             # set the target box position for visualization
             target_id_1 = self.robot.model.body("box1").id
@@ -558,20 +581,20 @@ class TrajectoryGenerator:
         else:
             # set the target box position for visualization
             target_id = self.robot.model.body("box1").id
-            target_position = self.box_position
+            target_position = self.box_position.copy()
             target_position[2] += ROBOT_BASE_HEIGHT
             self.robot._set_object_position(target_id, target_position)
 
 
         delta_t = 1.0 / self.freq
-        # self.robot.print_simulator_info() # output similator infos
+        # self.robot.print_simulator_info() # output simulator infos
 
         # reset the joint
-        q0 = ref_sequence['position'][0]
+        q0 = ref_sequence['position'][0].copy()
         self.robot._set_joints(q0.tolist(), render=True)
 
         plan_time = ref_sequence['timestamp'][-1]
-        max_step =  max(int(plan_time * self.freq) + 1, int(10.0 * self.freq))
+        max_step =  max(int(plan_time * self.freq) + 1, int(6.0 * self.freq))
         intermediate_step = intermediate_time * self.freq
         final_step = plan_time * self.freq
 
@@ -586,15 +609,14 @@ class TrajectoryGenerator:
             'posture1': np.array([]),
             'posture2': np.array([])
         }
-
         while True:
             if flag:
-                pos = ref_sequence['position'][cur_step]
-                vel = ref_sequence['velocity'][cur_step]
+                pos = ref_sequence['position'][cur_step].copy()
+                vel = ref_sequence['velocity'][cur_step].copy()
                 self.robot._set_joints(pos, vel, render=True)
             else:
-                pos = ref_sequence['position'][-1]
-                vel = ref_sequence['velocity'][-1]
+                pos = ref_sequence['position'][-1].copy()
+                vel = ref_sequence['velocity'][-1].copy()
                 self.robot._set_joints(pos, vel, render=True)
 
             # get the state of ee_site in the frame of kuka_base
@@ -609,13 +631,12 @@ class TrajectoryGenerator:
             ee_pos['posture2'][2] += ROBOT_BASE_HEIGHT
             ee_vel['posture2'] = (self.robot.obj_v("index_site") + self.robot.obj_v("ring_site")) / 2
 
-
             if cur_step < intermediate_step:
-                self.robot._set_hand_joints(self.robot.envelop_pose.tolist(), render=True)
+                self.robot._set_hand_joints(self.robot.envelop_pose.copy().tolist(), render=True)
                 self.robot._set_object_position(object1_id, ee_pos['posture1'], ee_vel['posture1'][:3])
                 self.robot._set_object_position(object2_id, ee_pos['posture2'], ee_vel['posture2'][:3])
             elif cur_step >= intermediate_step and cur_step < final_step:
-                self.robot._set_hand_joints(self.robot.envelop_pose.tolist(), render=True)
+                self.robot._set_hand_joints(self.robot.hand_home_pose.copy().tolist(), render=True)
                 self.robot._set_object_position(object2_id, ee_pos['posture2'], ee_vel['posture2'][:3])
 
             cur_step += 1
@@ -638,10 +659,10 @@ if __name__ == "__main__":
 
     robot_path = '../description/iiwa7_allegro_throwing.xml'
     box_position = np.array([1.2, 0.1, 0.0])
-    box_positions = np.array([[-1.2, -0.5, 0.0], [-1.3, 0.8, 0.0]])
+    box_positions = np.array([[0.4, -1.3, 0.0], [-0.4, -1.2, 0.1]])
 
     trajectory_generator = TrajectoryGenerator(q_max, q_min,
                                                hedgehog_path, brt_path,
                                                box_position, robot_path)
-    trajectory_generator.solve(animate=True, posture="posture1")
+    # trajectory_generator.solve(animate=True, posture="posture1")
     trajectory_generator.multi_waypoint_solve(box_positions)
