@@ -78,4 +78,5 @@ def plot_tracking_data(file_path):
 
 if __name__ == '__main__':
     # plot_tracking_data(file_path = "../output/data/test_kp_kd/kp_kd_joint2.npy")
-    plot_arm_data(joint_index=6)
+    for i in range(7):
+        plot_arm_data(joint_index=i)

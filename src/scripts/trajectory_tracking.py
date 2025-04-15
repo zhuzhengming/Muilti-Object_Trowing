@@ -12,7 +12,7 @@ from std_msgs.msg import String
 from sensor_msgs.msg import JointState
 from std_msgs.msg import Int64
 import threading
-
+import pdb
 from pathlib import Path
 from sys import path
 from ruckig import InputParameter, Ruckig, Trajectory
@@ -124,7 +124,7 @@ class ThrowingController:
         self.q0 = np.array(robot_state.position)
 
         # qs for the initial state
-        self.qs = np.array([0.4217, 0.8498, 0.1635, -1.0926, -0.0098, 0.6, 1.2881])
+        self.qs = np.array([0.4217, 0.5498, 0.1635, -0.7926, -0.0098, 0.6, 1.2881])
         self.qs_dot = np.zeros(7)
         self.qs_dotdot = np.zeros(7)
 
@@ -182,8 +182,8 @@ class ThrowingController:
 
 
             if self.fsm_state == "IDLE":
-                # pdb.set_trace(header="Press C to start homing...")
-                # print("HOMING...")
+                pdb.set_trace(header="Press C to start homing...")
+                print("HOMING...")
 
                 self.homing_traj = self.get_traj_from_ruckig(q_cur, q_cur_dot, np.zeros(7),
                                                              self.qs, self.qs_dot, self.qs_dotdot,
@@ -207,8 +207,8 @@ class ThrowingController:
                     # Jump to next state
                     self.fsm_state = "IDLE_THROWING"
                     time.sleep(0.5)
-                    # print("IDLE_THROWING")
-                    # pdb.set_trace(header="Press C to see the throwing trajectory...")
+                    print("IDLE_THROWING")
+                    pdb.set_trace(header="Press C to see the throwing trajectory...")
                     self.scheduler_callback(Int64(1), qd, qd_dot, qd_dotdot)
 
                 time_now = rospy.get_time()
@@ -234,15 +234,15 @@ class ThrowingController:
                 if time_now - self.time_start_throwing > self.throwing_traj.duration - dT:
                     self.fsm_state = "SLOWING"
 
-                    self.trajectory_back = self.get_traj_from_ruckig(q_cur, q_cur_dot, self.qd_dotdot,
+                    self.trajectory_back = self.get_traj_from_ruckig(q_cur, q_cur_dot, np.zeros(7),
                                                                      self.qs, self.qs_dot, self.qs_dotdot,
                                                                 margin_velocity=self.MARGIN_VELOCITY * 0.5,
                                                                 margin_acceleration=self.MARGIN_ACCELERATION * 0.5)
                     if self.trajectory_back is None:
                         rospy.logerr("Trajectory is None")
 
-                    # print("SLOWING")
-                    # pdb.set_trace(header="Press C to see the slowing trajectory...")
+                    print("SLOWING")
+                    pdb.set_trace(header="Press C to see the slowing trajectory...")
                     self.time_start_slowing = time_now
 
                 ref = self.throwing_traj.at_time(time_now - self.time_start_throwing)
@@ -398,7 +398,7 @@ class ThrowingController:
 
 if __name__ == '__main__':
     rospy.init_node("throwing_controller", anonymous=True)
-    box_position = [0.2, -1.1, 0.3]
+    box_position = [1.2, -0.1, 0.0]
     throwing_controller = ThrowingController(box_position=box_position)
     for nTry in range(100):
         print("test number", nTry + 1)
