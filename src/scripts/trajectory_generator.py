@@ -448,7 +448,7 @@ class TrajectoryGenerator:
         print(best_throw_config_pair[1][-1] - box_positions[1])
 
 
-        #1. choose the closest q and q_dot pair
+        # 1. choose the closest q and q_dot pair
         # forward_trajectory_1 = self.get_traj_from_ruckig(self.q0, self.q0_dot,
         #                                          best_pair[0][0], best_pair[0][1])
         #
@@ -468,7 +468,7 @@ class TrajectoryGenerator:
         #     intermediate_time, final_trajectory = self.concatenate_trajectories(forward_trajectory_1, forward_trajectory_2)
         #     best_throw_config_pair = (best_throw_config_pair[1], best_throw_config_pair[0])
 
-        #2. choose the shortest trajectory
+        # 2. choose the shortest trajectory
         intermediate_time_all, final_trajectory_all = self.concatenate_all_pairs(all_pairs)
         min_duration_group = min(
             zip(intermediate_time_all, final_trajectory_all, all_pair_configs),
@@ -654,8 +654,6 @@ if __name__ == "__main__":
                       2.09439510239, 3.05432619099])
     hedgehog_path = '../hedgehog_revised'
     brt_path = '../brt_data'
-    # hedgehog_path = '../fix_hedgehog'
-    # brt_path = '../fix_hedgehog'
 
     robot_path = '../description/iiwa7_allegro_throwing.xml'
     box_position = np.array([1.2, 0.1, 0.0])
