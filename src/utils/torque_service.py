@@ -266,7 +266,7 @@ if __name__ == "__main__":
     r = Robot()
 
 
-    mode = "impedence"
+    mode = "impedance"
 
     if mode == "position":
         while np.linalg.norm(r.q) < 1e-5:
@@ -279,7 +279,7 @@ if __name__ == "__main__":
             r.iiwa_impedance(x_cmd)
             time.sleep(0.002)
 
-    elif mode == "impedence":
+    elif mode == "impedance":
         while np.linalg.norm(r.q) < 1e-5:
             time.sleep(0.1)
         q_cmd = copy.deepcopy(r.q)

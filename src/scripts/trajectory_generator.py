@@ -18,8 +18,7 @@ import glfw
 
 
 class TrajectoryGenerator:
-    def __init__(self, q_ul, q_ll, hedgehog_path, brt_path, box_position, robot_path):
-        rospy.init_node("trajectory_generator", anonymous=True)
+    def __init__(self, q_ul, q_ll, hedgehog_path, brt_path, box_position, robot_path, model_exist=False):
         self.q_ul = q_ul
         self.q_ll = q_ll
         self.q0 = np.array([-0.32032486, 0.02707055, -0.22881525, -1.42611918, 1.38608943, 0.5596685, 0])
@@ -39,12 +38,11 @@ class TrajectoryGenerator:
         q_dot_max = np.array([1.71, 1.74, 1.745, 2.269, 2.443, 3.142, 3.142])
         q_dot_min = -q_dot_max
 
-        self.robot = VelocityHedgehog(self.q_ll, self.q_ul, q_dot_min, q_dot_max, robot_path)
+        self.robot = VelocityHedgehog(self.q_ll, self.q_ul, q_dot_min, q_dot_max, robot_path, model_exist=model_exist)
 
-        # self.max_velocity = np.array([1.71, 1.74, 1.745, 2.269, 2.443, 3.142, 3.142])
+        self.max_velocity = np.array(rospy.get_param('/max_velocity'))
         self.max_acceleration = np.array([15, 7.5, 10, 12.5, 15, 20, 20])
         self.max_jerk = np.array([7500, 3750, 5000, 6250, 7500, 10000, 10000])
-        self.max_velocity = np.array(rospy.get_param('/max_velocity'))
         # self.max_acceleration = np.array(rospy.get_param('/max_acceleration'))
         # self.max_jerk = np.array(rospy.get_param('/max_jerk'))
         self.MARGIN_VELOCITY = rospy.get_param('/MARGIN_VELOCITY')
@@ -648,6 +646,7 @@ class TrajectoryGenerator:
                 break
 
 if __name__ == "__main__":
+    rospy.init_node("trajectory_generator", anonymous=True)
     q_min = np.array([-2.96705972839, -2.09439510239, -2.96705972839, -2.09439510239, -2.96705972839,
                       -2.09439510239, -3.05432619099])
     q_max = np.array([2.96705972839, 2.09439510239, 2.96705972839, 2.09439510239, 2.96705972839,

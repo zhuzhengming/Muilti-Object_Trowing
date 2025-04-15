@@ -1,6 +1,7 @@
 import sys
 
 import rospy
+from cv2.gapi.wip.draw import render
 
 sys.path.append("../")
 import numpy as np
@@ -170,6 +171,7 @@ class Robot:
             self.d.qpos[7:23] = joints
         else:
             self.d.qpos[:23] = joints
+        self.d.ctrl[:] = 0
         self.step()
         self.view.sync()
 

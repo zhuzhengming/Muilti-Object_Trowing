@@ -23,7 +23,7 @@ import rospy
 
 
 class VelocityHedgehog:
-    def __init__(self, q_min, q_max, q_dot_min, q_dot_max, robot_path, train_mode=False):
+    def __init__(self, q_min, q_max, q_dot_min, q_dot_max, robot_path, train_mode=False, model_exist=False):
         self.q_min = q_min
         self.q_max = q_max
         self.q_dot_min = q_dot_min
@@ -36,7 +36,7 @@ class VelocityHedgehog:
         self.hand_home_pose = np.array(rospy.get_param('/hand_home_pose'))
         self.envelop_pose = np.array(rospy.get_param('/envelop_pose'))
 
-        if train_mode is False:
+        if train_mode is False and model_exist is False:
             self.view = viewer.launch_passive(self.model, self.data)
             self._set_joints(self.q0.tolist(), render=True)
             self.viewer_setup()
