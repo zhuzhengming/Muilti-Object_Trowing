@@ -24,18 +24,23 @@ import mujoco
 from mujoco import viewer
 import matplotlib.pyplot as plt
 
-# global variables
-SIMULATION = False  # Set to True to run the simulation before commanding the real robot
-REAL_ROBOT_STATE = True  # Set to True to use the real robot state to start the simulation
 
 ## ---- ROS conversion and callbacks functions ---- ##
-class Throwing_controller:
-    def __init__(self, simulator='mujoco', test_id=None, path_prefix='../', box_position=None):
-        rospy.init_node("throwing_controller", anonymous=True)
+class ThrowingController:
+    def __init__(self, path_prefix='../', box_position=None):
+        self.box_position = box_position if box_position is not None else 0
+        self.path_prefix = path_prefix
+        self._allegro_init()
+        self._iiwa_init()
+        self._control_init()
+        self._general_init()
+        time.sleep(1.0)
+
+
+    def _general_init(self):
         hedgehog_path = '../hedgehog_revised'
         brt_path = '../brt_data'
         xml_path = '../description/iiwa7_allegro_throwing.xml'
-        self.box_position = box_position if box_position is not None else 0
 
         self.q_min = np.array([-2.96705972839, -2.09439510239, -2.96705972839, -2.09439510239, -2.96705972839,
                           -2.09439510239, -3.05432619099])
@@ -51,12 +56,31 @@ class Throwing_controller:
         self.target_state_pub = rospy.Publisher('/computed_torque_controller/target_state', JointState,
                                                 queue_size=10)  # for debug
 
+        self.stamp = []
+        self.real_pos = []
+        self.real_vel = []
+        self.real_eff = []
+        self.target_pos = []
+        self.target_vel = []
+        self.target_eff = []
+        self.pos_error_sum = np.zeros(7)
+        self.vel_error_sum = np.zeros(7)
+
+        # get parameters and initialization
+        self.ERROR_THRESHOLD = rospy.get_param('/ERROR_THRESHOLD')  # Threshold to switch from homing to throwing state
+        self.GRIPPER_DELAY = rospy.get_param('/GRIPPER_DELAY')
+
+        self.time_throw = np.inf  # Planned time of throwing
+        self.fsm_state = "IDLE"
+
+
+    def _allegro_init(self):
         # allegro controller
         self.hand_home_pose = np.array(rospy.get_param('/hand_home_pose'))
         self.envelop_pose = np.array(rospy.get_param('/envelop_pose'))
         self.joint_cmd_pub = rospy.Publisher('/allegroHand_0/joint_cmd', JointState, queue_size=10)
         rospy.Subscriber('/allegroHand_0/joint_states', JointState, self._hand_joint_states_callback)
-        self.hand = allegro.Robot(right_hand=False, path_prefix=path_prefix)  # load the left hand kinematics
+        self.hand = allegro.Robot(right_hand=False, path_prefix=self.path_prefix)  # load the left hand kinematics
         self.fingertip_sites = ['index_site', 'middle_site', 'ring_site',
                                 'thumb_site']
         self._qh = np.zeros(16)
@@ -68,6 +92,7 @@ class Throwing_controller:
                                     'joint_12', 'joint_13', 'joint_14', 'joint_15']  # thumb
         self.hand_joint_cmd.position = []  # 0-3: index, 4-7: middle, 8-11: ring, 12-15: thumb
 
+    def _iiwa_init(self):
         # iiwa controller
         self.command_pub = rospy.Publisher('/iiwa_impedance_joint', JointState, queue_size=10)
         rospy.Subscriber('/iiwa/joint_states', JointState, self.joint_states_callback, queue_size=10)
@@ -81,7 +106,6 @@ class Throwing_controller:
 
         # Initialize target state, to be updated from planner
         self.target_state = JointState()
-        self.simulator = simulator
 
         # Ruckig margins for throwing
         self.MARGIN_VELOCITY = rospy.get_param('/MARGIN_VELOCITY')
@@ -93,14 +117,11 @@ class Throwing_controller:
         self.max_acceleration = np.array(rospy.get_param('/max_acceleration'))
         self.max_jerk = np.array(rospy.get_param('/max_jerk'))
 
-        # q0 is the home state and control period
-        if SIMULATION:
-            self.q0 = np.array([-0.32032486, 0.02707055, -0.22881525, -1.42611918, 1.38608943, 0.5596685, -1.34659665 + np.pi])
-            self.dt = 5e-3
-        else:
-            self.dt = 5e-3
-            robot_state = rospy.wait_for_message("/iiwa/joint_states", JointState)
-            self.q0 = np.array(robot_state.position)
+
+    def _control_init(self):
+        self.dt = 5e-3
+        robot_state = rospy.wait_for_message("/iiwa/joint_states", JointState)
+        self.q0 = np.array(robot_state.position)
 
         # qs for the initial state
         self.qs = np.array([0.4217, 0.8498, 0.1635, -1.0926, -0.0098, 0.6, 1.2881])
@@ -108,158 +129,12 @@ class Throwing_controller:
         self.qs_dotdot = np.zeros(7)
 
         # qd for the throwing state
-        qd_offset = np.zeros(7)
+        qd_offset = [0.0, 0.0, 0.2, 0.2, -0.1, 0.2, 0.2]
         qd_dot_offset = np.zeros(7)
 
-        self.test_id = test_id
-        if self.test_id is not None:
-            qd_offset[self.test_id] = -0.3
-            qd_dot_offset[self.test_id] = -self.max_velocity[self.test_id] * self.MARGIN_VELOCITY
-            if self.test_id == 3:
-                qd_offset[self.test_id] = -qd_offset[self.test_id]
-                qd_dot_offset[self.test_id] = -qd_dot_offset[self.test_id]
-
-        qd_offset = np.array([-0.3, 0.0, -0.2, 0.0, -0.3, 0.0, 0.0])
-        qd_dot_offset = np.array([-0.4, 0.0, -0.2, 0.0, -0.3, 0.0, 0.0])
         self.qd = self.qs + qd_offset
         self.qd_dot = qd_dot_offset
         self.qd_dotdot = np.zeros(7)
-
-
-
-        if self.trajectory is None or self.trajectory_back is None:
-            rospy.logerr("Trajectory is None")
-
-        self.traj_time = self.trajectory.duration
-        self.traj_back_time = self.trajectory_back.duration
-
-        if simulator == 'mujoco' and SIMULATION == True:
-            obj_name = ''
-            model = mujoco.MjModel.from_xml_path(xml_path)
-            data = mujoco.MjData(model)
-            mujoco.mj_step(model, data)
-
-            self.view = viewer.launch_passive(model, data)
-
-            obj_names = ['banana', 'bottle', 'chip_can', 'soft_scrub', 'sugar_box']
-            num = 0
-            obj = obj_names[num]
-            self.r = Robot(model, data, self.view, auto_sync=True, obj_names=obj_names)
-
-        # Run simulation once for visualization
-        if SIMULATION:
-            self.run_simulation_mujoco()
-
-        self.stamp = []
-        self.real_pos = []
-        self.real_vel = []
-        self.real_eff = []
-        self.target_pos = []
-        self.target_vel = []
-        self.target_eff = []
-        self.pos_error_sum = np.zeros(7)
-        self.vel_error_sum = np.zeros(7)
-
-        while True:
-            if SIMULATION:
-                self.robot_state.position = np.array(self.r.q)
-                self.robot_state.velocity = np.array(self.r.dq)
-
-            print("Got robot state")
-            break
-
-        # get parameters and initialization
-        self.ERROR_THRESHOLD = rospy.get_param('/ERROR_THRESHOLD')  # Threshold to switch from homing to throwing state
-        self.GRIPPER_DELAY = rospy.get_param('/GRIPPER_DELAY')
-
-        self.time_throw = np.inf  # Planned time of throwing
-        self.fsm_state = "IDLE"
-
-        self.nIter_time = 0.0
-        time.sleep(1.0)
-
-    def run_simulation_mujoco(self):
-
-        if REAL_ROBOT_STATE:
-            # get initial robot state from ROS message
-            robot_state = rospy.wait_for_message("/iiwa/joint_states", JointState)
-            print("initial robot state")
-
-            q0 = np.array(robot_state.position)
-            q0_dot = np.array(robot_state.velocity)
-            self.qs[0] = q0[0]
-            self.qs_dot[0] = q0_dot[0]
-            # compute the nominal throwing and slowing trajectory
-            self.trajectory = self.get_traj_from_ruckig(self.qs, self.qs_dot, self.qs_dotdot,
-                                                   self.qd, self.qd_dot, self.qd_dotdot,
-                                                   margin_velocity=self.MARGIN_VELOCITY,
-                                                   margin_acceleration=self.MARGIN_ACCELERATION)
-            self.trajectory_back = self.get_traj_from_ruckig(self.qd, self.qd_dot, self.qd_dotdot,
-                                                        self.qs, self.qs_dot, self.qs_dotdot,
-                                                   margin_velocity=self.MARGIN_VELOCITY,
-                                                   margin_acceleration=self.MARGIN_ACCELERATION * 0.5)
-
-            if self.trajectory is None or self.trajectory_back is None:
-                rospy.logerr("Trajectory is None")
-
-            self.traj_time = self.trajectory.duration
-            self.traj_back_time = self.traj_time.duration
-        else:
-            # get initial robot state from Mujoco
-            q0 = np.copy(self.r.q)
-            q0_dot = np.copy(self.r.dq)
-
-        qs = np.copy(self.r.q)
-        qs[0] += 0.2
-        qs_dot = np.copy(self.r.dq)
-
-        # reset the robot to initial configuration
-        self.r.iiwa_hand_go(q=q0, dq=q0_dot, qh=np.zeros(16))
-        # pdb.set_trace(header="PDB PAUSE: Press C to start simulation...")
-
-        # generate the trajectory to go to qs
-        trajectory_to_qs = self.get_traj_from_ruckig(q0, q0_dot, np.zeros(7),
-                                                     qs, qs_dot, self.qs_dotdot,
-                                                     margin_velocity=0.2, margin_acceleration=0.1)
-
-        if trajectory_to_qs is None:
-            rospy.logerr("Trajectory is None")
-
-        flag = True
-        delta_t = 0.002
-
-        # execute homing trajectory
-        tt =0
-        while True:
-            ref = trajectory_to_qs.at_time(tt)
-            self.r.iiwa_hand_go(q=ref[0], dq=ref[1], qh=np.zeros(16))
-
-            time.sleep(delta_t)
-            tt += delta_t
-            if tt > trajectory_to_qs.duration:
-                break
-
-        tt = 0
-        while True:
-            if flag:
-                ref_full = self.trajectory.at_time(tt)
-                ref = [ref_full[i][:7] for i in range(3)]
-
-                self.r.iiwa_hand_go(q=ref[0], dq=ref[1], qh=np.zeros(16))
-            else:
-                # slow down the robot
-                ref_full = self.trajectory_back.at_time(tt - self.traj_time)
-                ref = [ref_full[i][:7] for i in range(3)]
-
-                self.r.iiwa_hand_go(q=ref[0], dq=ref[1], qh=np.zeros(16))
-
-            tt += delta_t
-            if tt > self.trajectory.duration and tt <= self.trajectory.duration + self.trajectory_back.duration:
-                flag = False
-            time.sleep(delta_t)
-            if tt > 6.0:
-                break
-        # self.view.close()
 
     def save_tracking_data_to_npy(self):
 
@@ -283,16 +158,14 @@ class Throwing_controller:
         print("Tracking data saved to npy files.")
 
 
-    def run(self, max_run_time=30.0, render=True):
+    def run(self, max_run_time=30.0):
         # ------------ Control Loop ------------ #
         start_time = time.time()
         dT = self.dt
         rate = rospy.Rate(1.0 / dT)
 
-        if not SIMULATION:
-            qd, qd_dot, qd_dotdot = self.match_configuration()
-        else:
-            qd, qd_dot, qd_dotdot = self.qd, self.qd_dot, self.qd_dotdot
+        qd, qd_dot, qd_dotdot = self.match_configuration()
+
 
         while not rospy.is_shutdown():
             if (time.time() - start_time) > max_run_time:
@@ -303,14 +176,9 @@ class Throwing_controller:
             # Publish state and fsm for debug
             self.fsm_state_pub.publish(self.fsm_state)
             # update robot state
-            if SIMULATION:
-                q_cur = np.array(self.r.q)
-                q_cur_dot = np.array(self.r.dq)
-                q_cur_effort = np.zeros(7)
-            else:
-                q_cur = np.array(self.robot_state.position)
-                q_cur_dot = np.array(self.robot_state.velocity)
-                q_cur_effort = np.array(self.robot_state.effort)
+            q_cur = np.array(self.robot_state.position)
+            q_cur_dot = np.array(self.robot_state.velocity)
+            q_cur_effort = np.array(self.robot_state.effort)
 
 
             if self.fsm_state == "IDLE":
@@ -335,8 +203,6 @@ class Throwing_controller:
 
                 # Activate integrator term when close to target
                 error_position = np.array(q_cur) - np.array(self.qs)
-                if SIMULATION:
-                    self.ERROR_THRESHOLD *= 2
                 if np.linalg.norm(error_position) < self.ERROR_THRESHOLD:
                     # Jump to next state
                     self.fsm_state = "IDLE_THROWING"
@@ -352,13 +218,8 @@ class Throwing_controller:
                 self.target_state.velocity = ref[1]
                 self.target_state.effort = ref[2]
 
-                if SIMULATION:
-                    self.r.iiwa_hand_go(q=self.target_state.position,
-                                        dq=self.target_state.velocity,
-                                        qh=np.zeros(16), render=render)
-                else:
-                    self.target_state_pub.publish(self.target_state)
-                    self.command_pub.publish(self.convert_command_to_ROS(time_now, ref[0], ref[1], ref[2]))
+                self.target_state_pub.publish(self.target_state)
+                self.command_pub.publish(self.convert_command_to_ROS(time_now, ref[0], ref[1], ref[2]))
 
             elif self.fsm_state == "IDLE_THROWING":
                 continue
@@ -390,13 +251,8 @@ class Throwing_controller:
                 self.target_state.velocity = ref[1]
                 self.target_state.effort = ref[2]
 
-                if SIMULATION:
-                    self.r.iiwa_hand_go(q=self.target_state.position,
-                                        dq=self.target_state.velocity,
-                                        qh=np.zeros(16), render=render)
-                else:
-                    self.target_state_pub.publish(self.target_state)
-                    self.command_pub.publish(self.convert_command_to_ROS(time_now, ref[0], ref[1], ref[2]))
+                self.target_state_pub.publish(self.target_state)
+                self.command_pub.publish(self.convert_command_to_ROS(time_now, ref[0], ref[1], ref[2]))
 
                 # record error
                 if(self.time_throw - (time_now - self.time_start_throwing) < 1 * self.time_throw):
@@ -422,13 +278,9 @@ class Throwing_controller:
                 self.target_state.velocity = ref[1]
                 self.target_state.effort = ref[2]
 
-                if SIMULATION:
-                    self.r.iiwa_hand_go(q=self.target_state.position,
-                                        dq=self.target_state.velocity,
-                                        qh=np.zeros(16), render=render)
-                else:
-                    self.target_state_pub.publish(self.target_state)
-                    self.command_pub.publish(self.convert_command_to_ROS(time_now, ref[0], ref[1], ref[2]))
+
+                self.target_state_pub.publish(self.target_state)
+                self.command_pub.publish(self.convert_command_to_ROS(time_now, ref[0], ref[1], ref[2]))
 
             rate.sleep()
 
@@ -488,12 +340,8 @@ class Throwing_controller:
         # print("scheduler msg", msg)
         if self.fsm_state == "IDLE_THROWING" and msg.data == 1:
             # compute new trajectory to throw from current position
-            if SIMULATION:
-                q_cur = self.r.q
-                q_cur_dot = self.r.dq
-            else:
-                q_cur = np.array(self.robot_state.position)
-                q_cur_dot = np.array(self.robot_state.velocity)
+            q_cur = np.array(self.robot_state.position)
+            q_cur_dot = np.array(self.robot_state.velocity)
 
             self.throwing_traj = self.get_traj_from_ruckig(q_cur, q_cur_dot, np.zeros(7),
                                                            qd, qd_dot, qd_dotdot,
@@ -507,12 +355,8 @@ class Throwing_controller:
             self.fsm_state = "THROWING"
             # print("Throwing...")
 
-    def deactivate_gripper(self):
-        if SIMULATION:
-            self.r.hand_move_torque(qh=self.hand_home_pose, move_hand_only=True)
-        else:
-            self.r.move_to_joints(self.hand_home_pose, vel=[0.2, 8.0])
-
+    def deactivate_gripper(self, joints):
+        self._send_hand_position(joints)
 
     # Path to the build directory including a file similar to 'ruckig.cpython-37m-x86_64-linux-gnu'.
     build_path = Path(__file__).parent.absolute().parent / 'build'
@@ -522,24 +366,6 @@ class Throwing_controller:
                              qd, qd_dot, qd_dotdot,
                              margin_velocity=1.0, margin_acceleration=0.7,
                              margin_jerk=None):
-
-        """
-            Generates a smooth trajectory using the Ruckig algorithm for the given joint states.
-
-            Parameters:
-            - q0: Initial joint positions
-            - q0_dot: Initial joint velocities
-            - q0_dotdot: Initial joint accelerations
-            - qd: Target joint positions
-            - qd_dot: Target joint velocities
-            - qd_dotdot: Target joint accelerations
-            - margin_velocity: Velocity margin
-            - margin_acceleration: Acceleration margin
-            - margin_jerk: Jerk margin
-
-            Returns:
-            - trajectory: The generated trajectory object
-            """
 
         if margin_jerk is None:
             margin_jerk = self.MARGIN_JERK
@@ -563,106 +389,9 @@ class Throwing_controller:
 
         return trajectory
 
-
-#######################################################################################################################
-# Test the parameters of KD controller
-    def batch_test_kp_kd(self, kp_min=10, kp_max=1000,
-                         kd_min=5, kd_max=500,
-                         num_point=10, N_runs=5,
-                         SAVE_FILE=True):
-        if self.test_id == 3:
-            kp_max = 800
-            kd_max = 400
-        elif self.test_id == 4 or self.test_id == 5:
-            kp_max = 500
-            kd_max = 250
-        elif self.test_id == 6:
-            kp_max = 300
-            kd_max = 200
-
-        self.view.close() # close mujoco viewer
-
-        kp_candidates = np.linspace(kp_min, kp_max, num_point)
-        kd_candidates = np.linspace(kd_min, kd_max, num_point)
-
-        pos_error = np.zeros((num_point, num_point))
-        vel_error = np.zeros((num_point, num_point))
-
-        for i, kp_val in enumerate(kp_candidates):
-            for j, kd_val in enumerate(kd_candidates):
-                self.r._joint_kp[self.test_id] = kp_val
-                self.r._joint_kd[self.test_id] = kd_val
-
-                self.pos_error_sum[self.test_id] = 0
-                self.vel_error_sum[self.test_id] = 0
-
-                for n in range(N_runs):
-                    self.stamp.clear()
-                    self.real_pos.clear()
-                    self.real_vel.clear()
-                    self.real_eff.clear()
-                    self.target_pos.clear()
-                    self.target_vel.clear()
-                    self.target_eff.clear()
-
-                    self.fsm_state = "IDLE"
-                    self.run(render=False)
-                    time.sleep(1)
-                    if rospy.is_shutdown():
-                        break
-
-                pos_error[i, j] = self.pos_error_sum[self.test_id] / N_runs
-                vel_error[i, j] = self.vel_error_sum[self.test_id] / N_runs
-                print(f"joint {self.test_id:d}, processing: {(i*num_point + (j+1))/(num_point*num_point)*100:.2f}%")
-
-        if SAVE_FILE:
-            data_to_save = {
-                'kp_candidates': kp_candidates,
-                'kd_candidates': kd_candidates,
-                'pos_error': pos_error,
-                'vel_error': vel_error
-            }
-
-            filepath = '../output/data/test_kp_kd'
-            os.makedirs(filepath, exist_ok=True)
-            save_file = os.path.join(filepath, f"kp_kd_joint{self.test_id}.npy")
-
-            np.save(save_file, data_to_save)
-
-        else:
-            self.plot_tracking_data(kp_candidates, kd_candidates, pos_error, vel_error)
-
-
-
-    def plot_tracking_data(self, kp_candidate, kd_candidate, pos_error_sum, vel_error_sum):
-        kp_mesh, kd_mesh = np.meshgrid(kp_candidate, kd_candidate)
-        fig1 = plt.figure()
-        ax1 = fig1.add_subplot(111, projection='3d')
-
-        surface1 = ax1.plot_surface(kp_mesh, kd_mesh, pos_error_sum, edgecolor='none')
-        ax1.set_xlabel('Kp')
-        ax1.set_ylabel('Kd')
-        ax1.set_zlabel('Position Tracking Error')
-
-        fig2 = plt.figure()
-        ax2 = fig2.add_subplot(111, projection='3d')
-        surface2 = ax2.plot_surface(kp_mesh, kd_mesh, vel_error_sum, edgecolor='none')
-        ax2.set_xlabel('Kp')
-        ax2.set_ylabel('Kd')
-        ax2.set_zlabel('Velocity Tracking Error')
-
-        plt.show()
-
 if __name__ == '__main__':
-
-    simulation_mode = 'mujoco'
-    # for test_id in range(7):
-    #     throwing_controller = Throwing_controller(simulator=simulation_mode, test_id=test_id)
-    #     throwing_controller.batch_test_kp_kd()
-    #     throwing_controller.view.close()
-    #     print("joint finished:", test_id)
-
-    throwing_controller = Throwing_controller(simulator=simulation_mode)
+    rospy.init_node("throwing_controller", anonymous=True)
+    throwing_controller = ThrowingController()
     for nTry in range(100):
         print("test number", nTry + 1)
 
@@ -671,6 +400,5 @@ if __name__ == '__main__':
 
         time.sleep(1)
 
-        # Stop controller when ROS is stopped
         if rospy.is_shutdown():
             break
