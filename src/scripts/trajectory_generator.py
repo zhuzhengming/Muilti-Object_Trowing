@@ -4,6 +4,8 @@ input: box_position
 output: target[q, q_dot]
 """
 import sys
+
+from PyQt5.QtCore import qSNaN
 from lxml import etree
 
 sys.path.append("../")
@@ -251,11 +253,26 @@ class TrajectoryGenerator:
 
         return (q, phi, x, q_dot, blockPosInGripper, eef_velo, AE, box_position)
 
-    def generate_throw_config(self, q_candidates, phi_candidates, x_candidates, base0, posture=None):
+    def generate_throw_config(self,
+                              q_candidates,
+                              phi_candidates,
+                              x_candidates,
+                              base0,
+                              qs = None,
+                              qs_dot = None,
+                              posture=None,
+                              simulation=True):
         """
         input: q_candidates, phi_candidates, x_candidates, base0(box_position in xoy)
         output: trajs, throw_configs
         """
+
+        if simulation:
+            q_cur = self.q0
+            q_cur_dot = self.q0_dot
+        else:
+            q_cur = qs
+            q_cur_dot = qs_dot
         n_candidates = q_candidates.shape[0]
 
         # get full throwing configuration and trajectories
@@ -287,7 +304,7 @@ class TrajectoryGenerator:
 
             # 3. valid trajectory
             try:
-                traj_throw = self.get_traj_from_ruckig(q0=self.q0, q0_dot=self.q0_dot,
+                traj_throw = self.get_traj_from_ruckig(q0=q_cur, q0_dot=q_cur_dot,
                                                        qd=throw_config_full[0],
                                                        qd_dot=throw_config_full[3])
 
@@ -303,9 +320,9 @@ class TrajectoryGenerator:
             if np.linalg.norm(deviation) < 0.01:
                 num_small_deviation += 1
 
-                traj_durations.append(traj_throw.duration)
-                trajs.append(traj_throw)
-                throw_configs.append(throw_config_full)
+            traj_durations.append(traj_throw.duration)
+            trajs.append(traj_throw)
+            throw_configs.append(throw_config_full)
 
         print("\t\t out of joint limit: {}, hit the palm: {}, ruckig error: {}, small deviation:{}".format(
                 num_outlimit, num_hit, num_ruckiger, num_small_deviation))

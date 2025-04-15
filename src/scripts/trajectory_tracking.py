@@ -20,12 +20,7 @@ from utils.mujoco_interface import Robot
 import kinematics.allegro_hand_sym as allegro
 from trajectory_generator import TrajectoryGenerator
 
-import mujoco
-from mujoco import viewer
-import matplotlib.pyplot as plt
 
-
-## ---- ROS conversion and callbacks functions ---- ##
 class ThrowingController:
     def __init__(self, path_prefix='../', box_position=None):
         self.box_position = box_position if box_position is not None else 0
@@ -77,7 +72,8 @@ class ThrowingController:
     def _allegro_init(self):
         # allegro controller
         self.hand_home_pose = np.array(rospy.get_param('/hand_home_pose'))
-        self.envelop_pose = np.array(rospy.get_param('/envelop_pose'))
+        self.envelop_pose = np.array([-0.14, 1.78, 1.20, 1.45, -0.32, 1.71, 1.37, 0.85, -0.51, 1.77, 1.41, 0.55, 0.81, 0.55, 0.17, 1.35])
+        # self.envelop_pose = np.array(rospy.get_param('/envelop_pose'))
         self.joint_cmd_pub = rospy.Publisher('/allegroHand_0/joint_cmd', JointState, queue_size=10)
         rospy.Subscriber('/allegroHand_0/joint_states', JointState, self._hand_joint_states_callback)
         self.hand = allegro.Robot(right_hand=False, path_prefix=self.path_prefix)  # load the left hand kinematics
@@ -91,6 +87,8 @@ class ThrowingController:
                                     'joint_8', 'joint_9', 'joint_10', 'joint_11',  # ring finger
                                     'joint_12', 'joint_13', 'joint_14', 'joint_15']  # thumb
         self.hand_joint_cmd.position = []  # 0-3: index, 4-7: middle, 8-11: ring, 12-15: thumb
+
+        self._send_hand_position(self.envelop_pose)
 
     def _iiwa_init(self):
         # iiwa controller
@@ -116,6 +114,8 @@ class ThrowingController:
         self.max_velocity = np.array(rospy.get_param('/max_velocity'))
         self.max_acceleration = np.array(rospy.get_param('/max_acceleration'))
         self.max_jerk = np.array(rospy.get_param('/max_jerk'))
+        # self.max_acceleration = np.array([15, 7.5, 10, 12.5, 15, 20, 20])
+        # self.max_jerk = np.array([7500, 3750, 5000, 6250, 7500, 10000, 10000])
 
 
     def _control_init(self):
@@ -164,7 +164,7 @@ class ThrowingController:
         dT = self.dt
         rate = rospy.Rate(1.0 / dT)
 
-        qd, qd_dot, qd_dotdot = self.match_configuration()
+        qd, qd_dot, qd_dotdot = self.match_configuration(posture='posture1')
 
 
         while not rospy.is_shutdown():
@@ -285,7 +285,7 @@ class ThrowingController:
             rate.sleep()
 
     def match_configuration(self, posture=None):
-        base0 = -self.box_position[:2]
+        base0 = -np.array(self.box_position)[:2]
         q_candidates, phi_candidates, x_candidates = (
             self.trajectoryGenerator.brt_robot_data_matching(posture=posture))
         if len(q_candidates) == 0:
@@ -293,7 +293,14 @@ class ThrowingController:
             return 0
 
         trajs, throw_configs = self.trajectoryGenerator.generate_throw_config(
-            q_candidates, phi_candidates, x_candidates, base0)
+            q_candidates,
+            phi_candidates,
+            x_candidates,
+            base0,
+            qs=self.qs,
+            qs_dot=self.qs_dot,
+            posture=posture,
+            simulation=False)
 
         if len(trajs) == 0:
             print("No trajectory found")
@@ -355,8 +362,8 @@ class ThrowingController:
             self.fsm_state = "THROWING"
             # print("Throwing...")
 
-    def deactivate_gripper(self, joints):
-        self._send_hand_position(joints)
+    def deactivate_gripper(self):
+        self._send_hand_position(self.hand_home_pose)
 
     # Path to the build directory including a file similar to 'ruckig.cpython-37m-x86_64-linux-gnu'.
     build_path = Path(__file__).parent.absolute().parent / 'build'
@@ -391,7 +398,8 @@ class ThrowingController:
 
 if __name__ == '__main__':
     rospy.init_node("throwing_controller", anonymous=True)
-    throwing_controller = ThrowingController()
+    box_position = [0.2, -1.1, 0.3]
+    throwing_controller = ThrowingController(box_position=box_position)
     for nTry in range(100):
         print("test number", nTry + 1)
 
