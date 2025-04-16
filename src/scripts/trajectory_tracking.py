@@ -20,7 +20,7 @@ from utils.mujoco_interface import Robot
 import kinematics.allegro_hand_sym as allegro
 from trajectory_generator import TrajectoryGenerator
 
-
+SIMULATION = True
 class ThrowingController:
     def __init__(self, path_prefix='../', box_position=None):
         self.box_position = box_position if box_position is not None else 0
@@ -44,7 +44,7 @@ class ThrowingController:
 
         self.trajectoryGenerator = TrajectoryGenerator(self.q_max, self.q_min,
                                                        hedgehog_path, brt_path,
-                                                       self.box_position, xml_path, model_exist=True)
+                                                       self.box_position, xml_path)
 
         # initialize ROS subscriber/publisher
         self.fsm_state_pub = rospy.Publisher('fsm_state', String, queue_size=1)
@@ -120,8 +120,6 @@ class ThrowingController:
 
     def _control_init(self):
         self.dt = 5e-3
-        robot_state = rospy.wait_for_message("/iiwa/joint_states", JointState)
-        self.q0 = np.array(robot_state.position)
 
         # qs for the initial state
         self.qs = np.array([0.4217, 0.5498, 0.1635, -0.7926, -0.0098, 0.6, 1.2881])
@@ -139,14 +137,6 @@ class ThrowingController:
     def save_tracking_data_to_npy(self):
 
         filename = '../output/data/throwing.npy'
-        # Save data to npy files
-        # self.pos_error_sum[self.test_id] += np.sum(np.abs(
-        #     np.array(self.target_pos)[:,self.test_id] - np.array(self.real_pos)[:,self.test_id]
-        # ))
-        #
-        # self.vel_error_sum[self.test_id] += np.sum(np.abs(
-        #     np.array(self.target_vel)[:,self.test_id] - np.array(self.real_vel)[:,self.test_id]
-        # ))
 
         np.save(filename, {'stamp': self.stamp,
                            'real_pos': self.real_pos,
@@ -165,6 +155,9 @@ class ThrowingController:
         rate = rospy.Rate(1.0 / dT)
 
         qd, qd_dot, qd_dotdot = self.match_configuration(posture='posture1')
+        if SIMULATION:
+            self.simulation_mujoco(qd, qd_dot, qd_dotdot)
+            return
 
 
         while not rospy.is_shutdown():
@@ -396,9 +389,29 @@ class ThrowingController:
 
         return trajectory
 
+    def simulation_mujoco(self, qd, qd_dot, qd_dotdot):
+        throwing_traj = self.get_traj_from_ruckig(self.qs, self.qs_dot, np.zeros(7),
+                                                       qd, qd_dot, qd_dotdot,
+                                                       margin_velocity=self.MARGIN_VELOCITY,
+                                                       margin_acceleration=self.MARGIN_ACCELERATION)
+
+        trajectory_back = self.get_traj_from_ruckig(qd, qd_dot, np.zeros(7),
+                                                         self.qs, self.qs_dot, self.qs_dotdot,
+                                                         margin_velocity=self.MARGIN_VELOCITY * 0.5,
+                                                         margin_acceleration=self.MARGIN_ACCELERATION * 0.5)
+
+        self.trajectoryGenerator.robot._set_joints(self.qs)
+        intermediate_time, traj_throw_back = self.trajectoryGenerator.concatenate_trajectories(
+            throwing_traj, trajectory_back
+        )
+
+        self.trajectoryGenerator.throw_simulation_mujoco(intermediate_time=intermediate_time, ref_sequence=traj_throw_back)
+
+
+
 if __name__ == '__main__':
     rospy.init_node("throwing_controller", anonymous=True)
-    box_position = [1.2, -0.1, 0.0]
+    box_position = [1.4, -0.1, 0.0]
     throwing_controller = ThrowingController(box_position=box_position)
     for nTry in range(100):
         print("test number", nTry + 1)

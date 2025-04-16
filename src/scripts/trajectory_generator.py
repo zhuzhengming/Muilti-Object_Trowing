@@ -81,7 +81,7 @@ class TrajectoryGenerator:
         self.brt_zs = np.load(self.brt_path + '/brt_zs.npy')
 
 
-    def brt_robot_data_matching(self, posture, thres_v=0.1, thres_dis=0.01, thres_phi=0.04, thres_r=0.1, box_pos=None):
+    def brt_robot_data_matching(self, posture, thres_v=0.1, thres_dis=0.01, min_safe_height=0.1, thres_r=0.1, box_pos=None):
         """
         original point is the base of robot
         Given target position, find out initial guesses of (q, phi, x)
@@ -201,6 +201,13 @@ class TrajectoryGenerator:
         q_candidates[:, 0] += alpha - AE_alpha
         q_candidates[q_candidates[:, 0] > np.pi, 0] -= 2 * np.pi
         q_candidates[q_candidates[:, 0] < -np.pi, 0] += 2 * np.pi
+
+        # 5. safe height
+        height_mask = x_candidates[:, 1] > min_safe_height
+
+        q_candidates = q_candidates[height_mask]
+        phi_candidates = phi_candidates[height_mask]
+        x_candidates = x_candidates[height_mask]
 
         return q_candidates, phi_candidates, x_candidates
 
@@ -577,28 +584,30 @@ class TrajectoryGenerator:
 
         return intermediate_time_all, final_trajectory_all
 
-    def throw_simulation_mujoco(self, ref_sequence, throw_config_full, intermediate_time=None):
+    def throw_simulation_mujoco(self, ref_sequence,
+                                throw_config_full=None,
+                                intermediate_time=None):
         ROBOT_BASE_HEIGHT = 0.5
-        if len(throw_config_full) != 1:
-            box_position_1 = throw_config_full[0][-1].copy()
-            box_position_2 = throw_config_full[1][-1].copy()
+        if throw_config_full is not None:
+            if len(throw_config_full) == 2:
+                box_position_1 = throw_config_full[0][-1].copy()
+                box_position_2 = throw_config_full[1][-1].copy()
 
-            # set the target box position for visualization
-            target_id_1 = self.robot.model.body("box1").id
-            target_id_2 = self.robot.model.body("box2").id
-            target_position_1 = box_position_1
-            target_position_1[2] += ROBOT_BASE_HEIGHT
-            target_position_2 = box_position_2
-            target_position_2[2] += ROBOT_BASE_HEIGHT
-            self.robot._set_object_position(target_id_1, target_position_1)
-            self.robot._set_object_position(target_id_2, target_position_2)
-
-        else:
-            # set the target box position for visualization
-            target_id = self.robot.model.body("box1").id
-            target_position = self.box_position.copy()
-            target_position[2] += ROBOT_BASE_HEIGHT
-            self.robot._set_object_position(target_id, target_position)
+                # set the target box position for visualization
+                target_id_1 = self.robot.model.body("box1").id
+                target_id_2 = self.robot.model.body("box2").id
+                target_position_1 = box_position_1
+                target_position_1[2] += ROBOT_BASE_HEIGHT
+                target_position_2 = box_position_2
+                target_position_2[2] += ROBOT_BASE_HEIGHT
+                self.robot._set_object_position(target_id_1, target_position_1)
+                self.robot._set_object_position(target_id_2, target_position_2)
+            elif len(throw_config_full) == 1 :
+                # set the target box position for visualization
+                target_id = self.robot.model.body("box1").id
+                target_position = self.box_position.copy()
+                target_position[2] += ROBOT_BASE_HEIGHT
+                self.robot._set_object_position(target_id, target_position)
 
 
         delta_t = 1.0 / self.freq
