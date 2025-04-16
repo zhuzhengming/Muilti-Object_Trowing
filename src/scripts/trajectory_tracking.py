@@ -73,7 +73,7 @@ class ThrowingController:
         # allegro controller
         self.hand_home_pose = np.array(rospy.get_param('/hand_home_pose'))
         self.envelop_pose = np.array([-0.14, 1.78, 1.20, 1.45, -0.32, 1.71, 1.37, 0.85, -0.51, 1.77, 1.41, 0.55, 0.81, 0.55, 0.17, 1.35])
-        # self.envelop_pose = np.array(rospy.get_param('/envelop_pose'))
+        # self.envelop_pose = np.array(rospy.get_param('/exp_envelop_pose'))
         self.joint_cmd_pub = rospy.Publisher('/allegroHand_0/joint_cmd', JointState, queue_size=10)
         rospy.Subscriber('/allegroHand_0/joint_states', JointState, self._hand_joint_states_callback)
         self.hand = allegro.Robot(right_hand=False, path_prefix=self.path_prefix)  # load the left hand kinematics
@@ -411,7 +411,7 @@ class ThrowingController:
 
 if __name__ == '__main__':
     rospy.init_node("throwing_controller", anonymous=True)
-    box_position = [1.4, -0.1, -0.1]
+    box_position = [1.55, 0.0, -0.15]
     throwing_controller = ThrowingController(box_position=box_position)
     for nTry in range(100):
         print("test number", nTry + 1)

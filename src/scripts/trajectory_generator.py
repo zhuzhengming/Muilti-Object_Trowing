@@ -81,7 +81,7 @@ class TrajectoryGenerator:
         self.brt_zs = np.load(self.brt_path + '/brt_zs.npy')
 
 
-    def brt_robot_data_matching(self, posture, thres_v=0.1, thres_dis=0.01, min_safe_height=0.2, thres_r=0.1, box_pos=None):
+    def brt_robot_data_matching(self, posture, thres_v=0.1, thres_dis=0.01, min_safe_height=0.1, thres_r=0.1, box_pos=None):
         """
         original point is the base of robot
         Given target position, find out initial guesses of (q, phi, x)
