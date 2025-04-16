@@ -20,7 +20,7 @@ from utils.mujoco_interface import Robot
 import kinematics.allegro_hand_sym as allegro
 from trajectory_generator import TrajectoryGenerator
 
-SIMULATION = True
+SIMULATION = False
 class ThrowingController:
     def __init__(self, path_prefix='../', box_position=None):
         self.box_position = box_position if box_position is not None else 0
@@ -411,7 +411,7 @@ class ThrowingController:
 
 if __name__ == '__main__':
     rospy.init_node("throwing_controller", anonymous=True)
-    box_position = [1.4, -0.1, 0.0]
+    box_position = [1.4, -0.1, -0.1]
     throwing_controller = ThrowingController(box_position=box_position)
     for nTry in range(100):
         print("test number", nTry + 1)
