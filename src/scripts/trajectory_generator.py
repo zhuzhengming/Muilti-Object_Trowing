@@ -81,7 +81,13 @@ class TrajectoryGenerator:
         self.brt_zs = np.load(self.brt_path + '/brt_zs.npy')
 
 
-    def brt_robot_data_matching(self, posture, thres_v=0.1, thres_dis=0.01, min_safe_height=0.1, thres_r=0.1, box_pos=None):
+    def brt_robot_data_matching(self, posture,
+                                thres_v=0.1,
+                                thres_dis=0.01,
+                                min_safe_height=0.2,
+                                thres_r_ratio=0.5,
+                                thre_phi_ratio=0.5,
+                                box_pos=None):
         """
         original point is the base of robot
         Given target position, find out initial guesses of (q, phi, x)
@@ -103,12 +109,11 @@ class TrajectoryGenerator:
             robot_phi_gamma_velos_naive = self.p2_robot_phi_gamma_velos_naive
             robot_phi_gamma_q_idxs_naive = self.p2_robot_phi_gamma_q_idxs_naive
 
-        if box_pos is None:
-            z_target_to_base = self.box_position[-1]
-            AB = self.box_position[:2]
-        else:
-            z_target_to_base = box_pos[-1]
-            AB = box_pos[:2]
+        box_pos = self.box_position if box_pos is None else box_pos
+        z_target_to_base = box_pos[-1]
+        AB = box_pos[:2]
+        b = np.linalg.norm(AB)
+
 
         # align the z idx
         num_robot_zs = self.robot_zs.shape[0]
@@ -139,7 +144,8 @@ class TrajectoryGenerator:
         # Robot tensor = [z, dis, phi, gamma, layers] -> [r, z, r_dot, z_dot, max_v]
         robot_tensor_v = np.expand_dims(robot_phi_gamma_velos_naive[rzs_idx_start: rzs_idx_end + 1, ...], axis=4)
 
-        # Selection
+        ################################### Selection ###############################################
+        #############################################################################################
         # 1.distance < b
         b = np.linalg.norm(AB) # from target position
         robot_tensor_v = robot_tensor_v[:, np.where(self.robot_dis < b)[0], ...]
@@ -177,10 +183,12 @@ class TrajectoryGenerator:
             phi_candidates = np.delete(phi_candidates, error_index, axis=0)
             x_candidates = np.delete(x_candidates, error_index, axis=0)
 
+################################# fine selection #################################################
+##################################################################################################
         # 4. close to target wrt r
         sorted_indices = np.argsort(abs(x_candidates[:, 0]))
         n_total = len(sorted_indices)
-        n_keep = max(1, int(n_total * thres_r))
+        n_keep = max(1, int(n_total * thres_r_ratio))
         final_indices = sorted_indices[:n_keep]
 
         q_candidates = q_candidates[final_indices]
@@ -208,6 +216,18 @@ class TrajectoryGenerator:
         q_candidates = q_candidates[height_mask]
         phi_candidates = phi_candidates[height_mask]
         x_candidates = x_candidates[height_mask]
+
+        # 6. large phi because the joint 1 provides not much torque
+        if len(phi_candidates) > 0:
+            sorted_phi_indices = np.argsort(-phi_candidates)
+            n_keep_phi = max(1, int(len(sorted_phi_indices) * thre_phi_ratio))
+            final_phi_indices = sorted_phi_indices[:n_keep_phi]
+
+            q_candidates = q_candidates[final_phi_indices]
+            phi_candidates = phi_candidates[final_phi_indices]
+            x_candidates = x_candidates[final_phi_indices]
+
+        print("number of valid candidates:",q_candidates.shape[0])
 
         return q_candidates, phi_candidates, x_candidates
 

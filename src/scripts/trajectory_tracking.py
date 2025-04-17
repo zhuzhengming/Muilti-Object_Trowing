@@ -87,10 +87,6 @@ class ThrowingController:
                                     'joint_12', 'joint_13', 'joint_14', 'joint_15']  # thumb
         self.hand_joint_cmd.position = []  # 0-3: index, 4-7: middle, 8-11: ring, 12-15: thumb
 
-        if not SIMULATION:
-            while(np.linalg.norm(self.envelop_pose - self._qh) > 0.1):
-                self._send_hand_position(self.envelop_pose)
-
     def _iiwa_init(self):
         # iiwa controller
         self.command_pub = rospy.Publisher('/iiwa_impedance_joint', JointState, queue_size=10)
@@ -157,6 +153,8 @@ class ThrowingController:
         if SIMULATION:
             self.simulation_mujoco(qd, qd_dot, qd_dotdot)
             return
+        else:
+            self._send_hand_position(self.envelop_pose)
 
 
         while not rospy.is_shutdown():
@@ -219,15 +217,21 @@ class ThrowingController:
             elif self.fsm_state == "THROWING":
                 # execute throwing trajectory
                 time_now = rospy.get_time()
+                throwing_time = time_now - self.time_start_throwing
+                release_time = self.throwing_traj.duration - self.GRIPPER_DELAY
+                brake_time = self.throwing_traj.duration - dT
+
                 # release gripper
-                if time_now - self.time_start_throwing > self.throwing_traj.duration - self.GRIPPER_DELAY:
+                if throwing_time > release_time:
                     threading.Thread(target=self.deactivate_gripper).start()
+
+                if throwing_time > brake_time:
                     self.fsm_state = "RELEASE_BRAKE"
 
                     self.brake_traj = self.get_traj_from_ruckig(
                         q_cur, q_cur_dot, np.zeros(7),
-                        q_cur, np.zeros(7), np.zeros(7),
-                        margin_velocity=0,
+                        q_cur, q_cur_dot * 0.5, np.zeros(7),
+                        margin_velocity=self.MARGIN_VELOCITY,
                         margin_acceleration=self.MARGIN_ACCELERATION
                     )
                     self.time_release = time_now
@@ -429,7 +433,7 @@ class ThrowingController:
 
         trajectory_back = self.get_traj_from_ruckig(qd, qd_dot, np.zeros(7),
                                                          self.qs, self.qs_dot, self.qs_dotdot,
-                                                         margin_velocity=self.MARGIN_VELOCITY * 0.5,
+                                                         margin_velocity=self.MARGIN_VELOCITY *0.5 ,
                                                          margin_acceleration=self.MARGIN_ACCELERATION * 0.5)
 
         self.trajectoryGenerator.robot._set_joints(self.qs, render=True)
@@ -443,7 +447,7 @@ class ThrowingController:
 
 if __name__ == '__main__':
     rospy.init_node("throwing_controller", anonymous=True)
-    box_position = [1.54, 0.09, -0.167]
+    box_position = [1.3, -0.07, -0.086]
     throwing_controller = ThrowingController(box_position=box_position)
     for nTry in range(100):
         print("test number", nTry + 1)
