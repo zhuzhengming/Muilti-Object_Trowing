@@ -20,7 +20,7 @@ from utils.mujoco_interface import Robot
 import kinematics.allegro_hand_sym as allegro
 from trajectory_generator import TrajectoryGenerator
 
-SIMULATION = False
+SIMULATION = True
 class ThrowingController:
     def __init__(self, path_prefix='../', box_position=None):
         self.box_position = box_position if box_position is not None else 0
@@ -72,7 +72,6 @@ class ThrowingController:
     def _allegro_init(self):
         # allegro controller
         self.hand_home_pose = np.array(rospy.get_param('/hand_home_pose'))
-        # self.envelop_pose = np.array([-0.14, 1.78, 1.20, 1.45, -0.32, 1.71, 1.37, 0.85, -0.51, 1.77, 1.41, 0.55, 0.81, 0.55, 0.17, 1.35])
         self.envelop_pose = np.array(rospy.get_param('/exp_envelop_pose'))
         self.joint_cmd_pub = rospy.Publisher('/allegroHand_0/joint_cmd', JointState, queue_size=10)
         rospy.Subscriber('/allegroHand_0/joint_states', JointState, self._hand_joint_states_callback)
@@ -88,7 +87,9 @@ class ThrowingController:
                                     'joint_12', 'joint_13', 'joint_14', 'joint_15']  # thumb
         self.hand_joint_cmd.position = []  # 0-3: index, 4-7: middle, 8-11: ring, 12-15: thumb
 
-        self._send_hand_position(self.envelop_pose)
+        if not SIMULATION:
+            while(np.linalg.norm(self.envelop_pose - self._qh) > 0.1):
+                self._send_hand_position(self.envelop_pose)
 
     def _iiwa_init(self):
         # iiwa controller
@@ -114,8 +115,6 @@ class ThrowingController:
         self.max_velocity = np.array(rospy.get_param('/max_velocity'))
         self.max_acceleration = np.array(rospy.get_param('/max_acceleration'))
         self.max_jerk = np.array(rospy.get_param('/max_jerk'))
-        # self.max_acceleration = np.array([15, 7.5, 10, 12.5, 15, 20, 20])
-        # self.max_jerk = np.array([7500, 3750, 5000, 6250, 7500, 10000, 10000])
 
 
     def _control_init(self):
@@ -223,20 +222,29 @@ class ThrowingController:
                 # release gripper
                 if time_now - self.time_start_throwing > self.throwing_traj.duration - self.GRIPPER_DELAY:
                     threading.Thread(target=self.deactivate_gripper).start()
+                    self.fsm_state = "RELEASE_BRAKE"
 
-                if time_now - self.time_start_throwing > self.throwing_traj.duration - dT:
-                    self.fsm_state = "SLOWING"
+                    self.brake_traj = self.get_traj_from_ruckig(
+                        q_cur, q_cur_dot, np.zeros(7),
+                        q_cur, np.zeros(7), np.zeros(7),
+                        margin_velocity=0,
+                        margin_acceleration=self.MARGIN_ACCELERATION
+                    )
+                    self.time_release = time_now
 
-                    self.trajectory_back = self.get_traj_from_ruckig(q_cur, q_cur_dot, np.zeros(7),
-                                                                     self.qs, self.qs_dot, self.qs_dotdot,
-                                                                margin_velocity=self.MARGIN_VELOCITY * 0.5,
-                                                                margin_acceleration=self.MARGIN_ACCELERATION * 0.5)
-                    if self.trajectory_back is None:
-                        rospy.logerr("Trajectory is None")
+                # if time_now - self.time_start_throwing > self.throwing_traj.duration - dT:
+                #     self.fsm_state = "SLOWING"
+                #
+                #     self.trajectory_back = self.get_traj_from_ruckig(q_cur, q_cur_dot, np.zeros(7),
+                #                                                      self.qs, self.qs_dot, self.qs_dotdot,
+                #                                                 margin_velocity=self.MARGIN_VELOCITY * 0.2,
+                #                                                 margin_acceleration=self.MARGIN_ACCELERATION * 0.2)
+                #     if self.trajectory_back is None:
+                #         rospy.logerr("Trajectory is None")
 
-                    print("SLOWING")
-                    pdb.set_trace(header="Press C to see the slowing trajectory...")
-                    self.time_start_slowing = time_now
+                    # print("SLOWING")
+                    # pdb.set_trace(header="Press C to see the slowing trajectory...")
+                    # self.time_start_slowing = time_now
 
                 ref = self.throwing_traj.at_time(time_now - self.time_start_throwing)
                 self.target_state.header.stamp = time_now
@@ -257,6 +265,30 @@ class ThrowingController:
                     self.target_pos.append(self.target_state.position)
                     self.target_vel.append(self.target_state.velocity)
                     self.target_eff.append(self.target_state.effort)
+
+            elif self.fsm_state == "RELEASE_BRAKE":
+                time_now = rospy.get_time()
+                ref = self.brake_traj.at_time(time_now - self.time_release)
+                self.target_state.header.stamp = time_now
+                self.target_state.position = ref[0]
+                self.target_state.velocity = ref[1]
+                self.target_state.effort = ref[2]
+
+                self.target_state_pub.publish(self.target_state)
+                self.command_pub.publish(self.convert_command_to_ROS(time_now, ref[0], ref[1], ref[2]))
+
+                if np.linalg.norm(self.robot_state.velocity) < 0.1:
+                    self.fsm_state = "SLOWING"
+                    self.trajectory_back = self.get_traj_from_ruckig(q_cur, q_cur_dot, np.zeros(7),
+                                                                     self.qs, self.qs_dot, self.qs_dotdot,
+                                                                     margin_velocity=self.MARGIN_VELOCITY * 0.2,
+                                                                     margin_acceleration=self.MARGIN_ACCELERATION * 0.2)
+                    if self.trajectory_back is None:
+                        rospy.logerr("Trajectory is None")
+
+                    print("SLOWING")
+                    pdb.set_trace(header="Press C to see the slowing trajectory...")
+                    self.time_start_slowing = time_now
 
             elif self.fsm_state == "SLOWING":
                 time_now = rospy.get_time()

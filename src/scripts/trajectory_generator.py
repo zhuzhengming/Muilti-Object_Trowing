@@ -324,7 +324,7 @@ class TrajectoryGenerator:
 
             deviation = throw_config_full[-1][:2] - base0
 
-            if np.linalg.norm(deviation) < 0.01:
+            if np.linalg.norm(deviation) < 0.1:
                 num_small_deviation += 1
 
             traj_durations.append(traj_throw.duration)
