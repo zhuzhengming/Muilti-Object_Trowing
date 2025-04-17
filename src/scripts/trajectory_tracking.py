@@ -72,8 +72,8 @@ class ThrowingController:
     def _allegro_init(self):
         # allegro controller
         self.hand_home_pose = np.array(rospy.get_param('/hand_home_pose'))
-        self.envelop_pose = np.array([-0.14, 1.78, 1.20, 1.45, -0.32, 1.71, 1.37, 0.85, -0.51, 1.77, 1.41, 0.55, 0.81, 0.55, 0.17, 1.35])
-        # self.envelop_pose = np.array(rospy.get_param('/exp_envelop_pose'))
+        # self.envelop_pose = np.array([-0.14, 1.78, 1.20, 1.45, -0.32, 1.71, 1.37, 0.85, -0.51, 1.77, 1.41, 0.55, 0.81, 0.55, 0.17, 1.35])
+        self.envelop_pose = np.array(rospy.get_param('/exp_envelop_pose'))
         self.joint_cmd_pub = rospy.Publisher('/allegroHand_0/joint_cmd', JointState, queue_size=10)
         rospy.Subscriber('/allegroHand_0/joint_states', JointState, self._hand_joint_states_callback)
         self.hand = allegro.Robot(right_hand=False, path_prefix=self.path_prefix)  # load the left hand kinematics
@@ -122,7 +122,7 @@ class ThrowingController:
         self.dt = 5e-3
 
         # qs for the initial state
-        self.qs = np.array([0.4217, 0.5498, 0.1635, -0.7926, -0.0098, 0.6, 1.2881])
+        self.qs = np.array([0.4217-1.5, 0.5498, 0.1635, -0.7926, -0.0098, 0.6, 1.2881])
         self.qs_dot = np.zeros(7)
         self.qs_dotdot = np.zeros(7)
 
@@ -400,7 +400,7 @@ class ThrowingController:
                                                          margin_velocity=self.MARGIN_VELOCITY * 0.5,
                                                          margin_acceleration=self.MARGIN_ACCELERATION * 0.5)
 
-        self.trajectoryGenerator.robot._set_joints(self.qs)
+        self.trajectoryGenerator.robot._set_joints(self.qs, render=True)
         intermediate_time, traj_throw_back = self.trajectoryGenerator.concatenate_trajectories(
             throwing_traj, trajectory_back
         )
@@ -411,7 +411,7 @@ class ThrowingController:
 
 if __name__ == '__main__':
     rospy.init_node("throwing_controller", anonymous=True)
-    box_position = [1.55, 0.0, -0.15]
+    box_position = [1.54, 0.09, -0.167]
     throwing_controller = ThrowingController(box_position=box_position)
     for nTry in range(100):
         print("test number", nTry + 1)
