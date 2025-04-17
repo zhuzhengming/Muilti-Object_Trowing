@@ -16,7 +16,6 @@ import pdb
 from pathlib import Path
 from sys import path
 from ruckig import InputParameter, Ruckig, Trajectory
-from utils.mujoco_interface import Robot
 import kinematics.allegro_hand_sym as allegro
 from trajectory_generator import TrajectoryGenerator
 
@@ -250,7 +249,7 @@ class ThrowingController:
                     # pdb.set_trace(header="Press C to see the slowing trajectory...")
                     # self.time_start_slowing = time_now
 
-                ref = self.throwing_traj.at_time(time_now - self.time_start_throwing)
+                ref = self.throwing_traj.at_time(throwing_time)
                 self.target_state.header.stamp = time_now
                 self.target_state.position = ref[0]
                 self.target_state.velocity = ref[1]
@@ -260,7 +259,7 @@ class ThrowingController:
                 self.command_pub.publish(self.convert_command_to_ROS(time_now, ref[0], ref[1], ref[2]))
 
                 # record error
-                if(self.time_throw - (time_now - self.time_start_throwing) < 1 * self.time_throw):
+                if(self.time_throw - (throwing_time) < 1 * self.time_throw):
 
                     self.stamp.append(time_now)
                     self.real_pos.append(q_cur)
@@ -285,8 +284,8 @@ class ThrowingController:
                     self.fsm_state = "SLOWING"
                     self.trajectory_back = self.get_traj_from_ruckig(q_cur, q_cur_dot, np.zeros(7),
                                                                      self.qs, self.qs_dot, self.qs_dotdot,
-                                                                     margin_velocity=self.MARGIN_VELOCITY * 0.2,
-                                                                     margin_acceleration=self.MARGIN_ACCELERATION * 0.2)
+                                                                     margin_velocity=self.MARGIN_VELOCITY * 0.5,
+                                                                     margin_acceleration=self.MARGIN_ACCELERATION * 0.5)
                     if self.trajectory_back is None:
                         rospy.logerr("Trajectory is None")
 
@@ -433,7 +432,7 @@ class ThrowingController:
 
         trajectory_back = self.get_traj_from_ruckig(qd, qd_dot, np.zeros(7),
                                                          self.qs, self.qs_dot, self.qs_dotdot,
-                                                         margin_velocity=self.MARGIN_VELOCITY *0.5 ,
+                                                         margin_velocity=self.MARGIN_VELOCITY * 0.5,
                                                          margin_acceleration=self.MARGIN_ACCELERATION * 0.5)
 
         self.trajectoryGenerator.robot._set_joints(self.qs, render=True)

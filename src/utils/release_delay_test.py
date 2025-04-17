@@ -40,17 +40,38 @@ def hand_control(recorder):
 
 
 class FTDataRecorder:
-    def __init__(self):
-        self.force_z_data = []
-        self.event_data = []
-        self.start_time = time.time()
-        self.sub = rospy.Subscriber(
-            '/ft_sensor/netft_data',
-            WrenchStamped,
-            self.wrench_callback
-        )
-        rospy.loginfo("Initialized FT Data Recorder")
-        atexit.register(self.on_exit)
+    def __init__(self, release_delay_path=None, event_path=None):
+        self.is_loading_mode = False
+
+        if release_delay_path and event_path:
+            try:
+                self.force_z_data = np.load(release_delay_path, allow_pickle=True)
+                self.event_data = np.load(event_path, allow_pickle=True)
+
+                if self.force_z_data.dtype == object:
+                    self.force_z_data = np.array([list(x) for x in self.force_z_data])
+                if self.event_data.dtype == object:
+                    self.event_data = np.array([list(x) for x in self.event_data])
+
+                self.is_loading_mode = True
+                rospy.loginfo("Loaded historical data")
+
+            except FileNotFoundError:
+                rospy.logwarn("Data files not found, starting fresh")
+                self.force_z_data = []
+                self.event_data = []
+        else:
+            self.force_z_data = []
+            self.event_data = []
+
+        if not self.is_loading_mode:
+            self.start_time = time.time()
+            self.sub = rospy.Subscriber(
+                '/ft_sensor/netft_data',
+                WrenchStamped,
+                self.wrench_callback
+            )
+            atexit.register(self.on_exit)
 
     def wrench_callback(self, msg):
         z_force = msg.wrench.force.z
@@ -100,6 +121,40 @@ class FTDataRecorder:
         plt.tight_layout()
         plt.show()
 
+    def plot_exist_data(self):
+        if self.force_z_data.ndim != 2 or self.force_z_data.shape[1] != 2:
+            rospy.logerr("Invalid force data format")
+            return
+
+        times = self.force_z_data[:, 0]
+        values = -self.force_z_data[:, 1]
+
+        if self.event_data.ndim == 2 and self.event_data.shape[1] == 2:
+            home_times = self.event_data[self.event_data[:, 1] == 'home'][:, 0]
+        else:
+            rospy.logwarn("Event data format invalid")
+            home_times = []
+
+        plt.figure(figsize=(10, 5))
+
+        plt.plot(times, values, 'b-', lw=1.5, label='Force (N)')
+
+        if len(home_times) > 0:
+            y_min, y_max = np.min(values) * 0.9, np.max(values) * 1.1
+            plt.vlines(home_times, y_min, y_max,
+                       colors='r', linestyles='--', lw=1.5,
+                       label='Release Events')
+
+        plt.xlim(left=0)
+
+        plt.title('Force Measurement with Release Events')
+        plt.xlabel('Original Timestamp (s)')
+        plt.ylabel('Force (N)')
+        plt.grid(True, alpha=0.3)
+        plt.legend()
+        plt.tight_layout()
+        plt.show()
+
     def on_exit(self):
         self.save_data()
         if PLOT_ON_EXIT:
@@ -107,10 +162,14 @@ class FTDataRecorder:
 
 
 if __name__ == '__main__':
-    recorder = FTDataRecorder()
-    try:
-        hand_control(recorder)
-    except KeyboardInterrupt:
-        pass
-    finally:
-        recorder.save_data()
+    release_delay_path = '../output/data/release_data/release_delay.npy'
+    event_data_path = '../output/data/release_data/event_data.npy'
+    recorder = FTDataRecorder(release_delay_path, event_data_path)
+    recorder.plot_exist_data()
+
+    # try:
+    #     hand_control(recorder)
+    # except KeyboardInterrupt:
+    #     pass
+    # finally:
+    #     recorder.save_data()
