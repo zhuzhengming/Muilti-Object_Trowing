@@ -41,7 +41,10 @@ class TrajectoryGenerator:
         q_dot_min = -q_dot_max
 
         self.robot = VelocityHedgehog(self.q_ll, self.q_ul, q_dot_min, q_dot_max, robot_path, model_exist=model_exist)
+        self.load_params()
+        self.load_data()
 
+    def load_params(self):
         self.max_velocity = np.array(rospy.get_param('/max_velocity'))
         self.max_acceleration = np.array([15, 7.5, 10, 12.5, 15, 20, 20])
         self.max_jerk = np.array([7500, 3750, 5000, 6250, 7500, 10000, 10000])
@@ -51,7 +54,11 @@ class TrajectoryGenerator:
         self.MARGIN_ACCELERATION = rospy.get_param('/MARGIN_ACCELERATION')
         self.MARGIN_JERK = rospy.get_param('/MARGIN_JERK')
 
-        self.load_data()
+        self.thres_dis = rospy.get_param('/thres_dis')
+        self.thres_v = rospy.get_param('/thres_v')
+        self.thres_r_ratio = rospy.get_param('/thres_r_ratio')
+        self.thres_height = rospy.get_param('/thres_height')
+        self.thres_phi_ratio = rospy.get_param('/thres_phi_ratio')
 
     def load_data(self):
         # load hedgehog data
@@ -81,19 +88,17 @@ class TrajectoryGenerator:
         self.brt_zs = np.load(self.brt_path + '/brt_zs.npy')
 
 
-    def brt_robot_data_matching(self, posture,
-                                thres_v=0.1,
-                                thres_dis=0.01,
-                                min_safe_height=0.2,
-                                thres_r_ratio=0.5,
-                                thre_phi_ratio=0.1,
-                                box_pos=None):
+    def brt_robot_data_matching(self, posture, box_pos=None):
         """
         original point is the base of robot
         Given target position, find out initial guesses of (q, phi, x)
         :param box_position:
         :param thres_dis:
         :param thres_v:
+        :param thres_r_ratio:
+        :param thres_height:
+        :param thres_phi_ratio:
+
         :return: candidates of q, phi, x
         """
         if posture == "posture1":
@@ -158,11 +163,11 @@ class TrajectoryGenerator:
         d_sinphi = self.robot_dis[self.robot_dis < b, np.newaxis] @ sin_phi[np.newaxis, :]
         r = np.sqrt(b ** 2 - d_sinphi ** 2) - d_cosphi
         r_tensor = r[None, :, :, None, None] #[None, dis, phi, None, None]
-        mask_r = abs(-brt_tensor_slice[:, :, :, :, :, 0] - r_tensor) < thres_dis
+        mask_r = abs(-brt_tensor_slice[:, :, :, :, :, 0] - r_tensor) < self.thres_dis
 
         # 3.choose these brt data which are close to r wrt thres_v
         validate = np.argwhere((robot_tensor_v -
-                                thres_v - brt_tensor_slice[:, :, :, :, :, 4] > 0)  # velocity satisfy
+                                self.thres_v - brt_tensor_slice[:, :, :, :, :, 4] > 0)  # velocity satisfy
                                * mask_r)
 
         q_indices = np.copy(validate[:, :4])
@@ -188,7 +193,7 @@ class TrajectoryGenerator:
         # 4. close to target wrt r
         sorted_indices = np.argsort(abs(x_candidates[:, 0]))
         n_total = len(sorted_indices)
-        n_keep = max(1, int(n_total * thres_r_ratio))
+        n_keep = max(1, int(n_total * self.thres_r_ratio))
         final_indices = sorted_indices[:n_keep]
 
         q_candidates = q_candidates[final_indices]
@@ -211,7 +216,7 @@ class TrajectoryGenerator:
         q_candidates[q_candidates[:, 0] < -np.pi, 0] += 2 * np.pi
 
         # 5. safe height
-        height_mask = x_candidates[:, 1] > min_safe_height
+        height_mask = x_candidates[:, 1] > self.thres_height
 
         q_candidates = q_candidates[height_mask]
         phi_candidates = phi_candidates[height_mask]
@@ -220,7 +225,7 @@ class TrajectoryGenerator:
         # 6. large phi because the joint 1 provides not much torque
         if len(phi_candidates) > 0:
             sorted_phi_indices = np.argsort(-phi_candidates)
-            n_keep_phi = max(1, int(len(sorted_phi_indices) * thre_phi_ratio))
+            n_keep_phi = max(1, int(len(sorted_phi_indices) * self.thres_phi_ratio))
             final_phi_indices = sorted_phi_indices[:n_keep_phi]
 
             q_candidates = q_candidates[final_phi_indices]
@@ -288,6 +293,7 @@ class TrajectoryGenerator:
                               qs = None,
                               qs_dot = None,
                               posture=None,
+                              q1_dot = 1.0,
                               simulation=True):
         """
         input: q_candidates, phi_candidates, x_candidates, base0(box_position in xoy)
@@ -308,7 +314,7 @@ class TrajectoryGenerator:
         throw_configs = []
 
         # record bad trajectories
-        num_outlimit, num_hit, num_ruckiger, num_small_deviation = 0, 0, 0, 0
+        num_outlimit, num_fast_joint1, num_ruckiger, num_small_deviation = 0, 0, 0, 0
 
         for i in range(n_candidates):
             candidate_idx = i
@@ -324,10 +330,10 @@ class TrajectoryGenerator:
                                                               x_candidates[candidate_idx],
                                                               posture=posture)
 
-            # 2 check hit gripper palm
-            # if throw_config_full[4][2] < -0.02:
-            #     num_hit += 1
-            #     continue
+            # 2 skip fast joint 1
+            if abs(throw_config_full[3][1]) > q1_dot:
+                num_fast_joint1 += 1
+                continue
 
             # 3. valid trajectory
             try:
@@ -352,7 +358,7 @@ class TrajectoryGenerator:
             throw_configs.append(throw_config_full)
 
         print("\t\t out of joint limit: {}, hit the palm: {}, ruckig error: {}, small deviation:{}".format(
-                num_outlimit, num_hit, num_ruckiger, num_small_deviation))
+                num_outlimit, num_fast_joint1, num_ruckiger, num_small_deviation))
 
         return trajs, throw_configs
 

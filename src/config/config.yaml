@@ -64,8 +64,6 @@ MARGIN_VELOCITY: 1
 MARGIN_ACCELERATION: 0.45
 MARGIN_JERK: 0.008
 
-#MARGIN_ACCELERATION: 1
-#MARGIN_JERK: 1
 
 # constraints of iiwa 7
 # joint 1 and joint 4 has lower max_velocity because of compensation of gravity
@@ -74,3 +72,15 @@ max_acceleration: [12, 5, 10, 10, 15, 20, 20]
 max_jerk: [5000, 1000, 5000, 5000, 7500, 10000, 10000]
 #max_acceleration: [1.35, 1.35, 2.0, 2.0, 7.5, 10.0, 10.0]
 #max_jerk: [6.75, 6.75, 10.0, 20.0, 30.0, 30.0, 30.0]
+
+
+#########################################################################
+# Matching parameters
+#########################################################################
+thres_dis: 0.01
+thres_v: 0.1
+thres_r_ratio: 1.0
+thres_height: 0.1
+thres_phi_ratio: 1.0
+
+

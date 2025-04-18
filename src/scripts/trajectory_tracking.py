@@ -321,7 +321,7 @@ class ThrowingController:
             rate.sleep()
 
     def match_configuration(self, posture=None):
-        base0 = -np.array(self.box_position)[:2]
+        base0 = np.array(self.box_position)[:2]
         q_candidates, phi_candidates, x_candidates = (
             self.trajectoryGenerator.brt_robot_data_matching(posture=posture))
         if len(q_candidates) == 0:

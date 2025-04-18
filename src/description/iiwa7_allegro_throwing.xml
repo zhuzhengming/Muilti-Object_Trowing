@@ -84,7 +84,7 @@
         <geom name="floor" class="collision0" type="plane" size="0 0 1" rgba=".8 .8 .8 1"/>
 <!--        <geom pos="0 0 0" quat="0 0 1 -1" name="background" class="collision0" type="plane" size="10 10 0.1" rgba="1 1 1 1"/>-->
         <body name="kuka_table" pos="0 0 0.25">
-          <geom name="kuka_table" class="collision0" type="box" size=".125 .125 .25" pos="0 0 0"/>
+          <geom name="kuka_table" class="collision0" type="box" size=".45 .45 .25" pos="0 0 0"/>
           <body name="kuka_base" pos="0 0 0.25">
             <geom type="mesh" contype="0" conaffinity="0" group="1" rgba="0.4 0.4 0.4 1" mesh="link_0" />
             <geom name="kuka_base" type="mesh" rgba="0.4 0.4 0.4 1" mesh="c_link_0" />
