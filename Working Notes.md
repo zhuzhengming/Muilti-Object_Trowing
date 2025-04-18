@@ -225,15 +225,24 @@
           | 实际轨迹           | optitrack实际收集到的轨迹            |
         
           - 不同的trajectories
-        - 实验问题记录：
+        
+        - #### 实验问题记录：
         
           - (done)末端高度容易太多，撞桌子
             - 筛选z高度高的解
           - (done)需要提前进行一下仿真验证轨迹的可行性
             - 增加轨迹可视化功能
           - （done）给反向的加速度避免碰撞
-          - 初始状态尽量利用joint0的速度
-            - 选择phi角度大的解
+          - （done）初始状态尽量利用joint0的速度
+          - 选择不同phi角的解，收集不同phi角度的末端跟踪误差
+            - phi角大，投的误差大，速度快，距离近
+            - phi角小，joint1没有太多的可以力矩加速，会和桌子碰撞
+            - 选择joint1 target 速度小的解
+          - brake过程是否需要：
+            - posture1需要brake
+              - 可以收集数据碰撞和不碰撞的视频
+            - posture2不需要brake，所以可以用于结合投掷2个物体并且使用大的phi角度
+          - 出手之后的飞行轨迹误差对比
       
     - #### RL-based:
     
@@ -357,4 +366,63 @@
   - 换用加入了action chunking的模型openvla-oft
     - 动作的连续性打包
   
-  
+
+
+
+
+
+
+
+
+
+
+
+     def get_full_throwing_config(self, q, phi, x, posture=None):
+        """
+        Return full throwing configurations
+        :input param robot description, q, phi, x
+        :return: (q, phi, x, q_dot, blockPosInGripper, eef_velo, AE, box_position)
+        calculate from the throwing aspect
+        """
+        r = x[0]
+        z = x[1]
+        r_dot = x[2]
+        z_dot = x[3]
+    
+        # kinemetic forward
+        AE, J = self.robot.forward(q, posture=posture)
+    
+        # in ee_site space
+        throwing_angle = np.arctan2(AE[1], AE[0]) + phi
+        EB_dir = np.array([np.cos(throwing_angle), np.sin(throwing_angle)])
+    
+        # get current jacobian to calculate q_dot = J_pinv @ eef_velo
+        J_xyz = J[:3, :]
+        J_xyz_pinv = np.linalg.pinv(J_xyz)
+    
+        eef_velo = np.array([EB_dir[0] * r_dot, EB_dir[1] * r_dot, z_dot])
+        q_dot = J_xyz_pinv @ eef_velo
+        box_position = AE + np.array([-r * EB_dir[0], -r * EB_dir[1], -z]) # 3 dim
+    
+        # control last one joint to make end effector towards box
+    
+        gripperPos = self.robot.data.site("ee_site").xpos.copy() - 0.5 # position based on kuka_base
+        gripperRot = self.robot.data.site("ee_site").xmat.copy().reshape(3,3)
+    
+        eef_velo_dir_3d = eef_velo / np.linalg.norm(eef_velo)
+    
+        tmp = AE + eef_velo_dir_3d
+        blockPosInGripper = gripperRot.T @ (tmp - gripperPos)
+        velo_angle_in_eef = np.arctan2(blockPosInGripper[1], blockPosInGripper[0])
+    
+        if (velo_angle_in_eef < math.pi) and (velo_angle_in_eef > -math.pi):
+            eef_angle_near = velo_angle_in_eef
+        elif velo_angle_in_eef > math.pi:
+            eef_angle_near = velo_angle_in_eef - math.pi
+        else:
+            eef_angle_near = velo_angle_in_eef + math.pi
+    
+        q[-1] = eef_angle_near
+    
+        return (q, phi, x, q_dot, blockPosInGripper, eef_velo, AE, box_position)
+这个代码在筛选解的时候，有很多的因素需要综合考虑，现在的情况是我的机器人joint1轴因为重力补偿没有太多可用的力矩，所以我希望选出的q_dot[1]的值需要小一些，大过一定阈值就筛掉

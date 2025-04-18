@@ -85,8 +85,8 @@ class TrajectoryGenerator:
                                 thres_v=0.1,
                                 thres_dis=0.01,
                                 min_safe_height=0.2,
-                                thres_r_ratio=0.3,
-                                thre_phi_ratio=0.3,
+                                thres_r_ratio=0.5,
+                                thre_phi_ratio=0.1,
                                 box_pos=None):
         """
         original point is the base of robot

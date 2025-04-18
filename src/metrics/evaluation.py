@@ -150,7 +150,7 @@ class TrackingEvaluation:
 
         # Equal axis aspect ratio
         max_range = np.array([actual_pos_ee.max() - actual_pos_ee.min(),
-                              target_pos_ee.max() - target_pos_ee.min()]).max() / 12
+                              target_pos_ee.max() - target_pos_ee.min()]).max() / 5
         mid_x = (actual_pos_ee[:, 0].max() + actual_pos_ee[:, 0].min()) * 0.5
         mid_y = (actual_pos_ee[:, 1].max() + actual_pos_ee[:, 1].min()) * 0.5
         mid_z = (actual_pos_ee[:, 2].max() + actual_pos_ee[:, 2].min()) * 0.5
