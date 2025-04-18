@@ -150,7 +150,7 @@ class TrackingEvaluation:
 
         # Equal axis aspect ratio
         max_range = np.array([actual_pos_ee.max() - actual_pos_ee.min(),
-                              target_pos_ee.max() - target_pos_ee.min()]).max() / 5
+                              target_pos_ee.max() - target_pos_ee.min()]).max() / 2
         mid_x = (actual_pos_ee[:, 0].max() + actual_pos_ee[:, 0].min()) * 0.5
         mid_y = (actual_pos_ee[:, 1].max() + actual_pos_ee[:, 1].min()) * 0.5
         mid_z = (actual_pos_ee[:, 2].max() + actual_pos_ee[:, 2].min()) * 0.5
@@ -191,7 +191,7 @@ def plot_tracking_data(file_path):
     plt.show()
 
 if __name__ == '__main__':
-    filepath = f'../output/data/throwing.npy'
+    filepath = f'../output/data/ee_tracking/throwing.npy'
     robot_path = '../description/iiwa7_allegro_throwing.xml'
     evaluator = TrackingEvaluation(filepath, robot_path)
 

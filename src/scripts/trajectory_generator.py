@@ -293,7 +293,8 @@ class TrajectoryGenerator:
                               qs = None,
                               qs_dot = None,
                               posture=None,
-                              q1_dot = 1.0,
+                              joint_0_dot = 1.6,
+                              joint_1_dot = 1.0,
                               simulation=True):
         """
         input: q_candidates, phi_candidates, x_candidates, base0(box_position in xoy)
@@ -314,7 +315,7 @@ class TrajectoryGenerator:
         throw_configs = []
 
         # record bad trajectories
-        num_outlimit, num_fast_joint1, num_ruckiger, num_small_deviation = 0, 0, 0, 0
+        num_outlimit, num_fast_joint0, num_fast_joint1, num_ruckiger, num_small_deviation = 0, 0, 0, 0, 0
 
         for i in range(n_candidates):
             candidate_idx = i
@@ -330,8 +331,12 @@ class TrajectoryGenerator:
                                                               x_candidates[candidate_idx],
                                                               posture=posture)
 
-            # 2 skip fast joint 1
-            if abs(throw_config_full[3][1]) > q1_dot:
+            # 2 skip fast joint 0 or joint 1
+            if abs(throw_config_full[3][0]) > joint_0_dot:
+                num_fast_joint0 += 1
+                continue
+
+            if abs(throw_config_full[3][1]) > joint_1_dot:
                 num_fast_joint1 += 1
                 continue
 
@@ -357,8 +362,8 @@ class TrajectoryGenerator:
             trajs.append(traj_throw)
             throw_configs.append(throw_config_full)
 
-        print("\t\t out of joint limit: {}, hit the palm: {}, ruckig error: {}, small deviation:{}".format(
-                num_outlimit, num_fast_joint1, num_ruckiger, num_small_deviation))
+        print("\t\t out of joint limit: {},num_fast_joint0: {}, num_fast_joint1: {}, ruckig error: {}, small deviation:{}".format(
+                num_outlimit, num_fast_joint0,num_fast_joint1, num_ruckiger, num_small_deviation))
 
         return trajs, throw_configs
 

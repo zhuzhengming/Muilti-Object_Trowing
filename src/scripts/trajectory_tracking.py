@@ -19,8 +19,8 @@ from ruckig import InputParameter, Ruckig, Trajectory
 import kinematics.allegro_hand_sym as allegro
 from trajectory_generator import TrajectoryGenerator
 
-SIMULATION = True
-DEBUG = False
+SIMULATION = False
+DEBUG = True
 class ThrowingController:
     def __init__(self, path_prefix='../', box_position=None):
         self.box_position = box_position if box_position is not None else 0
@@ -117,7 +117,7 @@ class ThrowingController:
         self.dt = 5e-3
 
         # qs for the initial state
-        self.qs = np.array([0.4217-1.5, 0.5498, 0.1635, -0.7926, -0.0098, 0.6, 1.2881])
+        self.qs = np.array([0.4217-1.5, 0.5498+0.1, 0.1635, -0.7926, -0.0098, 0.6, 1.2881])
         self.qs_dot = np.zeros(7)
         self.qs_dotdot = np.zeros(7)
 
@@ -131,7 +131,7 @@ class ThrowingController:
 
     def save_tracking_data_to_npy(self):
 
-        filename = '../output/data/throwing.npy'
+        filename = '../output/data/ee_tracking/throwing.npy'
 
         np.save(filename, {'stamp': self.stamp,
                            'real_pos': self.real_pos,
@@ -143,7 +143,7 @@ class ThrowingController:
         print("Tracking data saved to npy files.")
 
 
-    def run(self, max_run_time=30.0):
+    def run(self, max_run_time=60.0):
         # ------------ Control Loop ------------ #
         start_time = rospy.get_time()
         dT = self.dt
@@ -178,8 +178,8 @@ class ThrowingController:
 
                 self.homing_traj = self.get_traj_from_ruckig(q_cur, q_cur_dot, np.zeros(7),
                                                              self.qs, self.qs_dot, self.qs_dotdot,
-                                                             margin_velocity=self.MARGIN_VELOCITY,
-                                                             margin_acceleration=self.MARGIN_ACCELERATION)
+                                                             margin_velocity=self.MARGIN_VELOCITY * 0.2,
+                                                             margin_acceleration=self.MARGIN_ACCELERATION *0.2)
                 if self.homing_traj is None:
                     rospy.logerr("Trajectory is None")
 
@@ -291,8 +291,8 @@ class ThrowingController:
                     self.fsm_state = "SLOWING"
                     self.trajectory_back = self.get_traj_from_ruckig(q_cur, q_cur_dot, np.zeros(7),
                                                                      self.qs, self.qs_dot, self.qs_dotdot,
-                                                                     margin_velocity=self.MARGIN_VELOCITY * 0.5,
-                                                                     margin_acceleration=self.MARGIN_ACCELERATION * 0.5)
+                                                                     margin_velocity=self.MARGIN_VELOCITY * 0.2,
+                                                                     margin_acceleration=self.MARGIN_ACCELERATION * 0.2)
                     if self.trajectory_back is None:
                         rospy.logerr("Trajectory is None")
 
@@ -454,7 +454,7 @@ class ThrowingController:
 
 if __name__ == '__main__':
     rospy.init_node("throwing_controller", anonymous=True)
-    box_position = [1.4, -0.07, -0.186]
+    box_position = [1.4, -0.27, -0.1586]
     throwing_controller = ThrowingController(box_position=box_position)
     for nTry in range(100):
         print("test number", nTry + 1)
