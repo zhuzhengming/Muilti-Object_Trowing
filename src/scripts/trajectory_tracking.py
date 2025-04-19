@@ -117,7 +117,7 @@ class ThrowingController:
         self.dt = 5e-3
 
         # qs for the initial state
-        self.qs = np.array([0.4217-1.5, 0.5498+0.1, 0.1635, -0.7926, -0.0098, 0.6, 1.2881])
+        self.qs = np.array([0.4217-2.0, 0.5498-0.4, 0.1635, -0.7926, -0.0098, 0.6, 1.2881])
         self.qs_dot = np.zeros(7)
         self.qs_dotdot = np.zeros(7)
 
@@ -200,7 +200,7 @@ class ThrowingController:
                     time.sleep(0.5)
                     if DEBUG:
                         print("IDLE_THROWING")
-                        pdb.set_trace(header="Press C to see the throwing trajectory...")
+                        # pdb.set_trace(header="Press C to see the throwing trajectory...")
                     self.scheduler_callback(Int64(1), qd, qd_dot, qd_dotdot)
 
                 time_now = rospy.get_time()
@@ -251,7 +251,7 @@ class ThrowingController:
 
                     if DEBUG:
                         print("SLOWING")
-                        pdb.set_trace(header="Press C to see the slowing trajectory...")
+                        # pdb.set_trace(header="Press C to see the slowing trajectory...")
                     self.time_start_slowing = time_now
 
                 ref = self.throwing_traj.at_time(throwing_time)
@@ -298,7 +298,7 @@ class ThrowingController:
 
                     if DEBUG:
                         print("SLOWING")
-                        pdb.set_trace(header="Press C to see the slowing trajectory...")
+                        # pdb.set_trace(header="Press C to see the slowing trajectory...")
                     self.time_start_slowing = time_now
 
             elif self.fsm_state == "SLOWING":
@@ -454,7 +454,7 @@ class ThrowingController:
 
 if __name__ == '__main__':
     rospy.init_node("throwing_controller", anonymous=True)
-    box_position = [1.4, -0.27, -0.1586]
+    box_position = [1.3, 0.07, -0.1586]
     throwing_controller = ThrowingController(box_position=box_position)
     for nTry in range(100):
         print("test number", nTry + 1)

@@ -8,8 +8,8 @@ PD:
 #  joint_kp_joint_impedance: [1600, 1600, 400, 1000, 400, 300, 200]
 #  joint_kd_joint_impedance: [80, 100, 80, 80, 30, 10, 10]
 
-  joint_kp_joint_impedance: [500, 500, 500, 500, 150, 12, 12.5]
-  joint_kd_joint_impedance: [100, 100, 80,  80,  40,  12.5, 10]
+  joint_kp_joint_impedance: [600, 600, 500, 500, 150, 12, 12.5]
+  joint_kd_joint_impedance: [120, 120, 80,  80,  30,  12.5, 12]
 
 freq: 200
 
@@ -68,8 +68,8 @@ MARGIN_JERK: 0.008
 # constraints of iiwa 7
 # joint 1 and joint 4 has lower max_velocity because of compensation of gravity
 max_velocity: [1.71, 1.74, 1.745, 2.269, 2.443, 3.142, 3.142]
-max_acceleration: [7, 5, 7.5, 7.5, 15, 20, 20]
-max_jerk: [3000, 1000, 4000, 4000, 7500, 10000, 10000]
+max_acceleration: [3, 3, 7.5, 12.5, 15, 25, 20]
+max_jerk: [1500, 300, 4000, 6000, 7500, 10000, 10000]
 #max_acceleration: [1.35, 1.35, 2.0, 2.0, 7.5, 10.0, 10.0]
 #max_jerk: [6.75, 6.75, 10.0, 20.0, 30.0, 30.0, 30.0]
 
@@ -79,8 +79,8 @@ max_jerk: [3000, 1000, 4000, 4000, 7500, 10000, 10000]
 #########################################################################
 thres_dis: 0.01
 thres_v: 0.1
-thres_r_ratio: 1.0
+thres_r_ratio: 0.8
 thres_height: 0.1
-thres_phi_ratio: 0.5
+thres_phi_ratio: 1.0
 
 

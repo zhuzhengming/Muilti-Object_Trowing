@@ -293,8 +293,9 @@ class TrajectoryGenerator:
                               qs = None,
                               qs_dot = None,
                               posture=None,
-                              joint_0_dot = 1.6,
-                              joint_1_dot = 1.0,
+                              joint_0_dot = 1.5,
+                              joint_1_dot = 0.6,
+                              joint_5_dot = 2.0,
                               simulation=True):
         """
         input: q_candidates, phi_candidates, x_candidates, base0(box_position in xoy)
@@ -337,6 +338,10 @@ class TrajectoryGenerator:
                 continue
 
             if abs(throw_config_full[3][1]) > joint_1_dot:
+                num_fast_joint1 += 1
+                continue
+
+            if abs(throw_config_full[3][5]) < joint_5_dot:
                 num_fast_joint1 += 1
                 continue
 
