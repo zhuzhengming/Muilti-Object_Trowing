@@ -293,12 +293,15 @@ class TrajectoryGenerator:
                               qs = None,
                               qs_dot = None,
                               posture=None,
-                              joint_0_dot = 1.5,
-                              joint_1_dot = 0.6,
-                              joint_5_dot = 2.0,
+                              joint_velocity_limits=None,
                               simulation=True):
         """
         input: q_candidates, phi_candidates, x_candidates, base0(box_position in xoy)
+        :param joint_velocity_limits:
+        {
+            'max_abs': [1.5, 0.6, None, None, None, 2.0, None],
+            'min_abs': [0.5, None, None, None, None, 1.0, None]
+        }
         output: trajs, throw_configs
         """
 
@@ -315,8 +318,19 @@ class TrajectoryGenerator:
         trajs = []
         throw_configs = []
 
+        if joint_velocity_limits is None:
+            joint_velocity_limits = {
+                'max_abs': [1.5, 0.6, None, None, None, None, None],
+                'min_abs': [None, None, None, None, None, 2.0, None]
+            }
+
+        joint_limit_counters = {
+            'max': [0] * 7,
+            'min': [0] * 7
+        }
+
         # record bad trajectories
-        num_outlimit, num_fast_joint0, num_fast_joint1, num_ruckiger, num_small_deviation = 0, 0, 0, 0, 0
+        num_outlimit, num_ruckiger, num_small_deviation = 0, 0, 0
 
         for i in range(n_candidates):
             candidate_idx = i
@@ -332,17 +346,23 @@ class TrajectoryGenerator:
                                                               x_candidates[candidate_idx],
                                                               posture=posture)
 
-            # 2 skip fast joint 0 or joint 1
-            if abs(throw_config_full[3][0]) > joint_0_dot:
-                num_fast_joint0 += 1
-                continue
+            # 2 filter velocity joint provider
+            q_dot = throw_config_full[3]
+            skip_candidate = False
+            for joint_idx in range(len(q_dot)):
+                vel = q_dot[joint_idx]
+                max_limit = joint_velocity_limits['max_abs'][joint_idx]
+                min_limit = joint_velocity_limits['min_abs'][joint_idx]
 
-            if abs(throw_config_full[3][1]) > joint_1_dot:
-                num_fast_joint1 += 1
-                continue
+                if max_limit is not None and abs(vel) > max_limit:
+                    joint_limit_counters['max'][joint_idx] += 1
+                    skip_candidate = True
 
-            if abs(throw_config_full[3][5]) < joint_5_dot:
-                num_fast_joint1 += 1
+                if min_limit is not None and abs(vel) < min_limit:
+                    joint_limit_counters['min'][joint_idx] += 1
+                    skip_candidate = True
+
+            if skip_candidate:
                 continue
 
             # 3. valid trajectory
@@ -367,8 +387,13 @@ class TrajectoryGenerator:
             trajs.append(traj_throw)
             throw_configs.append(throw_config_full)
 
-        print("\t\t out of joint limit: {},num_fast_joint0: {}, num_fast_joint1: {}, ruckig error: {}, small deviation:{}".format(
-                num_outlimit, num_fast_joint0,num_fast_joint1, num_ruckiger, num_small_deviation))
+        for j in range(7):
+            print(f"  Joint {j}:")
+            print(f"    Exceed Max Limit: {joint_limit_counters['max'][j]}")
+            print(f"    Below Min Limit: {joint_limit_counters['min'][j]}")
+
+        print("\t\t out of joint limit: {}, ruckig error: {}, small deviation:{}".format(
+                num_outlimit, num_ruckiger, num_small_deviation))
 
         return trajs, throw_configs
 

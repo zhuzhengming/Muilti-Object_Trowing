@@ -7,7 +7,7 @@ import copy
 import numpy as np
 import matplotlib
 matplotlib.use('Qt5Agg')
-
+from geometry_msgs.msg import PoseStamped
 from std_msgs.msg import String
 from sensor_msgs.msg import JointState
 from std_msgs.msg import Int64
@@ -19,7 +19,7 @@ from ruckig import InputParameter, Ruckig, Trajectory
 import kinematics.allegro_hand_sym as allegro
 from trajectory_generator import TrajectoryGenerator
 
-SIMULATION = False
+SIMULATION = True
 DEBUG = True
 class ThrowingController:
     def __init__(self, path_prefix='../', box_position=None):
@@ -50,7 +50,15 @@ class ThrowingController:
         self.fsm_state_pub = rospy.Publisher('fsm_state', String, queue_size=1)
         self.target_state_pub = rospy.Publisher('/computed_torque_controller/target_state', JointState,
                                                 queue_size=10)  # for debug
+        self.optitrack_sub = self.sub = rospy.Subscriber(
+                            '/vrpn_client_node/cube_z/pose_from_iiwa_7_base',
+                            PoseStamped,
+                            self._optitrack_callback,
+                            queue_size=100
+                        )
 
+        self.obj_cur = []
+        self.obj_trajectory = []
         self.stamp = []
         self.real_pos = []
         self.real_vel = []
@@ -139,7 +147,8 @@ class ThrowingController:
                            'real_eff': self.real_eff,
                            'target_pos': self.target_pos,
                            'target_vel': self.target_vel,
-                           'target_eff': self.target_eff})
+                           'target_eff': self.target_eff,
+                           'obj_trajectory': self.obj_trajectory})
         print("Tracking data saved to npy files.")
 
 
@@ -303,6 +312,8 @@ class ThrowingController:
 
             elif self.fsm_state == "SLOWING":
                 time_now = rospy.get_time()
+                # record fly trajectory data
+                self.obj_trajectory.append(self.obj_cur)
 
                 if time_now - self.time_start_slowing > self.trajectory_back.duration - dT:
                     self.save_tracking_data_to_npy()
@@ -378,6 +389,9 @@ class ThrowingController:
     def _send_hand_position(self, joints: np.ndarray) -> None:
         self.hand_joint_cmd.position = list(joints)
         self.joint_cmd_pub.publish(self.hand_joint_cmd)
+
+    def _optitrack_callback(self, msg):
+        self.obj_cur = np.copy(np.array(msg.position))
 
     def scheduler_callback(self, msg, qd, qd_dot, qd_dotdot):
         # print("scheduler msg", msg)

@@ -164,7 +164,7 @@ class TrackingEvaluation:
         plt.tight_layout()
         plt.show()
 
-def plot_tracking_data(file_path):
+def plot_joint_tracking_data(file_path):
     data = np.load(file_path, allow_pickle=True).item()
 
     kp_candidates = data['kp_candidates']  # 1D array
@@ -188,6 +188,45 @@ def plot_tracking_data(file_path):
     ax2.set_ylabel('Kd')
     ax2.set_zlabel('Velocity Tracking Error')
 
+    plt.show()
+
+def plot_obj_fly_trajectory(filename):
+    position = np.load(filename, allow_pickle=True).item()
+    if len(position) < 2:
+        print("Not enough points to plot (need at least 2 points)")
+        return
+
+    pos = np.array(position)
+
+    fig = plt.figure(figsize=(10, 8))
+    ax = fig.add_subplot(111, projection='3d')
+
+    ax.plot(pos[:, 0], pos[:, 1], pos[:, 2], 'b-', linewidth=1, label='Trajectory')
+
+    ax.scatter(pos[0, 0], pos[0, 1], pos[0, 2], c='g', s=100, label='Start')
+    ax.scatter(pos[-1, 0], pos[-1, 1], pos[-1, 2], c='r', s=100, label='End')
+
+    ax.set_xlabel('X (m)')
+    ax.set_ylabel('Y (m)')
+    ax.set_zlabel('Z (m)')
+    ax.set_title('3D Trajectory')
+    ax.legend()
+
+    max_range = np.array([
+        pos[:, 0].max() - pos[:, 0].min(),
+        pos[:, 1].max() - pos[:, 1].min(),
+        pos[:, 2].max() - pos[:, 2].min()
+    ]).max() / 2.0
+
+    mid_x = (pos[:, 0].max() + pos[:, 0].min()) * 0.5
+    mid_y = (pos[:, 1].max() + pos[:, 1].min()) * 0.5
+    mid_z = (pos[:, 2].max() + pos[:, 2].min()) * 0.5
+
+    ax.set_xlim(mid_x - max_range, mid_x + max_range)
+    ax.set_ylim(mid_y - max_range, mid_y + max_range)
+    ax.set_zlim(mid_z - max_range, mid_z + max_range)
+
+    plt.tight_layout()
     plt.show()
 
 if __name__ == '__main__':
