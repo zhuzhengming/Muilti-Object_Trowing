@@ -17,6 +17,7 @@ from pathlib import Path
 from sys import path
 from ruckig import InputParameter, Ruckig, Trajectory
 import kinematics.allegro_hand_sym as allegro
+from datetime import datetime
 from trajectory_generator import TrajectoryGenerator
 
 SIMULATION = True
@@ -139,7 +140,11 @@ class ThrowingController:
 
     def save_tracking_data_to_npy(self):
 
-        filename = '../output/data/ee_tracking/throwing.npy'
+        save_dir = '../output/data/ee_tracking/throw_tracking_batch'
+        os.makedirs(save_dir, exist_ok=True)
+
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = os.path.join(save_dir, f'throwing_{timestamp}.npy')
 
         np.save(filename, {'stamp': self.stamp,
                            'real_pos': self.real_pos,
