@@ -20,16 +20,18 @@ import kinematics.allegro_hand_sym as allegro
 from datetime import datetime
 from trajectory_generator import TrajectoryGenerator
 
-SIMULATION = True
+SIMULATION = False
 DEBUG = True
+
 class ThrowingController:
     def __init__(self, path_prefix='../', box_position=None):
-        self.box_position = box_position if box_position is not None else 0
+        self.box_position = box_position if box_position is not None else np.zeros(3)
         self.path_prefix = path_prefix
         self._allegro_init()
         self._iiwa_init()
         self._control_init()
         self._general_init()
+        self.start = False
         time.sleep(1.0)
 
 
@@ -51,12 +53,19 @@ class ThrowingController:
         self.fsm_state_pub = rospy.Publisher('fsm_state', String, queue_size=1)
         self.target_state_pub = rospy.Publisher('/computed_torque_controller/target_state', JointState,
                                                 queue_size=10)  # for debug
-        self.optitrack_sub = self.sub = rospy.Subscriber(
+        self.optitrack_sub = rospy.Subscriber(
                             '/vrpn_client_node/cube_z/pose_from_iiwa_7_base',
                             PoseStamped,
                             self._optitrack_callback,
                             queue_size=100
                         )
+
+        self.box_pos_sub = rospy.Subscriber(
+            '/vrpn_client_node/box_1/pose_from_iiwa_7_base',
+            PoseStamped,
+            self._box_pos_callback,
+            queue_size=100
+        )
 
         self.obj_cur = []
         self.obj_trajectory = []
@@ -146,18 +155,34 @@ class ThrowingController:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = os.path.join(save_dir, f'throwing_{timestamp}.npy')
 
-        np.save(filename, {'stamp': self.stamp,
-                           'real_pos': self.real_pos,
-                           'real_vel': self.real_vel,
-                           'real_eff': self.real_eff,
-                           'target_pos': self.target_pos,
-                           'target_vel': self.target_vel,
-                           'target_eff': self.target_eff,
-                           'obj_trajectory': self.obj_trajectory})
-        print("Tracking data saved to npy files.")
+        data_to_save = {
+            'stamp': self.stamp,
+            'real_pos': self.real_pos.copy(),
+            'real_vel': self.real_vel.copy(),
+            'real_eff': self.real_eff.copy(),
+            'target_pos': self.target_pos.copy(),
+            'target_vel': self.target_vel.copy(),
+            'target_eff': self.target_eff.copy(),
+            'obj_trajectory': self.obj_trajectory.copy()
+        }
+
+        def async_save():
+            np.save(filename, data_to_save)
+            print(f"Data saved to {filename}")
+
+            self.stamp.clear()
+            self.real_pos.clear()
+            self.real_vel.clear()
+            self.real_eff.clear()
+            self.target_pos.clear()
+            self.target_vel.clear()
+            self.target_eff.clear()
+            self.obj_trajectory.clear()
+
+        threading.Thread(target=async_save).start()
 
 
-    def run(self, max_run_time=60.0):
+    def run(self, max_run_time=60.0, save_data=True):
         # ------------ Control Loop ------------ #
         start_time = rospy.get_time()
         dT = self.dt
@@ -174,7 +199,8 @@ class ThrowingController:
         while not rospy.is_shutdown():
             if (rospy.get_time() - start_time) > max_run_time:
                 rospy.logwarn("run() time limit exceeded, saving data and breaking...")
-                self.save_tracking_data_to_npy() # save data if stuck
+                if save_data:
+                    self.save_tracking_data_to_npy() # save data if stuck
                 break
 
             # Publish state and fsm for debug
@@ -186,8 +212,9 @@ class ThrowingController:
 
 
             if self.fsm_state == "IDLE":
-                if DEBUG:
+                if DEBUG and not self.start:
                     pdb.set_trace(header="Press C to start homing...")
+                    self.start = True
                     print("HOMING...")
 
                 self.homing_traj = self.get_traj_from_ruckig(q_cur, q_cur_dot, np.zeros(7),
@@ -211,7 +238,7 @@ class ThrowingController:
                 if np.linalg.norm(error_position) < self.ERROR_THRESHOLD:
                     # Jump to next state
                     self.fsm_state = "IDLE_THROWING"
-                    time.sleep(0.5)
+                    time.sleep(8)
                     if DEBUG:
                         print("IDLE_THROWING")
                         # pdb.set_trace(header="Press C to see the throwing trajectory...")
@@ -321,7 +348,8 @@ class ThrowingController:
                 self.obj_trajectory.append(self.obj_cur)
 
                 if time_now - self.time_start_slowing > self.trajectory_back.duration - dT:
-                    self.save_tracking_data_to_npy()
+                    if save_data:
+                        self.save_tracking_data_to_npy()
                     break
 
                 ref = self.trajectory_back.at_time(time_now - self.time_start_slowing)
@@ -338,8 +366,10 @@ class ThrowingController:
 
     def match_configuration(self, posture=None):
         base0 = np.array(self.box_position)[:2]
-        q_candidates, phi_candidates, x_candidates = (
-            self.trajectoryGenerator.brt_robot_data_matching(posture=posture))
+        print("box_position", self.box_position)
+        q_candidates, phi_candidates, x_candidates = self.trajectoryGenerator.brt_robot_data_matching(
+                                                    posture=posture,
+                                                    box_pos=self.box_position)
         if len(q_candidates) == 0:
             print("No result found")
             return 0
@@ -396,7 +426,20 @@ class ThrowingController:
         self.joint_cmd_pub.publish(self.hand_joint_cmd)
 
     def _optitrack_callback(self, msg):
-        self.obj_cur = np.copy(np.array(msg.position))
+        self.obj_cur = np.array([
+            msg.pose.position.x,
+            msg.pose.position.y,
+            msg.pose.position.z
+        ])
+
+    def _box_pos_callback(self, msg):
+        BOX_HEIGHT = 0.1
+        self.box_position = np.array([
+            msg.pose.position.x,
+            msg.pose.position.y,
+            msg.pose.position.z
+        ])
+        self.box_position[2] -= BOX_HEIGHT
 
     def scheduler_callback(self, msg, qd, qd_dot, qd_dotdot):
         # print("scheduler msg", msg)
@@ -474,14 +517,14 @@ class ThrowingController:
 if __name__ == '__main__':
     rospy.init_node("throwing_controller", anonymous=True)
     box_position = [1.3, 0.07, -0.1586]
-    throwing_controller = ThrowingController(box_position=box_position)
+    throwing_controller = ThrowingController()
     for nTry in range(100):
         print("test number", nTry + 1)
 
         throwing_controller.fsm_state = "IDLE"
-        throwing_controller.run()
+        throwing_controller.run(save_data=False)
 
-        time.sleep(5)
+        time.sleep(3)
 
         if rospy.is_shutdown():
             break
