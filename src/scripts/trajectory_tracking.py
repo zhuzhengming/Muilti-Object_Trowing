@@ -20,7 +20,7 @@ import kinematics.allegro_hand_sym as allegro
 from datetime import datetime
 from trajectory_generator import TrajectoryGenerator
 
-SIMULATION = False
+SIMULATION = True
 DEBUG = True
 
 class ThrowingController:
@@ -517,7 +517,7 @@ class ThrowingController:
 if __name__ == '__main__':
     rospy.init_node("throwing_controller", anonymous=True)
     box_position = [1.3, 0.07, -0.1586]
-    throwing_controller = ThrowingController()
+    throwing_controller = ThrowingController(box_position=box_position)
     for nTry in range(100):
         print("test number", nTry + 1)
 

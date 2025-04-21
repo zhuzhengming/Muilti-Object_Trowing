@@ -23,7 +23,7 @@ class TrajectoryGenerator:
     def __init__(self, q_ul, q_ll, hedgehog_path, brt_path, box_position, robot_path, model_exist=False):
         self.q_ul = q_ul
         self.q_ll = q_ll
-        self.q0 = np.array([-0.32032486 - 1.5, 0.02707055, -0.22881525, -1.42611918, 1.38608943, 0.5596685, 0])
+        self.q0 = np.array([0.4217-2.0, 0.5498-0.4, 0.1635, -0.7926, -0.0098, 0.6, 1.2881])
         self.q0_dot = np.zeros(7)
         self.hedgehog_path = hedgehog_path
         self.brt_path = brt_path
@@ -374,6 +374,7 @@ class TrajectoryGenerator:
                 if traj_throw.duration < 1e-10:
                     num_ruckiger += 1
                     continue
+
             except Exception as e:
                 num_ruckiger += 1
                 continue
@@ -447,7 +448,7 @@ class TrajectoryGenerator:
 
 
     def solve(self, animate=False, posture=None):
-        base0 = -self.box_position[:2]
+        base0 = self.box_position[:2]
         # search result for specific posture
         q_candidates, phi_candidates, x_candidates = self.brt_robot_data_matching(posture)
         if len(q_candidates) == 0:
@@ -455,7 +456,11 @@ class TrajectoryGenerator:
             return 0
 
         trajs, throw_configs = self.generate_throw_config(
-            q_candidates, phi_candidates, x_candidates, base0)
+                                q_candidates,
+                                phi_candidates,
+                                x_candidates,
+                                base0,
+                                posture=posture)
 
         if len(trajs) == 0:
             print("No trajectory found")
@@ -476,7 +481,7 @@ class TrajectoryGenerator:
         ref_trej = self.process_trajectory(traj_throw)
 
         if animate:
-            self.throw_simulation_mujoco(ref_trej, throw_config_full)
+            self.throw_simulation_mujoco(ref_trej, throw_config_full, posture=posture)
 
     def multi_waypoint_solve(self, box_positions, animate=True):
         base1 = box_positions[0][:2]
@@ -494,12 +499,14 @@ class TrajectoryGenerator:
         trajs_1, throw_configs_1 = self.generate_throw_config(q_candidates_1,
                                                               phi_candidates_1,
                                                               x_candidates_1,
-                                                              base1, posture='posture1')
+                                                              base1,
+                                                              posture='posture1')
 
         trajs_2, throw_configs_2 = self.generate_throw_config(q_candidates_2,
                                                               phi_candidates_2,
                                                               x_candidates_2,
-                                                              base2, posture='posture2')
+                                                              base2,
+                                                              posture='posture2')
 
         if len(trajs_1) == 0 or len(trajs_2) == 0:
             print("No trajectory found")
@@ -575,14 +582,14 @@ class TrajectoryGenerator:
 
         n_dof = traj.degrees_of_freedom
         segment = {
-            'time': time_points + time_offset,
-            'pos': np.empty((num_points, n_dof)),
-            'vel': np.empty((num_points, n_dof)),
-            'acc': np.empty((num_points, n_dof))
+            'timestamp': time_points + time_offset,
+            'position': np.empty((num_points, n_dof)),
+            'velocity': np.empty((num_points, n_dof)),
+            'acceleration': np.empty((num_points, n_dof))
         }
 
         for i, t in enumerate(time_points):
-            segment['pos'][i], segment['vel'][i], segment['acc'][i] = traj.at_time(t)
+            segment['position'][i], segment['velocity'][i], segment['acceleration'][i] = traj.at_time(t)
 
         return segment
 
@@ -597,36 +604,36 @@ class TrajectoryGenerator:
 
         segment1 = self.process_trajectory(traj1)
         if segment1 is not None:
-            ref_sequence['timestamp'] = segment1['time']
-            ref_sequence['position'] = segment1['pos']
-            ref_sequence['velocity'] = segment1['vel']
-            ref_sequence['acceleration'] = segment1['acc']
+            ref_sequence['timestamp'] = segment1['timestamp']
+            ref_sequence['position'] = segment1['position']
+            ref_sequence['velocity'] = segment1['velocity']
+            ref_sequence['acceleration'] = segment1['acceleration']
 
         time_offset = traj1.duration if traj1 else 0.0
         segment2 = self.process_trajectory(traj2, time_offset)
 
         if segment2 is not None:
             if len(ref_sequence['timestamp']) > 0:
-                overlap = np.isclose(segment2['time'][0], ref_sequence['timestamp'][-1])
+                overlap = np.isclose(segment2['timestamp'][0], ref_sequence['timestamp'][-1])
                 start_idx = 1 if overlap else 0
             else:
                 start_idx = 0
 
             ref_sequence['timestamp'] = np.concatenate([
                 ref_sequence['timestamp'],
-                segment2['time'][start_idx:]
+                segment2['timestamp'][start_idx:]
             ])
             ref_sequence['position'] = np.concatenate([
                 ref_sequence['position'],
-                segment2['pos'][start_idx:]
+                segment2['position'][start_idx:]
             ], axis=0)
             ref_sequence['velocity'] = np.concatenate([
                 ref_sequence['velocity'],
-                segment2['vel'][start_idx:]
+                segment2['velocity'][start_idx:]
             ], axis=0)
             ref_sequence['acceleration'] = np.concatenate([
                 ref_sequence['acceleration'],
-                segment2['acc'][start_idx:]
+                segment2['acceleration'][start_idx:]
             ], axis=0)
 
         return time_offset, ref_sequence
@@ -642,12 +649,12 @@ class TrajectoryGenerator:
             intermediate_time_all.append(intermediate_time)
             final_trajectory_all.append(final_trajectory)
 
-
         return intermediate_time_all, final_trajectory_all
 
     def throw_simulation_mujoco(self, ref_sequence,
                                 throw_config_full=None,
-                                intermediate_time=None):
+                                intermediate_time=None,
+                                posture =None):
         ROBOT_BASE_HEIGHT = 0.5
         if throw_config_full is not None:
             if len(throw_config_full) == 2:
@@ -663,7 +670,7 @@ class TrajectoryGenerator:
                 target_position_2[2] += ROBOT_BASE_HEIGHT
                 self.robot._set_object_position(target_id_1, target_position_1)
                 self.robot._set_object_position(target_id_2, target_position_2)
-            elif len(throw_config_full) == 1 :
+            else:
                 # set the target box position for visualization
                 target_id = self.robot.model.body("box1").id
                 target_position = self.box_position.copy()
@@ -679,9 +686,14 @@ class TrajectoryGenerator:
         self.robot._set_joints(q0.tolist(), render=True)
 
         plan_time = ref_sequence['timestamp'][-1]
-        max_step =  max(int(plan_time * self.freq) + 1, int(12.0 * self.freq))
-        intermediate_step = intermediate_time * self.freq
-        final_step = plan_time * self.freq
+        sim_time = 12.0
+        max_step =  max(int(plan_time * self.freq) + 1, int(sim_time * self.freq))
+        intermediate_step = int(intermediate_time * self.freq) if intermediate_time is not None else None
+        final_step = int(plan_time * self.freq)
+
+        control_mode = 'single_object'
+        if intermediate_time is not None:
+            control_mode = 'multi_object'
 
         cur_step = 0
         flag = True
@@ -716,13 +728,20 @@ class TrajectoryGenerator:
             ee_pos['posture2'][2] += ROBOT_BASE_HEIGHT
             ee_vel['posture2'] = (self.robot.obj_v("index_site") + self.robot.obj_v("ring_site")) / 2
 
-            if cur_step < intermediate_step:
-                self.robot._set_hand_joints(self.robot.envelop_pose.copy().tolist(), render=True)
-                self.robot._set_object_position(object1_id, ee_pos['posture1'], ee_vel['posture1'][:3])
-                self.robot._set_object_position(object2_id, ee_pos['posture2'], ee_vel['posture2'][:3])
-            elif cur_step >= intermediate_step and cur_step < final_step:
-                self.robot._set_hand_joints(self.robot.hand_home_pose.copy().tolist(), render=True)
-                self.robot._set_object_position(object2_id, ee_pos['posture2'], ee_vel['posture2'][:3])
+            if control_mode == 'multi_object':
+                if cur_step < intermediate_step:
+                    self.robot._set_hand_joints(self.robot.envelop_pose.copy().tolist(), render=True)
+                    self.robot._set_object_position(object1_id, ee_pos['posture1'], ee_vel['posture1'][:3])
+                    self.robot._set_object_position(object2_id, ee_pos['posture2'], ee_vel['posture2'][:3])
+                elif cur_step >= intermediate_step and cur_step < final_step:
+                    self.robot._set_hand_joints(self.robot.envelop_pose.copy().tolist(), render=True)
+                    self.robot._set_object_position(object2_id, ee_pos['posture2'], ee_vel['posture2'][:3])
+            else:
+                if cur_step < final_step:
+                    self.robot._set_hand_joints(self.robot.envelop_pose.copy().tolist(), render=True)
+                    self.robot._set_object_position(object1_id, ee_pos[posture], ee_vel[posture][:3])
+                else:
+                    self.robot._set_hand_joints(self.robot.hand_home_pose.copy().tolist(), render=True)
 
             cur_step += 1
             if cur_step > final_step:
@@ -742,11 +761,11 @@ if __name__ == "__main__":
     brt_path = '../brt_data'
 
     robot_path = '../description/iiwa7_allegro_throwing.xml'
-    box_position = np.array([1.2, 0.1, 0.0])
-    box_positions = np.array([[-0.4, -1.3, -0.1], [0.8, -1.3, -0.1]])
+    box_position = np.array([1.3, 0.07, -0.158])
+    box_positions = np.array([[1.3, -0.3, -0.1], [0.8, -1.3, -0.1]])
 
     trajectory_generator = TrajectoryGenerator(q_max, q_min,
                                                hedgehog_path, brt_path,
                                                box_position, robot_path)
-    trajectory_generator.solve(animate=True, posture="posture1")
-    # trajectory_generator.multi_waypoint_solve(box_positions)
+    # trajectory_generator.solve(animate=True, posture="posture1")
+    trajectory_generator.multi_waypoint_solve(box_positions)
