@@ -23,7 +23,7 @@ class TrajectoryGenerator:
     def __init__(self, q_ul, q_ll, hedgehog_path, brt_path, box_position, robot_path, model_exist=False):
         self.q_ul = q_ul
         self.q_ll = q_ll
-        self.q0 = np.array([-0.32032486, 0.02707055, -0.22881525, -1.42611918, 1.38608943, 0.5596685, 0])
+        self.q0 = np.array([-0.32032486 - 1.5, 0.02707055, -0.22881525, -1.42611918, 1.38608943, 0.5596685, 0])
         self.q0_dot = np.zeros(7)
         self.hedgehog_path = hedgehog_path
         self.brt_path = brt_path
@@ -46,10 +46,10 @@ class TrajectoryGenerator:
 
     def load_params(self):
         self.max_velocity = np.array(rospy.get_param('/max_velocity'))
-        self.max_acceleration = np.array([15, 7.5, 10, 12.5, 15, 20, 20])
-        self.max_jerk = np.array([7500, 3750, 5000, 6250, 7500, 10000, 10000])
-        # self.max_acceleration = np.array(rospy.get_param('/max_acceleration'))
-        # self.max_jerk = np.array(rospy.get_param('/max_jerk'))
+        # self.max_acceleration = np.array([15, 7.5, 10, 12.5, 15, 20, 20])
+        # self.max_jerk = np.array([7500, 3750, 5000, 6250, 7500, 10000, 10000])
+        self.max_acceleration = np.array(rospy.get_param('/max_acceleration'))
+        self.max_jerk = np.array(rospy.get_param('/max_jerk'))
         self.MARGIN_VELOCITY = rospy.get_param('/MARGIN_VELOCITY')
         self.MARGIN_ACCELERATION = rospy.get_param('/MARGIN_ACCELERATION')
         self.MARGIN_JERK = rospy.get_param('/MARGIN_JERK')
@@ -320,8 +320,8 @@ class TrajectoryGenerator:
 
         if joint_velocity_limits is None:
             joint_velocity_limits = {
-                'max_abs': [1.5, 0.6, None, None, None, None, None],
-                'min_abs': [None, None, None, None, None, 2.0, None]
+                'max_abs': [None, None, None, None, None, None, None],
+                'min_abs': [None, None, None, None, None, None, None]
             }
 
         joint_limit_counters = {
@@ -383,9 +383,9 @@ class TrajectoryGenerator:
             if np.linalg.norm(deviation) < 0.1:
                 num_small_deviation += 1
 
-            traj_durations.append(traj_throw.duration)
-            trajs.append(traj_throw)
-            throw_configs.append(throw_config_full)
+                traj_durations.append(traj_throw.duration)
+                trajs.append(traj_throw)
+                throw_configs.append(throw_config_full)
 
         for j in range(7):
             print(f"  Joint {j}:")
@@ -679,7 +679,7 @@ class TrajectoryGenerator:
         self.robot._set_joints(q0.tolist(), render=True)
 
         plan_time = ref_sequence['timestamp'][-1]
-        max_step =  max(int(plan_time * self.freq) + 1, int(6.0 * self.freq))
+        max_step =  max(int(plan_time * self.freq) + 1, int(12.0 * self.freq))
         intermediate_step = intermediate_time * self.freq
         final_step = plan_time * self.freq
 
@@ -743,10 +743,10 @@ if __name__ == "__main__":
 
     robot_path = '../description/iiwa7_allegro_throwing.xml'
     box_position = np.array([1.2, 0.1, 0.0])
-    box_positions = np.array([[0.4, -1.3, 0.0], [-0.4, -1.2, 0.1]])
+    box_positions = np.array([[-0.4, -1.3, -0.1], [0.8, -1.3, -0.1]])
 
     trajectory_generator = TrajectoryGenerator(q_max, q_min,
                                                hedgehog_path, brt_path,
                                                box_position, robot_path)
-    # trajectory_generator.solve(animate=True, posture="posture1")
-    trajectory_generator.multi_waypoint_solve(box_positions)
+    trajectory_generator.solve(animate=True, posture="posture1")
+    # trajectory_generator.multi_waypoint_solve(box_positions)
