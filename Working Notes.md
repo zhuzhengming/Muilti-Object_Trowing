@@ -224,7 +224,26 @@
           | 释放瞬间计算的轨迹 | 机械臂跟踪到释放的位置和速度进行计算 |
           | 实际轨迹           | optitrack实际收集到的轨迹            |
         
-          - (done)不同的trajectories
+        - 误差分析：
+        
+          - tracking error：**RMSE**
+        
+          - release(grasping) error: 释放瞬间和飞行捕捉的瞬间的位置
+        
+          - landing error（caused by release）
+        
+          - 最终抛掷的平均值，标准差
+        
+        - 图像：
+        
+          - (done)关节误差
+          - (done)末端轨迹误差
+          - (done)三条飞行轨迹对比
+            - nominal 飞行轨迹落点不对
+          - (done)10次飞行轨迹对比
+          - 释放延时
+        
+        - (done)不同的trajectories，视频
         
         - #### 实验问题记录：
         

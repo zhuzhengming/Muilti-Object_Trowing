@@ -261,7 +261,10 @@ class TrajectoryGenerator:
 
         eef_velo = np.array([EB_dir[0] * r_dot, EB_dir[1] * r_dot, z_dot])
         q_dot = J_xyz_pinv @ eef_velo
-        box_position = AE + np.array([-r * EB_dir[0], -r * EB_dir[1], -z]) # 3 dim
+        EB = np.array([r * EB_dir[0], r * EB_dir[1], z])
+        box_position = AE - EB
+
+        # box_position = AE + np.array([-r * EB_dir[0], -r * EB_dir[1], -z]) # 3 dim
 
         # control last one joint to make end effector towards box
 
