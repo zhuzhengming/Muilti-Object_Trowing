@@ -33,6 +33,7 @@ class TrajectoryGenerator:
         self.box_position = box_position
         self.freq = 200
 
+
         # mujoco similator
         if robot_path is None:
             self.robot_path = '../description/iiwa7_allegro_throwing.xml'
@@ -323,8 +324,8 @@ class TrajectoryGenerator:
 
         if joint_velocity_limits is None:
             joint_velocity_limits = {
-                'max_abs': [None, None, None, None, None, None, None],
-                'min_abs': [None, None, None, None, None, None, None]
+                'max_abs': [1.5, 0.6, None, None, None, None, None],
+                'min_abs': [None, None, None, None, None, 2.0, None]
             }
 
         joint_limit_counters = {
@@ -387,9 +388,9 @@ class TrajectoryGenerator:
             if np.linalg.norm(deviation) < 0.1:
                 num_small_deviation += 1
 
-                traj_durations.append(traj_throw.duration)
-                trajs.append(traj_throw)
-                throw_configs.append(throw_config_full)
+            traj_durations.append(traj_throw.duration)
+            trajs.append(traj_throw)
+            throw_configs.append(throw_config_full)
 
         for j in range(7):
             print(f"  Joint {j}:")

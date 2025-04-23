@@ -305,7 +305,8 @@ class ThrowingController:
                 self.command_pub.publish(self.convert_command_to_ROS(time_now, ref[0], ref[1], ref[2]))
 
                 # record error
-                if(self.time_throw - throwing_time < 1 * self.time_throw):
+                ratio = 1.0
+                if(self.time_throw - throwing_time < ratio * self.time_throw):
 
                     self.stamp.append(time_now)
                     self.real_pos.append(q_cur)

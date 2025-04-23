@@ -20,6 +20,7 @@ class TrackingEvaluation:
         self.z_ground = -0.158
         self.robot_path = robot_path
         self.posture = posture
+        self.box_position = [1.3, 0.07, -0.1586]
 
         self.robot = VelocityHedgehog(q_min, q_max, q_dot_min, q_dot_max, robot_path, model_exist=True)
         if filepath is not None:
@@ -35,6 +36,7 @@ class TrackingEvaluation:
             self.nominal_throwing = []
             self.actual_throwing = []
 
+            # release state of nominal and actual trajectory
             a_pos, J_act = self.robot.forward(self.actual_position[-1], posture=self.posture)
             actual_vel_ee = J_act @ self.actual_velocity[-1]
 
@@ -46,34 +48,72 @@ class TrackingEvaluation:
             self.actual_throwing.append(a_pos)
             self.actual_throwing.append(actual_vel_ee[:3])
 
+            ground_index = np.argmax(self.obj_position[:, 2] < self.z_ground + 0.02)
+            box_pos = self.obj_position[:ground_index]
+
+            self.target_impact_position = np.array(self.box_position)
+            self.real_impact_position = np.array(box_pos[-1])
+            self.actual_throwing  = self.compute_gravity_trajectory(a_pos,
+                                                                    actual_vel_ee[:3],
+                                                                    self.z_ground)
+            self.actual_impact_position = self.actual_throwing[-1]
+
+
         elif batch_path is not None:
             self.batch_path = batch_path
             self.all_files = [f for f in os.listdir(batch_path) if f.endswith('.npy')]
             self.results = []
 
-
-
     def plot_all_real_trajectories(self):
-        plt.figure(figsize=(10, 8))
-        ax = plt.axes(projection='3d')
+        plt.figure(figsize=(8, 6))
+
+        landing_x = []
+        landing_y = []
 
         for file in self.all_files:
             data = np.load(os.path.join(self.batch_path, file), allow_pickle=True).item()
             real_pos = np.array(data['obj_trajectory'])
 
             z_ground = self.z_ground
-            first_below = np.argmax(real_pos[:, 2] < z_ground + 0.015)
-            trimmed_pos = real_pos[:first_below]
+            first_below = np.argmax(real_pos[:, 2] < z_ground + 0.05)
 
-            ax.plot(trimmed_pos[:, 0], trimmed_pos[:, 1], trimmed_pos[:, 2],
-                    alpha=0.5, linewidth=1.5)
+            if first_below > 0:
+                landing_point = real_pos[first_below - 1]
+                landing_x.append(landing_point[0])
+                landing_y.append(landing_point[1])
 
-        ax.set_xlabel('X (m)')
-        ax.set_ylabel('Y (m)')
-        ax.set_zlabel('Z (m)')
-        ax.set_title(f'All Experimental Trajectories (n={len(self.all_files)})')
-        plt.tight_layout()
-        plt.show()
+        if len(landing_x) > 0:
+            plt.scatter(
+                landing_x, landing_y,
+                c='b', marker='o', alpha=0.6,
+                label='Landing Points'
+            )
+
+            mean_x = np.mean(landing_x)
+            mean_y = np.mean(landing_y)
+
+            plt.scatter(
+                mean_x, mean_y,
+                c='r', marker='o', s=200,
+                label=f'Mean Point ({mean_x:.2f}, {mean_y:.2f})'
+            )
+
+            x_margin = 0.1
+            y_margin = 0.1
+
+            plt.xlim(mean_x - x_margin, mean_x + x_margin)
+            plt.ylim(mean_y - y_margin, mean_y +y_margin)
+
+            plt.xlabel('X (m)')
+            plt.ylabel('Y (m)')
+            plt.title(f'Landing Points Distribution (n={len(landing_x)})')
+            plt.legend()
+            plt.gca().set_aspect('equal', adjustable='box')
+            plt.grid(True, linestyle='--', alpha=0.5)
+            plt.tight_layout()
+            plt.show()
+        else:
+            print("No valid landing points found in the data.")
 
     def analyze_performance(self):
         metrics = []
@@ -88,21 +128,41 @@ class TrackingEvaluation:
             del evaluator
 
         df = pd.DataFrame(metrics)
-        stats = df.agg(['mean', 'std', 'min', 'max'])
+        rmse_metrics = {
+            'trajectory_pos_rmse': np.mean(df['trajectory_pos_rmse']),
+            'trajectory_vel_rmse': np.mean(df['trajectory_vel_rmse']),
+            'release_pos_rmse': np.mean(df['release_pos_error']),
+            'real_target_rmse': np.mean(df['real_target_dist']),
+            'real_actual_rmse': np.mean(df['real_actual_dist'])
+        }
 
-        self._visualize_analysis(df, stats)
-        return df, stats
+        rmse_df = pd.DataFrame([rmse_metrics])
+        print("\n=== Performance RMSE Metrics ===")
+        print(rmse_df.to_string(index=False))
+
+        return rmse_metrics
 
     def _calculate_single_metrics(self, evaluator):
+        # the whole trajectory
         pos_rmse, vel_rmse = self._calculate_tracking_error(evaluator)
 
-        impact_metrics = self._calculate_impact_metrics(evaluator)
+        release_pos_error = np.linalg.norm(
+            evaluator.actual_throwing[0] -
+            evaluator.obj_position[0]
+        )
+
+        real_target_dist = np.linalg.norm(evaluator.real_impact_position[:2] -
+                                          evaluator.target_impact_position[:2])
+
+        real_actual_dist = np.linalg.norm(evaluator.real_impact_position[:2] -
+                                          evaluator.actual_impact_position[:2])
 
         return {
-            'release_error': np.linalg.norm(evaluator.actual_final_pos_ee - evaluator.obj_position[0]),
-            'pos_rmse': pos_rmse,
-            'vel_rmse': vel_rmse,
-            **impact_metrics
+            'trajectory_pos_rmse': pos_rmse,
+            'trajectory_vel_rmse': vel_rmse,
+            'release_pos_error': release_pos_error,
+            'real_target_dist': real_target_dist,
+            'real_actual_dist': real_actual_dist
         }
 
     def _calculate_tracking_error(self, evaluator):
@@ -117,8 +177,8 @@ class TrackingEvaluation:
 
             actual_pos.append(a_pos)
             target_pos.append(t_pos)
-            actual_vel.append(a_vel)
-            target_vel.append(t_vel)
+            actual_vel.append(a_vel[:3])
+            target_vel.append(t_vel[:3])
 
         actual_pos = np.array(actual_pos)
         target_pos = np.array(target_pos)
@@ -132,57 +192,6 @@ class TrackingEvaluation:
         vel_rmse = np.sqrt(np.mean(vel_error ** 2))
 
         return pos_rmse, vel_rmse
-
-    def _calculate_impact_metrics(self, evaluator):
-        real_impact = evaluator.obj_position[-1, :3]
-        target_impact = self.compute_gravity_trajectory(
-            evaluator.nominal_throwing[0],
-            evaluator.nominal_throwing[1],
-            evaluator.z_ground
-        )[-1]
-
-        actual_impact = self.compute_gravity_trajectory(
-            evaluator.actual_throwing[0],
-            evaluator.actual_throwing[1],
-            evaluator.z_ground
-        )[-1]
-
-
-        dist_matrix = cdist([real_impact, target_impact, actual_impact],
-                            [real_impact, target_impact, actual_impact])
-        np.fill_diagonal(dist_matrix, np.nan)
-
-        return {
-            'impact_rmse': np.sqrt(np.nanmean(dist_matrix ** 2)),
-            'real_target_dist': dist_matrix[0, 1],
-            'real_actual_dist': dist_matrix[0, 2],
-            'target_actual_dist': dist_matrix[1, 2]
-        }
-
-    def _visualize_analysis(self, df, stats):
-        fig, axs = plt.subplots(2, 2, figsize=(14, 12))
-
-        axs[0, 0].hist(df['release_error'], bins=20, alpha=0.7)
-        axs[0, 0].set_title('Release Position Error Distribution')
-        axs[0, 0].set_xlabel('Error (m)')
-
-        axs[0, 1].scatter(df['real_target_dist'], df['real_actual_dist'],
-                          c=df['impact_rmse'], cmap='viridis')
-        axs[0, 1].set_title('Impact Point Distances')
-        axs[0, 1].set_xlabel('Real vs Target (m)')
-        axs[0, 1].set_ylabel('Real vs Actual (m)')
-
-        df[['pos_rmse', 'vel_rmse']].boxplot(ax=axs[1, 0])
-        axs[1, 0].set_title('Tracking Error Distribution')
-
-        cell_text = [[f"{v:.4f}" for v in stats[col]] for col in stats.columns]
-        axs[1, 1].axis('off')
-        axs[1, 1].table(cellText=cell_text,
-                        colLabels=stats.columns,
-                        loc='center')
-
-        plt.tight_layout()
-        plt.show()
 
     def plot_joint_tracking(self):
         """Plot joint position and velocity tracking for all 7 joints"""
@@ -336,24 +345,22 @@ class TrackingEvaluation:
         real_pos = np.array(self.obj_position)
         z_ground = self.z_ground
 
-        first_below_idx = np.argmax(real_pos[:, 2] < z_ground + 0.008)
+        first_below_idx = np.argmax(real_pos[:, 2] < z_ground + 0.05)
         real_pos = real_pos[:first_below_idx]
 
-        target_traj = self.compute_gravity_trajectory(target_throw_pos, target_throw_vel, z_ground)
         actual_traj = self.compute_gravity_trajectory(actual_throw_pos, actual_throw_vel, z_ground)
 
         fig = plt.figure(figsize=(12, 8))
         ax = fig.add_subplot(111, projection='3d')
 
-        impact_index = np.argmin(np.abs(real_pos[:, 2] - z_ground))
         ax.plot(real_pos[:, 0], real_pos[:, 1], real_pos[:, 2],
                 'b-', lw=2, label='Measured Trajectory')
         ax.scatter(real_pos[0, 0], real_pos[0, 1], real_pos[0, 2],
                    c='lime', s=120, marker='*', label='Start Point')
 
+        ax.scatter(self.box_position[0], self.box_position[1], self.box_position[2],
+                   c='lime', s=120, marker='o', label='target position')
 
-        ax.plot(target_traj[:, 0], target_traj[:, 1], target_traj[:, 2],
-                'g--', lw=1.5, label='Target Simulation')
         ax.plot(actual_traj[:, 0], actual_traj[:, 1], actual_traj[:, 2],
                 'r:', lw=1.5, label='Actual Simulation')
 
@@ -401,7 +408,7 @@ class TrackingEvaluation:
         y = y0 + vy0 * t
         z = z0 + vz0 * t - 0.5 * g * t ** 2
 
-        valid = np.where(z >= ground_z)[0]
+        valid = np.where(z >= ground_z - 0.1)[0]
         if len(valid) == 0:
             return np.empty((0, 3))
         last_valid = valid[-1]
@@ -435,23 +442,23 @@ def plot_joint_tracking_data(file_path):
 
 
 if __name__ == '__main__':
-    filepath = f'../output/data/ee_tracking/throw_tracking_batch/throwing_20250420_113354.npy'
+    filepath = f'../output/data/ee_tracking/throw_tracking_batch/throwing_20250420_113604.npy'
     batch_path = '../output/data/ee_tracking/throw_tracking_batch/'
     robot_path = '../description/iiwa7_allegro_throwing.xml'
-    evaluator = TrackingEvaluation(filepath=filepath, robot_path=robot_path)
+    evaluator = TrackingEvaluation(batch_path=batch_path, robot_path=robot_path)
 
     # Plot joint space tracking
     # evaluator.plot_joint_tracking()
 
     # Plot Cartesian space tracking
-    evaluator.plot_ee_tracking(posture='posture1')
+    # evaluator.plot_ee_tracking(posture='posture1')
 
     # Plot object fly trajectory
-    evaluator.plot_obj_fly_trajectory()
+    # evaluator.plot_obj_fly_trajectory()
 
 
     # batch evaluation
     # evaluator.plot_all_real_trajectories()
 
     # metrics evaluation
-    # evaluator.analyze_performance()
+    evaluator.analyze_performance()

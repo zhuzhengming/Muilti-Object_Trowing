@@ -114,13 +114,7 @@ class VelocityHedgehog:
             AE = (self.obj_x2base("index_site") + self.obj_x2base("ring_site"))/2
             J = (np.vstack((jacp1, jacr1))[:, :7] + np.vstack((jacp2, jacr2))[:, :7]) / 2
         else:
-            jacp = np.zeros((3, self.model.nv))
-            jacr = np.zeros((3, self.model.nv))
-            # ee_site id is 0
-            site_id = self.model.site("ee_site").id
-            mujoco.mj_jacSite(self.model, self.data, jacp, jacr, site_id)
-            J = np.vstack((jacp, jacr))[:, :7]
-            AE = self.x2base
+            print("input predefined posture!")
 
         return AE, J
 

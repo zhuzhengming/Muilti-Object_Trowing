@@ -224,24 +224,35 @@
           | 释放瞬间计算的轨迹 | 机械臂跟踪到释放的位置和速度进行计算 |
           | 实际轨迹           | optitrack实际收集到的轨迹            |
         
-        - 误差分析：
+        - (done)误差分析（10次重复实验， 3个opti-track没捕捉到数据）：
         
-          - tracking error：**RMSE**
+          - tracking error：整个轨迹累计的**RMSE**，只考虑笛卡尔空间3维误差
+            - pos: 0.05915，为什么这么小是因为只有最后一点的误差大
+        
+            - vel: 0.253131
         
           - release(grasping) error: 释放瞬间和飞行捕捉的瞬间的位置
+            - 0.161423
         
-          - landing error（caused by release）
+          - real_actual:（caused by release）
+            - 0.201554
         
-          - 最终抛掷的平均值，标准差
+          - real_target:
+            - 0.131657
+        
+        | trajectory_pos_rmse | trajectory_vel_rmse | release_pos_rmse | real_target_rmse | real_actual_rmse |
+        | ------------------- | ------------------- | ---------------- | ---------------- | ---------------- |
+        | 0.059154            | 0.253131            | 0.161423         | 0.131657         | 0.201554         |
         
         - 图像：
         
           - (done)关节误差
           - (done)末端轨迹误差
-          - (done)三条飞行轨迹对比
-            - nominal 飞行轨迹落点不对
+          - (done)两条飞行轨迹对比
+            - nominal 飞行轨迹落点不对，不画nominal trajectory了，直接可视化落点
           - (done)10次飞行轨迹对比
-          - 释放延时
+          - (done)释放延时:
+            - 40-50ms
         
         - (done)不同的trajectories，视频
         
@@ -297,11 +308,14 @@
       
       - 训练：
         - stable-baselines3：PPO通过gym和mujoco模拟器交互
+        - PPO模型（on-policy）：
+          - 为什么使用重要性采样：在重复利用旧的策略的时候，尽可能减少策略更新带来的偏差和方差问题
+          - 可以减少策略更新的幅度，训练过程更加稳定
         - 需要自定义mujoco和gym环境的交互类：
           - 动作空间定义
           - 状态空间定义
           - 奖励函数定义
-      
+        
       - sim2real：
         - domain randomization：增加噪声
         - PD控制辨识
@@ -359,7 +373,7 @@
 - #### 理论：
 
   - 结构：
-    - Visual encoder: DinoV2, SigLIP作为backbone, mapping图像到一些embeddings,
+    - Visual encoder: DinoV2, SigLIP等transformer作为backbone, mapping图像到一些embeddings,
     - MLP projector: 把输出的embeddings mapping到大语言模型的输入
     - Llama2 7B: 输出一系列action token
     -  Action de-tokenizer: 把action token转化为可以输入给机器人的连续action
@@ -380,9 +394,11 @@
   - 训练数据集
     - 使用1*4090，显存24G
       - 显存不够，利用mini-batch来叠加梯度实现小显存训练，不改变batch-size，分成小块来累加反向传播的梯度
-        - grad_accumulation_steps
+        - **grad_accumulation_steps**
         - batch_size
       - 训练的frequency在5-10hz
+      - 输出的action限幅
+      - 每次训练是2天多
 
 
 - #### 微调
@@ -390,5 +406,14 @@
   - 之前只是输入RGB图像，增加机器人的关节状态和深度信息，使用单独的网络把其映射到与visual embedding同样的空间
   - 换用加入了action chunking的模型openvla-oft
     - 动作的连续性打包
+  - HHA编码深度信息
+    - 水平视差
+    - 高于地面的高度
+    - 像素的局部表面与推断重力方向的倾角
+  
+  - 自注意力：
+    - 将输入嵌入到计算查询矩阵Q,键矩阵K,值矩阵V
+    - **自注意力模型**的每个输出基于**全局信息**，可以很好的捕捉全局信息
+    - 对于每个查询向量qi使用**键值对注意力机制**,得到注意力分布
   
 
