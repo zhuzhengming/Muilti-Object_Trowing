@@ -53,10 +53,10 @@ class TrackingEvaluation:
 
             self.target_impact_position = np.array(self.box_position)
             self.real_impact_position = np.array(box_pos[-1])
-            self.actual_throwing  = self.compute_gravity_trajectory(a_pos,
+            self.actual_trajectory  = self.compute_gravity_trajectory(a_pos,
                                                                     actual_vel_ee[:3],
                                                                     self.z_ground)
-            self.actual_impact_position = self.actual_throwing[-1]
+            self.actual_impact_position = self.actual_trajectory[-1]
 
 
         elif batch_path is not None:
@@ -338,8 +338,6 @@ class TrackingEvaluation:
             print("Not enough points to plot (need at least 2 points)")
             return
 
-        target_throw_pos = np.array(self.nominal_throwing[0])
-        target_throw_vel = np.array(self.nominal_throwing[1])
         actual_throw_pos = np.array(self.actual_throwing[0])
         actual_throw_vel = np.array(self.actual_throwing[1])
         real_pos = np.array(self.obj_position)
@@ -458,7 +456,7 @@ if __name__ == '__main__':
 
 
     # batch evaluation
-    # evaluator.plot_all_real_trajectories()
+    evaluator.plot_all_real_trajectories()
 
     # metrics evaluation
-    evaluator.analyze_performance()
+    # evaluator.analyze_performance()
