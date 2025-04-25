@@ -91,6 +91,14 @@ class TrackingEvaluation:
 
             mean_x = np.mean(landing_x)
             mean_y = np.mean(landing_y)
+            std_x = np.std(landing_x)
+            std_y = np.std(landing_y)
+
+            mae_x = np.mean(np.abs(np.array(landing_x) - mean_x))
+            mae_y = np.mean(np.abs(np.array(landing_y) - mean_y))
+
+            print(f'MAE (X): {mae_x:.4f} ± {std_x:.4f}')
+            print(f'MAE (Y): {mae_y:.4f} ± {std_y:.4f}')
 
             plt.scatter(
                 mean_x, mean_y,
@@ -123,6 +131,7 @@ class TrackingEvaluation:
             evaluator = TrackingEvaluation(self.robot_path, filepath=filepath)
 
             metric = self._calculate_single_metrics(evaluator)
+            print(filepath, metric['release_pos_error'])
             metrics.append(metric)
 
             del evaluator
@@ -136,15 +145,24 @@ class TrackingEvaluation:
             'real_actual_rmse': np.mean(df['real_actual_dist'])
         }
 
-        rmse_df = pd.DataFrame([rmse_metrics])
+        max_abs_error_metrics = {
+            # 'trajectory_pos_max_abs_error': np.max(np.abs(df['pos_error'])),
+            # 'trajectory_vel_max_abs_error': np.max(np.abs(df['vel_error'])),
+            'release_pos_max_abs_error': np.max(np.abs(df['release_pos_error'])),
+            'real_target_max_abs_error': np.max(np.abs(df['real_target_dist'])),
+            'real_actual_max_abs_error': np.max(np.abs(df['real_actual_dist']))
+        }
+
+        performance_metrics = {**rmse_metrics, **max_abs_error_metrics}
+        performance_df = pd.DataFrame([performance_metrics])
         print("\n=== Performance RMSE Metrics ===")
-        print(rmse_df.to_string(index=False))
+        print(performance_df.to_string(index=False))
 
         return rmse_metrics
 
     def _calculate_single_metrics(self, evaluator):
         # the whole trajectory
-        pos_rmse, vel_rmse = self._calculate_tracking_error(evaluator)
+        pos_error, vel_error, pos_rmse, vel_rmse = self._calculate_tracking_error(evaluator)
 
         release_pos_error = np.linalg.norm(
             evaluator.actual_throwing[0] -
@@ -158,6 +176,8 @@ class TrackingEvaluation:
                                           evaluator.actual_impact_position[:2])
 
         return {
+            'pos_error': pos_error,
+            'vel_error': vel_error,
             'trajectory_pos_rmse': pos_rmse,
             'trajectory_vel_rmse': vel_rmse,
             'release_pos_error': release_pos_error,
@@ -179,7 +199,6 @@ class TrackingEvaluation:
             target_pos.append(t_pos)
             actual_vel.append(a_vel[:3])
             target_vel.append(t_vel[:3])
-
         actual_pos = np.array(actual_pos)
         target_pos = np.array(target_pos)
         actual_vel = np.array(actual_vel)
@@ -191,7 +210,7 @@ class TrackingEvaluation:
         vel_error = np.linalg.norm(actual_vel - target_vel, axis=1)
         vel_rmse = np.sqrt(np.mean(vel_error ** 2))
 
-        return pos_rmse, vel_rmse
+        return pos_error, vel_error, pos_rmse, vel_rmse
 
     def plot_joint_tracking(self):
         """Plot joint position and velocity tracking for all 7 joints"""
@@ -358,11 +377,11 @@ class TrackingEvaluation:
         ax.scatter(real_pos[0, 0], real_pos[0, 1], real_pos[0, 2],
                    c='lime', s=120, marker='*', label='Start Point')
 
-        ax.scatter(self.box_position[0], self.box_position[1], self.box_position[2],
-                   c='lime', s=120, marker='o', label='target position')
-
-        ax.plot(actual_traj[:, 0], actual_traj[:, 1], actual_traj[:, 2],
-                'r:', lw=1.5, label='Actual Simulation')
+        # ax.scatter(self.box_position[0], self.box_position[1], self.box_position[2],
+        #            c='lime', s=120, marker='o', label='target position')
+        #
+        # ax.plot(actual_traj[:, 0], actual_traj[:, 1], actual_traj[:, 2],
+        #         'r:', lw=1.5, label='Actual Simulation')
 
         xx, yy = np.meshgrid(
             np.linspace(ax.get_xlim()[0], ax.get_xlim()[1], 20),
@@ -442,7 +461,7 @@ def plot_joint_tracking_data(file_path):
 
 
 if __name__ == '__main__':
-    filepath = f'../output/data/ee_tracking/throw_tracking_batch/throwing_20250420_113604.npy'
+    filepath = f'../output/data/ee_tracking/throw_tracking_batch/throwing_20250420_113236.npy'
     batch_path = '../output/data/ee_tracking/throw_tracking_batch/'
     robot_path = '../description/iiwa7_allegro_throwing.xml'
     evaluator = TrackingEvaluation(batch_path=batch_path, robot_path=robot_path)
@@ -458,7 +477,7 @@ if __name__ == '__main__':
 
 
     # batch evaluation
-    # evaluator.plot_all_real_trajectories()
+    evaluator.plot_all_real_trajectories()
 
     # metrics evaluation
-    evaluator.analyze_performance()
+    # evaluator.analyze_performance()
