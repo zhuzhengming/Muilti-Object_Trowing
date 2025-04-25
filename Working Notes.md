@@ -366,8 +366,6 @@
       - 测试release delay，参考tube acceleration
       - 考虑异步投掷两个物体的motion planning
 
-
-
 ### VLA抓取任务
 
 - #### 理论：
