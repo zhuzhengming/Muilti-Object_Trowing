@@ -137,32 +137,41 @@ class TrackingEvaluation:
             del evaluator
 
         df = pd.DataFrame(metrics)
-        rmse_metrics = {
-            'trajectory_pos_rmse': np.mean(df['trajectory_pos_rmse']),
-            'trajectory_vel_rmse': np.mean(df['trajectory_vel_rmse']),
-            'release_pos_rmse': np.mean(df['release_pos_error']),
-            'real_target_rmse': np.mean(df['real_target_dist']),
-            'real_actual_rmse': np.mean(df['real_actual_dist'])
+
+        mae_metrics = {
+            'trajectory_pos_mae': np.mean(np.abs(df['pos_error'])),
+            'trajectory_vel_mae': np.mean(np.abs(df['vel_error'])),
+            'release_pos_mae': np.mean(np.abs(df['release_pos_error'])),
+            'real_target_mae': np.mean(np.abs(df['real_target_dist'])),
+            'real_actual_mae': np.mean(np.abs(df['real_actual_dist']))
         }
 
-        max_abs_error_metrics = {
-            # 'trajectory_pos_max_abs_error': np.max(np.abs(df['pos_error'])),
-            # 'trajectory_vel_max_abs_error': np.max(np.abs(df['vel_error'])),
-            'release_pos_max_abs_error': np.max(np.abs(df['release_pos_error'])),
-            'real_target_max_abs_error': np.max(np.abs(df['real_target_dist'])),
-            'real_actual_max_abs_error': np.max(np.abs(df['real_actual_dist']))
+        std_metrics = {
+            'trajectory_pos_std': np.std(df['pos_error']),
+            'trajectory_vel_std': np.std(df['vel_error']),
+            'release_pos_std': np.std(df['release_pos_error']),
+            'real_target_std': np.std(df['real_target_dist']),
+            'real_actual_std': np.std(df['real_actual_dist'])
         }
 
-        performance_metrics = {**rmse_metrics, **max_abs_error_metrics}
+        max_metrics = {
+            'trajectory_pos_max': np.max(np.abs(df['pos_error'])),
+            'trajectory_vel_max': np.max(np.abs(df['vel_error'])),
+            'release_pos_max': np.max(np.abs(df['release_pos_error'])),
+            'real_target_max': np.max(np.abs(df['real_target_dist'])),
+            'real_actual_max': np.max(np.abs(df['real_actual_dist']))
+        }
+
+        performance_metrics = {**mae_metrics, **std_metrics, **max_metrics}
         performance_df = pd.DataFrame([performance_metrics])
-        print("\n=== Performance RMSE Metrics ===")
+        print("\n=== Performance Metrics (MAE, STD, MAX) ===")
         print(performance_df.to_string(index=False))
 
-        return rmse_metrics
+        return performance_metrics
 
     def _calculate_single_metrics(self, evaluator):
         # the whole trajectory
-        pos_error, vel_error, pos_rmse, vel_rmse = self._calculate_tracking_error(evaluator)
+        pos_error, vel_error = self._calculate_tracking_error(evaluator)
 
         release_pos_error = np.linalg.norm(
             evaluator.actual_throwing[0] -
@@ -178,8 +187,6 @@ class TrackingEvaluation:
         return {
             'pos_error': pos_error,
             'vel_error': vel_error,
-            'trajectory_pos_rmse': pos_rmse,
-            'trajectory_vel_rmse': vel_rmse,
             'release_pos_error': release_pos_error,
             'real_target_dist': real_target_dist,
             'real_actual_dist': real_actual_dist
@@ -190,8 +197,8 @@ class TrackingEvaluation:
         actual_vel, target_vel = [], []
 
         for i in range(len(evaluator.timestamp)):
-            a_pos, a_J = self.robot.forward(evaluator.actual_position[i], posture = self.posture)
-            t_pos, t_J = self.robot.forward(evaluator.target_position[i], posture = self.posture)
+            a_pos, a_J = self.robot.forward(evaluator.actual_position[i], posture=self.posture)
+            t_pos, t_J = self.robot.forward(evaluator.target_position[i], posture=self.posture)
             a_vel = a_J @ evaluator.actual_velocity[i]
             t_vel = t_J @ evaluator.target_velocity[i]
 
@@ -199,18 +206,19 @@ class TrackingEvaluation:
             target_pos.append(t_pos)
             actual_vel.append(a_vel[:3])
             target_vel.append(t_vel[:3])
+
         actual_pos = np.array(actual_pos)
         target_pos = np.array(target_pos)
         actual_vel = np.array(actual_vel)
         target_vel = np.array(target_vel)
 
         pos_error = np.linalg.norm(actual_pos - target_pos, axis=1)
-        pos_rmse = np.sqrt(np.mean(pos_error ** 2))
-
         vel_error = np.linalg.norm(actual_vel - target_vel, axis=1)
-        vel_rmse = np.sqrt(np.mean(vel_error ** 2))
 
-        return pos_error, vel_error, pos_rmse, vel_rmse
+        pos_mae = np.mean(np.abs(pos_error))
+        vel_mae = np.mean(np.abs(vel_error))
+
+        return pos_mae, vel_mae
 
     def plot_joint_tracking(self):
         """Plot joint position and velocity tracking for all 7 joints"""
@@ -475,7 +483,7 @@ if __name__ == '__main__':
 
 
     # batch evaluation
-    evaluator.plot_all_real_trajectories()
+    # evaluator.plot_all_real_trajectories()
 
     # metrics evaluation
-    # evaluator.analyze_performance()
+    evaluator.analyze_performance()

@@ -22,6 +22,9 @@ class HedgehogVisualizer3D(QMainWindow):
         self.setWindowTitle("Velocity Hedgehog 3D Visualizer")
         self.setGeometry(100, 100, 1200, 800)
 
+        font = self.font()
+        font.setPointSize(12)
+
         main_widget = QWidget()
         self.setCentralWidget(main_widget)
         self.layout = QVBoxLayout(main_widget)
@@ -36,6 +39,7 @@ class HedgehogVisualizer3D(QMainWindow):
         # z controller
         self.z_slider = QSlider(Qt.Horizontal)
         self.z_label = QLabel("Z: 0.00m")
+        self.z_label.setFont(font)
         control_layout.addWidget(QLabel("Height (Z):"))
         control_layout.addWidget(self.z_slider)
         control_layout.addWidget(self.z_label)
@@ -43,6 +47,7 @@ class HedgehogVisualizer3D(QMainWindow):
         # distance controller
         self.dis_slider = QSlider(Qt.Horizontal)
         self.dis_label = QLabel("Distance: 0.00m")
+        self.dis_label.setFont(font)
         control_layout.addWidget(QLabel("Distance:"))
         control_layout.addWidget(self.dis_slider)
         control_layout.addWidget(self.dis_label)
@@ -50,8 +55,10 @@ class HedgehogVisualizer3D(QMainWindow):
         self.layout.addWidget(self.control_panel, 15)
 
         menubar = self.menuBar()
+        menubar.setFont(font)
         file_menu = menubar.addMenu('File')
         export_action = file_menu.addAction('Export Plot')
+        export_action.setFont(font)
         export_action.triggered.connect(self.export_plot)
 
     def load_data(self):
@@ -98,10 +105,10 @@ class HedgehogVisualizer3D(QMainWindow):
 
         self.figure.colorbar(surf, ax=ax, label='Velocity (m/s)', shrink=0.5, aspect=10)
 
-        ax.set_title(f"Max Velocity at Z={self.Z[z_idx]:.2f}m, Distance={self.Dis[dis_idx]:.2f}m")
-        ax.set_xlabel('Gamma (rad)')
-        ax.set_ylabel('Phi (rad)')
-        ax.set_zlabel('Velocity (m/s)')
+        ax.set_title(f"Max Velocity at Z={self.Z[z_idx]:.2f}m, Distance={self.Dis[dis_idx]:.2f}m", fontsize=14)
+        ax.set_xlabel('Gamma (rad)', fontsize=14)
+        ax.set_ylabel('Phi (rad)', fontsize=14)
+        ax.set_zlabel('Velocity (m/s)', fontsize=14)
 
         ax.view_init(elev=30, azim=45)
 
@@ -285,10 +292,10 @@ if __name__ == '__main__':
     PATH = '../hedgehog_revised'
     # PATH = '../../../mobile-throwing/robot_data/panda_5_joint_fix_0.3'
 
-    # Hedgehog_viewer = HedgehogVisualizer3D(PATH, posture)
-    # Hedgehog_viewer.show()
+    Hedgehog_viewer = HedgehogVisualizer3D(PATH, posture)
+    Hedgehog_viewer.show()
 
-    Landing_viewer = LandingVisualizer3D(PATH, posture)
-    Landing_viewer.show()
+    # Landing_viewer = LandingVisualizer3D(PATH, posture)
+    # Landing_viewer.show()
 
     sys.exit(app.exec_())

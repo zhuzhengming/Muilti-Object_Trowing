@@ -110,7 +110,7 @@ class BRT:
                        pivot='mid')
 
         cbar = plt.colorbar(q, shrink=0.8)
-        cbar.set_label('True Speed Magnitude (m/s)', fontsize=12)
+        cbar.set_label('True Speed Magnitude (m/s)', fontsize=16)
 
         plt.scatter([0], [0], c='red', s=100, zorder=10, label='Origin')
 
@@ -123,16 +123,16 @@ class BRT:
                  ha='right', va='bottom',
                  transform=plt.gca().transAxes,
                  bbox=dict(facecolor='white', alpha=0.8),
-                 fontsize=10)
+                 fontsize=16)
 
         plt.axhline(0, color='gray', linestyle=':', alpha=0.5)
         plt.axvline(0, color='gray', linestyle=':', alpha=0.5)
         plt.grid(True, alpha=0.2)
 
-        plt.title(f'BRT Velocity Field (Filtered)', fontsize=14)
-        plt.xlabel('r Position (m)', fontsize=12)
-        plt.ylabel('z Position (m)', fontsize=12)
-        plt.legend(fontsize=10)
+        plt.title(f'BRT Velocity Field (Filtered)', fontsize=16)
+        plt.xlabel('r Position (m)', fontsize=16)
+        plt.ylabel('z Position (m)', fontsize=16)
+        plt.legend(fontsize=16)
         plt.tight_layout()
         plt.show()
 
