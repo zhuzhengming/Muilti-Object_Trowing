@@ -137,18 +137,18 @@ class FTDataRecorder:
 
             for t in nearest_times:
                 plt.text(t, y_min * 0.75, f"{t:.3f}s",
-                         color='y', ha='right', va='bottom')
+                         color='y', ha='right', va='bottom', fontsize=12)
 
             plt.vlines(nearest_times, y_min, y_max,
                        colors='r', linestyles='--', lw=1.5,
                        label='Release Events')
 
         plt.xlim(left=0)
-        plt.title('Force Measurement with Release Events')
-        plt.xlabel('Original Timestamp (s)')
-        plt.ylabel('Force (N)')
+        plt.title('Force Measurement with Release Events', fontsize=16)
+        plt.xlabel('Original Timestamp (s)', fontsize=14)
+        plt.ylabel('Force (N)', fontsize=14)
         plt.grid(True, alpha=1.0)
-        plt.legend()
+        plt.legend(fontsize=12)
         plt.tight_layout()
         plt.show()
 

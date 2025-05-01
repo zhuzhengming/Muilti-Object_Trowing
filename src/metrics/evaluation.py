@@ -230,27 +230,27 @@ class TrackingEvaluation:
                                    label='Actual', color='blue')
             axs[joint_idx, 0].plot(self.timestamp, self.target_position[:, joint_idx],
                                    label='Target', linestyle='--', color='green')
-            axs[joint_idx, 0].set_ylabel(f'Joint {joint_idx + 1}\nPosition (rad)', fontsize=8)
+            axs[joint_idx, 0].set_ylabel(f'Joint {joint_idx + 1}\nPosition (rad)', fontsize=12)
             axs[joint_idx, 0].grid(True)
-            axs[joint_idx, 0].tick_params(axis='both', labelsize=8)
+            axs[joint_idx, 0].tick_params(axis='both', labelsize=12)
 
             # Plot velocity tracking
             axs[joint_idx, 1].plot(self.timestamp, self.actual_velocity[:, joint_idx],
                                    label='Actual', color='blue')
             axs[joint_idx, 1].plot(self.timestamp, self.target_velocity[:, joint_idx],
                                    label='Target', linestyle='--', color='green')
-            axs[joint_idx, 1].set_ylabel(f'Joint {joint_idx + 1}\nVelocity (rad/s)', fontsize=8)
+            axs[joint_idx, 1].set_ylabel(f'Joint {joint_idx + 1}\nVelocity (rad/s)', fontsize=12)
             axs[joint_idx, 1].grid(True)
-            axs[joint_idx, 1].tick_params(axis='both', labelsize=8)
+            axs[joint_idx, 1].tick_params(axis='both', labelsize=12)
 
             # Add legend to first row only
             if joint_idx == 0:
-                axs[joint_idx, 0].legend(loc='upper right', fontsize=6)
-                axs[joint_idx, 1].legend(loc='upper right', fontsize=6)
+                axs[joint_idx, 0].legend(loc='upper left', fontsize=12)
+                axs[joint_idx, 1].legend(loc='upper left', fontsize=12)
 
         # Set common xlabel
         for ax in axs[-1, :]:
-            ax.set_xlabel('Time (s)', fontsize=8)
+            ax.set_xlabel('Time (s)', fontsize=12)
 
         plt.tight_layout()
         plt.suptitle('Joint Space Tracking Performance', y=1.02)
@@ -291,7 +291,7 @@ class TrackingEvaluation:
                            color=colors[0], linewidth=1.5, label='Actual')
             axs[i, 0].plot(self.timestamp, target_pos_ee[:, i],
                            color=colors[1], linestyle='--', linewidth=1.2, label='Target')
-            axs[i, 0].set_ylabel(f'{axes_labels[i]} Position (m)', fontsize=10)
+            axs[i, 0].set_ylabel(f'{axes_labels[i]} Position (m)', fontsize=16)
             axs[i, 0].grid(True, alpha=0.3)
 
             # Velocity tracking
@@ -299,25 +299,24 @@ class TrackingEvaluation:
                            color=colors[0], linewidth=1.5, label='Actual')
             axs[i, 1].plot(self.timestamp, target_vel_ee[:, i],
                            color=colors[1], linestyle='--', linewidth=1.2, label='Target')
-            axs[i, 1].set_ylabel(f'{axes_labels[i]} Velocity (m/s)', fontsize=10)
+            axs[i, 1].set_ylabel(f'{axes_labels[i]} Velocity (m/s)', fontsize=16)
             axs[i, 1].grid(True, alpha=0.3)
 
             # Add legend to first row only
             if i == 0:
-                axs[i, 0].legend(loc='upper right', fontsize=9, framealpha=0.9)
-                axs[i, 1].legend(loc='upper right', fontsize=9, framealpha=0.9)
+                axs[i, 0].legend(loc='upper left', fontsize=12, framealpha=0.9)
+                axs[i, 1].legend(loc='upper left', fontsize=12, framealpha=0.9)
 
         # Set common xlabel
         for row in axs:
             for ax in row:
-                ax.tick_params(axis='both', labelsize=9)
-        axs[-1, 0].set_xlabel('Time (s)', fontsize=10)
-        axs[-1, 1].set_xlabel('Time (s)', fontsize=10)
+                ax.tick_params(axis='both', labelsize=12)
+        axs[-1, 0].set_xlabel('Time (s)', fontsize=14)
+        axs[-1, 1].set_xlabel('Time (s)', fontsize=14)
 
         plt.tight_layout()
-        plt.suptitle('End-Effector Component-wise Tracking Performance', y=1.02, fontsize=12)
+        plt.suptitle('End-Effector Component-wise Tracking Performance', y=1.02, fontsize=16)
         plt.show()
-
 
         # Create 3D plot
         fig = plt.figure(figsize=(10, 8))
@@ -335,13 +334,13 @@ class TrackingEvaluation:
         ax.scatter(target_pos_ee[-1, 0], target_pos_ee[-1, 1], target_pos_ee[-1, 2], c='green', label='End (Target)')
 
         # Configure axes
-        ax.set_xlabel('X (m)', fontsize=10)
-        ax.set_ylabel('Y (m)', fontsize=10)
-        ax.set_zlabel('Z (m)', fontsize=10)
-        ax.set_title('End-Effector 3D Trajectory Comparison', pad=20)
+        ax.set_xlabel('X (m)', fontsize=14)
+        ax.set_ylabel('Y (m)', fontsize=14)
+        ax.set_zlabel('Z (m)', fontsize=14)
+        ax.set_title('End-Effector 3D Trajectory Comparison', pad=30, fontsize=18)
 
         # Add legend and grid
-        ax.legend(loc='upper right', fontsize=9)
+        ax.legend(loc='upper right', fontsize=12)  # Move legend to upper left
         ax.grid(True)
 
         # Equal axis aspect ratio
@@ -356,56 +355,6 @@ class TrackingEvaluation:
 
         # Set view angle
         ax.view_init(elev=25, azim=45)
-
-        plt.tight_layout()
-        plt.show()
-
-    def plot_obj_fly_trajectory(self):
-        if len(self.obj_position) < 2:
-            print("Not enough points to plot (need at least 2 points)")
-            return
-
-        actual_throw_pos = np.array(self.actual_throwing[0])
-        actual_throw_vel = np.array(self.actual_throwing[1])
-        real_pos = np.array(self.obj_position)
-        z_ground = self.z_ground
-
-        first_below_idx = np.argmax(real_pos[:, 2] < z_ground + 0.05)
-        real_pos = real_pos[:first_below_idx]
-
-        actual_traj = self.compute_gravity_trajectory(actual_throw_pos, actual_throw_vel, z_ground)
-
-        fig = plt.figure(figsize=(12, 8))
-        ax = fig.add_subplot(111, projection='3d')
-
-        ax.plot(real_pos[:, 0], real_pos[:, 1], real_pos[:, 2],
-                'b-', lw=2, label='Measured Trajectory')
-        ax.scatter(real_pos[0, 0], real_pos[0, 1], real_pos[0, 2],
-                   c='lime', s=120, marker='*', label='Start Point')
-
-        # ax.scatter(self.box_position[0], self.box_position[1], self.box_position[2],
-        #            c='lime', s=120, marker='o', label='target position')
-        #
-        # ax.plot(actual_traj[:, 0], actual_traj[:, 1], actual_traj[:, 2],
-        #         'r:', lw=1.5, label='Actual Simulation')
-
-        xx, yy = np.meshgrid(
-            np.linspace(ax.get_xlim()[0], ax.get_xlim()[1], 20),
-            np.linspace(ax.get_ylim()[0], ax.get_ylim()[1], 20)
-        )
-        zz = np.full_like(xx, z_ground)
-        ax.plot_surface(xx, yy, zz, alpha=0.3, color='gray')
-
-        ax.set_zlim(z_ground - 0.1, np.nanmax(real_pos[:, 2]) + 0.5)
-        ax.view_init(elev=25, azim=-45)
-        ax.set_xlabel('X (m)', fontsize=10)
-        ax.set_ylabel('Y (m)', fontsize=10)
-        ax.set_zlabel('Z (m)', fontsize=10)
-        ax.set_title(f'3D Trajectory Analysis (Ground Z: {z_ground:.3f}m)', pad=15)
-
-        leg = ax.legend(loc='upper left', bbox_to_anchor=(0.02, 0.98),
-                        frameon=True, framealpha=0.9)
-        leg.get_frame().set_edgecolor('k')
 
         plt.tight_layout()
         plt.show()
@@ -470,13 +419,13 @@ if __name__ == '__main__':
     filepath = f'../output/data/ee_tracking/throw_tracking_batch/throwing_20250420_113236.npy'
     batch_path = '../output/data/ee_tracking/throw_tracking_batch/'
     robot_path = '../description/iiwa7_allegro_throwing.xml'
-    evaluator = TrackingEvaluation(batch_path=batch_path, robot_path=robot_path)
+    evaluator = TrackingEvaluation(filepath=filepath, robot_path=robot_path)
 
     # Plot joint space tracking
-    # evaluator.plot_joint_tracking()
+    evaluator.plot_joint_tracking()
 
     # Plot Cartesian space tracking
-    # evaluator.plot_ee_tracking(posture='posture1')
+    evaluator.plot_ee_tracking(posture='posture1')
 
     # Plot object fly trajectory
     # evaluator.plot_obj_fly_trajectory()
@@ -486,4 +435,4 @@ if __name__ == '__main__':
     # evaluator.plot_all_real_trajectories()
 
     # metrics evaluation
-    evaluator.analyze_performance()
+    # evaluator.analyze_performance()
