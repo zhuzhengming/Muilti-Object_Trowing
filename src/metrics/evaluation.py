@@ -230,7 +230,7 @@ class TrackingEvaluation:
                                    label='Actual', color='blue')
             axs[joint_idx, 0].plot(self.timestamp, self.target_position[:, joint_idx],
                                    label='Target', linestyle='--', color='green')
-            axs[joint_idx, 0].set_ylabel(f'Joint {joint_idx + 1}\nPosition (rad)', fontsize=12)
+            axs[joint_idx, 0].set_ylabel(f'Joint {joint_idx}\nPosition (rad)', fontsize=12)
             axs[joint_idx, 0].grid(True)
             axs[joint_idx, 0].tick_params(axis='both', labelsize=12)
 
@@ -239,7 +239,7 @@ class TrackingEvaluation:
                                    label='Actual', color='blue')
             axs[joint_idx, 1].plot(self.timestamp, self.target_velocity[:, joint_idx],
                                    label='Target', linestyle='--', color='green')
-            axs[joint_idx, 1].set_ylabel(f'Joint {joint_idx + 1}\nVelocity (rad/s)', fontsize=12)
+            axs[joint_idx, 1].set_ylabel(f'Joint {joint_idx}\nVelocity (rad/s)', fontsize=12)
             axs[joint_idx, 1].grid(True)
             axs[joint_idx, 1].tick_params(axis='both', labelsize=12)
 
