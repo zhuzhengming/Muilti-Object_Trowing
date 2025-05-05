@@ -20,10 +20,9 @@ import glfw
 
 
 class TrajectoryGenerator:
-    def __init__(self, q_ul, q_ll, hedgehog_path, brt_path, box_position, robot_path, model_exist=False):
+    def __init__(self, q_ul, q_ll, hedgehog_path, brt_path, robot_path, box_position=None, model_exist=False, q0=None):
         self.q_ul = q_ul
         self.q_ll = q_ll
-        self.q0 = np.array([0.4217-2.0, 0.5498-0.4, 0.1635, -0.7926, -0.0098, 0.6, 1.2881])
         self.q0_dot = np.zeros(7)
         self.hedgehog_path = hedgehog_path
         self.brt_path = brt_path
@@ -32,6 +31,11 @@ class TrajectoryGenerator:
         self.Z_TOLERANCE = 0.01
         self.box_position = box_position
         self.freq = 200
+
+        if q0 is None:
+            self.q0 = np.array([0.4217-2.0, 0.5498-0.4, 0.1635, -0.7926, -0.0098, 0.6, 1.2881])
+        else:
+            self.q0 = q0
 
 
         # mujoco similator
@@ -189,19 +193,6 @@ class TrajectoryGenerator:
             phi_candidates = np.delete(phi_candidates, error_index, axis=0)
             x_candidates = np.delete(x_candidates, error_index, axis=0)
 
-################################# fine selection #################################################
-##################################################################################################
-        # 4. close to target wrt r
-        sorted_indices = np.argsort(abs(x_candidates[:, 0]))
-        n_total = len(sorted_indices)
-        n_keep = max(1, int(n_total * self.thres_r_ratio))
-        final_indices = sorted_indices[:n_keep]
-
-        q_candidates = q_candidates[final_indices]
-        phi_candidates = phi_candidates[final_indices]
-        x_candidates = x_candidates[final_indices]
-        q_ae = q_ae[final_indices]
-
         # calculate alpha
         # (beta, dis)
         beta = np.arctan2(AB[1], AB[0])
@@ -216,24 +207,45 @@ class TrajectoryGenerator:
         q_candidates[q_candidates[:, 0] > np.pi, 0] -= 2 * np.pi
         q_candidates[q_candidates[:, 0] < -np.pi, 0] += 2 * np.pi
 
-        # 5. safe height
-        height_mask = x_candidates[:, 1] > self.thres_height
+        return q_candidates, phi_candidates, x_candidates
 
+    def filter_candidates(self, q_candidates, phi_candidates, x_candidates):
+        """
+        Apply filters to the matched candidates to select the final set.
+        :param q_candidates: The candidate configurations for q.
+        :param phi_candidates: The candidate values for phi.
+        :param x_candidates: The candidate values for x.
+        :return: The filtered candidates for q, phi, x.
+        """
+        # 1. Close to target wrt r
+        sorted_indices = np.argsort(abs(x_candidates[:, 0]))  # Sort by distance to target
+        n_total = len(sorted_indices)
+        n_keep = max(1, int(n_total * self.thres_r_ratio))  # Keep top n_keep candidates
+        final_indices = sorted_indices[:n_keep]
+
+        q_candidates = q_candidates[final_indices]
+        phi_candidates = phi_candidates[final_indices]
+        x_candidates = x_candidates[final_indices]
+
+        # 2. Safe height filtering
+        height_mask = x_candidates[:, 1] > self.thres_height  # Filter by height
         q_candidates = q_candidates[height_mask]
         phi_candidates = phi_candidates[height_mask]
         x_candidates = x_candidates[height_mask]
 
-        # 6. large phi because the joint 1 provides not much torque
+        # 3. Filter based on large phi (joint 1 provides not much torque)
         if len(phi_candidates) > 0:
-            sorted_phi_indices = np.argsort(-phi_candidates)
-            n_keep_phi = max(1, int(len(sorted_phi_indices) * self.thres_phi_ratio))
+            sorted_phi_indices = np.argsort(-phi_candidates)  # Sort phi in descending order
+            n_keep_phi = max(1,
+                             int(len(sorted_phi_indices) * self.thres_phi_ratio))  # Keep top n_keep_phi candidates
             final_phi_indices = sorted_phi_indices[:n_keep_phi]
 
             q_candidates = q_candidates[final_phi_indices]
             phi_candidates = phi_candidates[final_phi_indices]
             x_candidates = x_candidates[final_phi_indices]
 
-        print("number of valid candidates:",q_candidates.shape[0])
+        # Print the number of valid candidates
+        print("Number of valid candidates:", q_candidates.shape[0])
 
         return q_candidates, phi_candidates, x_candidates
 
@@ -300,6 +312,7 @@ class TrajectoryGenerator:
                               joint_velocity_limits=None,
                               simulation=True):
         """
+        Trajectory filter function
         input: q_candidates, phi_candidates, x_candidates, base0(box_position in xoy)
         :param joint_velocity_limits:
         {
@@ -333,6 +346,8 @@ class TrajectoryGenerator:
             'min': [0] * 7
         }
 
+#######################################################################################################################################
+################################################ filter trajectory ####################################################################
         # record bad trajectories
         num_outlimit, num_ruckiger, num_small_deviation = 0, 0, 0
 
@@ -451,10 +466,16 @@ class TrajectoryGenerator:
         return trajectory
 
 
-    def solve(self, animate=False, posture=None):
-        base0 = self.box_position[:2]
+    def solve(self, animate=False, posture=None, box_pos=None):
+        if box_pos is None:
+            base0 = self.box_position[:2]
+        else:
+            base0 = box_pos[:2]
         # search result for specific posture
         q_candidates, phi_candidates, x_candidates = self.brt_robot_data_matching(posture)
+        q_candidates, phi_candidates, x_candidates = self.filter_candidates(q_candidates,
+                                                                            phi_candidates,
+                                                                            x_candidates)
         if len(q_candidates) == 0:
             print("No result found")
             return 0
@@ -486,6 +507,8 @@ class TrajectoryGenerator:
 
         if animate:
             self.throw_simulation_mujoco(ref_trej, throw_config_full, posture=posture)
+        else:
+            return throw_config_full, ref_trej
 
     def multi_waypoint_solve(self, box_positions, animate=True):
         base1 = box_positions[0][:2]
@@ -493,12 +516,18 @@ class TrajectoryGenerator:
 
         q_candidates_1, phi_candidates_1, x_candidates_1 = (
             self.brt_robot_data_matching(posture='posture1', box_pos=box_positions[0]))
+        q_candidates_1, phi_candidates_1, x_candidates_1 = self.filter_candidates(q_candidates_1,
+                                                                                  phi_candidates_1,
+                                                                                   x_candidates_1)
         q_candidates_2, phi_candidates_2, x_candidates_2 = (
             self.brt_robot_data_matching(posture='posture2', box_pos=box_positions[1]))
+        q_candidates_2, phi_candidates_2, x_candidates_2 = self.filter_candidates(q_candidates_2,
+                                                                                  phi_candidates_2,
+                                                                                  x_candidates_2)
 
         if len(q_candidates_1) == 0 or len(q_candidates_2) == 0:
             print("No result found")
-            return 0
+            return None, None, None
 
         trajs_1, throw_configs_1 = self.generate_throw_config(q_candidates_1,
                                                               phi_candidates_1,
@@ -514,7 +543,7 @@ class TrajectoryGenerator:
 
         if len(trajs_1) == 0 or len(trajs_2) == 0:
             print("No trajectory found")
-            return 0
+            return None, None, None
 
         min_distance = float('inf')
         best_pair = None
@@ -536,7 +565,7 @@ class TrajectoryGenerator:
 
         if len(best_pair) == 0:
             print("No valid pairs found")
-            return 0
+            return None, None, None
 
         print(best_throw_config_pair[0][-1] - box_positions[0])
         print(best_throw_config_pair[1][-1] - box_positions[1])
@@ -578,6 +607,8 @@ class TrajectoryGenerator:
 
             self.throw_simulation_mujoco(final_trajectory, best_throw_config_pair,
                                      intermediate_time=intermediate_time)
+        else:
+            return final_trajectory, best_throw_config_pair, intermediate_time
 
     def process_trajectory(self, traj, time_offset=0.0):
 

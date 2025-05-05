@@ -7,7 +7,7 @@ import gymnasium as gym
 import numpy as np
 import os
 from stable_baselines3.common.callbacks import BaseCallback
-from RL_search import RobotThrowEnv
+from RL_throwing import RobotThrowEnv
 
 class EpisodeCounterCallback(BaseCallback):
     def __init__(self, verbose=0):

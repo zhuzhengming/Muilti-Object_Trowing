@@ -326,14 +326,28 @@
       
     - #### Model-based + Learning-based:
     
-      - **States:**
-        - p0, pa, pb
-      - **actions**:
-        - multiple candidates: target q, target q_dot
-      - **rewards:**
-        - a1(T_all) + a2(T_{a->b}) + filtering rules(q_dot of joint1, collision, ……)
-    
-    
+      - #### 实验对比：
+      
+        - greedy search：进行10次初始位置随机测试
+          - baseline:  进行两段直接跑
+          - greedy: 遍历取duration最小的
+      
+        - RL-based:
+          - 也是给出推理时间和执行时间
+      
+      - #### RL-model:
+      
+        - **States:**
+          - p0, pa, pb
+      
+        - **actions**:
+          - multiple candidates: target q, target q_dot
+      
+        - **rewards:**
+          - TIME function:a1(T_all) + a2(T_{a->b})
+          - Q_candidates filter function: phi角度，靠近目标点，高度
+          - Trajectory filter function: joint limitation, trajectory feasible, velocity mask
+      
     
     - #### 底层控制和跟踪
     
@@ -420,6 +434,18 @@
     - **自注意力模型**的每个输出基于**全局信息**，可以很好的捕捉全局信息
     - 对于每个查询向量qi使用**键值对注意力机制**,得到注意力分布
   
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

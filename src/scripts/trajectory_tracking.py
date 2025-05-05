@@ -371,6 +371,9 @@ class ThrowingController:
         q_candidates, phi_candidates, x_candidates = self.trajectoryGenerator.brt_robot_data_matching(
                                                     posture=posture,
                                                     box_pos=self.box_position)
+        q_candidates, phi_candidates, x_candidates = self.trajectoryGenerator.filter_candidates(q_candidates,
+                                                                                                phi_candidates,
+                                                                                                x_candidates)
         if len(q_candidates) == 0:
             print("No result found")
             return 0
