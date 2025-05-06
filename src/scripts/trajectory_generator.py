@@ -107,13 +107,11 @@ class TrajectoryGenerator:
         :return: candidates of q, phi, x
         """
         if posture == "posture1":
-            print(posture)
             ae = self.p1_ae
             mesh = self.p1_mesh
             robot_phi_gamma_velos_naive = self.p1_robot_phi_gamma_velos_naive
             robot_phi_gamma_q_idxs_naive = self.p1_robot_phi_gamma_q_idxs_naive
         elif posture == "posture2":
-            print(posture)
             ae = self.p2_ae
             mesh = self.p2_mesh
             robot_phi_gamma_velos_naive = self.p2_robot_phi_gamma_velos_naive
@@ -245,7 +243,7 @@ class TrajectoryGenerator:
             x_candidates = x_candidates[final_phi_indices]
 
         # Print the number of valid candidates
-        print("Number of valid candidates:", q_candidates.shape[0])
+        # print("Number of valid candidates:", q_candidates.shape[0])
 
         return q_candidates, phi_candidates, x_candidates
 
@@ -337,8 +335,8 @@ class TrajectoryGenerator:
 
         if joint_velocity_limits is None:
             joint_velocity_limits = {
-                'max_abs': [1.5, 0.6, None, None, None, None, None],
-                'min_abs': [None, None, None, None, None, 2.0, None]
+                'max_abs': [None, None, None, None, None, None, None],
+                'min_abs': [None, None, None, None, None, None, None]
             }
 
         joint_limit_counters = {
@@ -407,13 +405,13 @@ class TrajectoryGenerator:
             trajs.append(traj_throw)
             throw_configs.append(throw_config_full)
 
-        for j in range(7):
-            print(f"  Joint {j}:")
-            print(f"    Exceed Max Limit: {joint_limit_counters['max'][j]}")
-            print(f"    Below Min Limit: {joint_limit_counters['min'][j]}")
-
-        print("\t\t out of joint limit: {}, ruckig error: {}, small deviation:{}".format(
-                num_outlimit, num_ruckiger, num_small_deviation))
+        # for j in range(7):
+        #     print(f"  Joint {j}:")
+        #     print(f"    Exceed Max Limit: {joint_limit_counters['max'][j]}")
+        #     print(f"    Below Min Limit: {joint_limit_counters['min'][j]}")
+        #
+        # print("\t\t out of joint limit: {}, ruckig error: {}, small deviation:{}".format(
+        #         num_outlimit, num_ruckiger, num_small_deviation))
 
         return trajs, throw_configs
 
@@ -508,7 +506,7 @@ class TrajectoryGenerator:
         if animate:
             self.throw_simulation_mujoco(ref_trej, throw_config_full, posture=posture)
         else:
-            return throw_config_full, ref_trej
+            return trajs, throw_configs
 
     def multi_waypoint_solve(self, box_positions, animate=True):
         base1 = box_positions[0][:2]
@@ -567,8 +565,8 @@ class TrajectoryGenerator:
             print("No valid pairs found")
             return None, None, None
 
-        print(best_throw_config_pair[0][-1] - box_positions[0])
-        print(best_throw_config_pair[1][-1] - box_positions[1])
+        # print(best_throw_config_pair[0][-1] - box_positions[0])
+        # print(best_throw_config_pair[1][-1] - box_positions[1])
 
 
         # 1. choose the closest q and q_dot pair
@@ -797,10 +795,10 @@ if __name__ == "__main__":
 
     robot_path = '../description/iiwa7_allegro_throwing.xml'
     box_position = np.array([1.3, 0.07, -0.158])
-    box_positions = np.array([[1.3, -0.3, -0.1], [0.8, -1.3, -0.1]])
+    box_positions = np.array([[0.8, -1.35, -0.0], [-1.4, -0.3, -0.0]])
 
     trajectory_generator = TrajectoryGenerator(q_max, q_min,
                                                hedgehog_path, brt_path,
-                                               box_position, robot_path)
-    # trajectory_generator.solve(animate=True, posture="posture1")
+                                               robot_path,box_position,)
+    trajectory_generator.solve(animate=True, posture="posture1")
     trajectory_generator.multi_waypoint_solve(box_positions)
