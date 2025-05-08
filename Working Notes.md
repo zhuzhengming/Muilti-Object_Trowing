@@ -327,27 +327,44 @@
     - #### Model-based + Learning-based:
     
       - #### 实验对比：
-      
+    
         - greedy search：进行10次初始位置随机测试
           - baseline:  进行两段直接跑
           - greedy: 遍历取duration最小的
-      
+    
         - RL-based:
           - 也是给出推理时间和执行时间
-      
+    
+      - #### NN-model-based:
+    
+        - 利用自己的filter来选出最佳的(q0, Boxes) -> target set
+        
+        - 然后利用监督学习来mapping减小在线寻找最佳解的时间
+    
+        - 特点是解的好坏取决于自己的filter rule
+        
+        - 记录sample数据的可利用率
+        
+        - 记录训练过程
+          - 
+        
       - #### RL-model:
       
+        - 提前随机给定一个target box序列
         - **States:**
-          - p0, pa, pb
-      
+          - q0, box
+        - **Observation**: 
+          - 会生成一个(q_cur, box)的一个解集，也就是动作空间
+          - 问题在于动作空间的内容大小是动态的，这个模型需要确定动作空间大小
+          - 固定最大动作的数量
         - **actions**:
-          - multiple candidates: target q, target q_dot
-      
+          - 学习一个概率分布，给出当前解集的一个determinastic的解
         - **rewards:**
-          - TIME function:a1(T_all) + a2(T_{a->b})
-          - Q_candidates filter function: phi角度，靠近目标点，高度
-          - Trajectory filter function: joint limitation, trajectory feasible, velocity mask
-      
+          - current duration， whole duration
+        - Maskable PPO
+    
+    
+    
     
     - #### 底层控制和跟踪
     

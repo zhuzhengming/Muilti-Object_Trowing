@@ -335,8 +335,8 @@ class TrajectoryGenerator:
 
         if joint_velocity_limits is None:
             joint_velocity_limits = {
-                'max_abs': [None, None, None, None, None, None, None],
-                'min_abs': [None, None, None, None, None, None, None]
+                'max_abs': [1.5, 0.6, None, None, None, 2.0, None],
+                'min_abs': [None, 0.0, None, None, None, 1.0, None]
             }
 
         joint_limit_counters = {
@@ -464,13 +464,15 @@ class TrajectoryGenerator:
         return trajectory
 
 
-    def solve(self, animate=False, posture=None, box_pos=None):
+    def solve(self, animate=False, posture=None, box_pos=None, q0=None):
+        if q0 is not None:
+            self.q0 = q0
         if box_pos is None:
             base0 = self.box_position[:2]
         else:
             base0 = box_pos[:2]
         # search result for specific posture
-        q_candidates, phi_candidates, x_candidates = self.brt_robot_data_matching(posture)
+        q_candidates, phi_candidates, x_candidates = self.brt_robot_data_matching(posture, box_pos=box_pos)
         q_candidates, phi_candidates, x_candidates = self.filter_candidates(q_candidates,
                                                                             phi_candidates,
                                                                             x_candidates)
@@ -496,10 +498,10 @@ class TrajectoryGenerator:
         traj_throw = trajs[selected_idx]
         throw_config_full = throw_configs[selected_idx]
 
-        print("box_position: ", self.box_position)
-        print("AB          : ", throw_config_full[-1])
-        print("deviation   : ", throw_config_full[-1] - self.box_position)
-        print("throwing state: ", throw_config_full[2])
+        # print("box_position: ", self.box_position)
+        # print("AB          : ", throw_config_full[-1])
+        # print("deviation   : ", throw_config_full[-1] - self.box_position)
+        # print("throwing state: ", throw_config_full[2])
 
         ref_trej = self.process_trajectory(traj_throw)
 
@@ -524,7 +526,7 @@ class TrajectoryGenerator:
                                                                                   x_candidates_2)
 
         if len(q_candidates_1) == 0 or len(q_candidates_2) == 0:
-            print("No result found")
+            # print("No result found")
             return None, None, None
 
         trajs_1, throw_configs_1 = self.generate_throw_config(q_candidates_1,
@@ -540,54 +542,18 @@ class TrajectoryGenerator:
                                                               posture='posture2')
 
         if len(trajs_1) == 0 or len(trajs_2) == 0:
-            print("No trajectory found")
+            # print("No trajectory found")
             return None, None, None
 
-        min_distance = float('inf')
         best_pair = None
-        best_throw_config_pair = None
         all_pairs = []
         all_pair_configs = []
 
         for i, cfg1 in enumerate(throw_configs_1):
-            vec1 = np.concatenate([cfg1[0], cfg1[3]])
             for j, cfg2 in enumerate(throw_configs_2):
-                vec2 = np.concatenate([cfg2[0], cfg2[3]])
-                distance = np.linalg.norm(vec1 - vec2)
                 all_pairs.append(np.array([[cfg1[0], cfg1[3]], [cfg2[0], cfg2[3]]]))
                 all_pair_configs.append((cfg1, cfg2))
-                if distance < min_distance:
-                    min_distance = distance
-                    best_pair = np.array([[cfg1[0], cfg1[3]], [cfg2[0], cfg2[3]]])
-                    best_throw_config_pair = (cfg1, cfg2)
 
-        if len(best_pair) == 0:
-            print("No valid pairs found")
-            return None, None, None
-
-        # print(best_throw_config_pair[0][-1] - box_positions[0])
-        # print(best_throw_config_pair[1][-1] - box_positions[1])
-
-
-        # 1. choose the closest q and q_dot pair
-        # forward_trajectory_1 = self.get_traj_from_ruckig(self.q0, self.q0_dot,
-        #                                          best_pair[0][0], best_pair[0][1])
-        #
-        # forward_trajectory_2 = self.get_traj_from_ruckig(best_pair[0][0], best_pair[0][1],
-        #                                          best_pair[1][0], best_pair[1][1])
-        #
-        # backward_trajectory_1 = self.get_traj_from_ruckig(self.q0, self.q0_dot,
-        #                                                  best_pair[1][0], best_pair[1][1])
-        #
-        # backward_trajectory_2 = self.get_traj_from_ruckig(best_pair[1][0], best_pair[1][1],
-        #                                                  best_pair[0][0], best_pair[0][1])
-        #
-        # if forward_trajectory_1.duration + forward_trajectory_2.duration < \
-        #     backward_trajectory_1.duration + backward_trajectory_2.duration:
-        #     intermediate_time, final_trajectory = self.concatenate_trajectories(forward_trajectory_1, forward_trajectory_2)
-        # else:
-        #     intermediate_time, final_trajectory = self.concatenate_trajectories(forward_trajectory_1, forward_trajectory_2)
-        #     best_throw_config_pair = (best_throw_config_pair[1], best_throw_config_pair[0])
 
         # 2. choose the shortest trajectory
         intermediate_time_all, final_trajectory_all = self.concatenate_all_pairs(all_pairs)
@@ -795,10 +761,10 @@ if __name__ == "__main__":
 
     robot_path = '../description/iiwa7_allegro_throwing.xml'
     box_position = np.array([1.3, 0.07, -0.158])
-    box_positions = np.array([[0.8, -1.35, -0.0], [-1.4, -0.3, -0.0]])
+    box_positions = np.array([[0.3, -1.3, -0.0], [-1.3, -0.3, -0.0]])
 
     trajectory_generator = TrajectoryGenerator(q_max, q_min,
                                                hedgehog_path, brt_path,
                                                robot_path,box_position,)
-    trajectory_generator.solve(animate=True, posture="posture1")
+    # trajectory_generator.solve(animate=True, posture="posture1")
     trajectory_generator.multi_waypoint_solve(box_positions)

@@ -69,13 +69,12 @@ MARGIN_JERK: 0.008
 # constraints of iiwa 7
 # joint 1 and joint 4 has lower max_velocity because of compensation of gravity
 max_velocity: [1.71, 1.74, 1.745, 2.269, 2.443, 3.142, 3.142]
-#max_acceleration: [3, 3, 7.5, 12.5, 15, 25, 20]
-#max_jerk: [1500, 300, 4000, 6000, 7500, 10000, 10000]
+max_acceleration: [3, 3, 7.5, 12.5, 15, 25, 20]
+max_jerk: [1500, 300, 4000, 6000, 7500, 10000, 10000]
 
 # for simulation
-max_acceleration: [15, 15, 7.5, 12.5, 15, 25, 20]
-max_jerk: [6000, 6000, 4000, 6000, 7500, 10000, 10000]
-
+#max_acceleration: [15, 15, 7.5, 12.5, 15, 25, 20]
+#max_jerk: [6000, 6000, 4000, 6000, 7500, 10000, 10000]
 
 
 #########################################################################
@@ -83,8 +82,8 @@ max_jerk: [6000, 6000, 4000, 6000, 7500, 10000, 10000]
 #########################################################################
 thres_dis: 0.01
 thres_v: 0.1
-thres_r_ratio: 1.0
-thres_height: -0.2
-thres_phi_ratio: 1.0
+thres_r_ratio: 0.8
+thres_height: 0.1
+thres_phi_ratio: 0.8
 
 
