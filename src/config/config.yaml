@@ -80,10 +80,18 @@ max_jerk: [1500, 300, 4000, 6000, 7500, 10000, 10000]
 #########################################################################
 # Matching parameters
 #########################################################################
+# real robot
+#thres_dis: 0.01
+#thres_v: 0.1
+#thres_r_ratio: 0.8
+#thres_height: 0.1
+#thres_phi_ratio: 0.8
+
+# for training
 thres_dis: 0.01
 thres_v: 0.1
-thres_r_ratio: 0.8
-thres_height: 0.1
-thres_phi_ratio: 0.8
+thres_r_ratio: 0.7
+thres_height: 0.12
+thres_phi_ratio: 0.7
 
 

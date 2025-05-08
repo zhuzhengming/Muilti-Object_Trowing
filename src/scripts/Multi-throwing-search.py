@@ -35,8 +35,8 @@ class OptimalSolver:
         self.Y_min = np.concatenate([self.q_min, self.q_dot_min, self.q_min, self.q_dot_min])
         self.Y_max = np.concatenate([self.q_max, self.q_dot_max, self.q_max, self.q_dot_max])
 
-        self.plane_resolution = 0.05 * 2
-        self.height_resolution = 0.02 * 2
+        self.plane_resolution = 0.05
+        self.height_resolution = 0.04
         self.box_grid = [np.arange(box_min, box_max, resolution)
                          for box_min, box_max, resolution in zip(self.box_min, self.box_max,
                                                                  [self.plane_resolution, self.plane_resolution,
