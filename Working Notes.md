@@ -326,29 +326,30 @@
       
     - #### Model-based + Learning-based:
     
-      - #### 实验对比：
+      - #### 实物实验设计：
     
-        - greedy search：进行10次初始位置随机测试
-          - baseline:  进行两段直接跑
-          - greedy: 遍历取duration最小的
+        - 对比：
+          - naive search：直接跑两次各自最好的
+          - greedy search：
+            - 需要动态调整参数，第一段phi角度大，可以利用第一段的速度
+            - 需要看看实验那些位置demo可以做
+            - 设计释放顺序，减少碰撞可能，先释放posture 2的
+        - reactive throwing
+          - 移动两个盒子来看效果
     
-        - RL-based:
-          - 也是给出推理时间和执行时间
-    
-      - #### NN-model-based:
-    
+      - #### NN-model-based（diffusion model）:
+      
         - 利用自己的filter来选出最佳的(q0, Boxes) -> target set
-        
-        - 然后利用监督学习来mapping减小在线寻找最佳解的时间
     
+        - 然后利用监督学习来mapping减小在线寻找最佳解的时间
+      
         - 特点是解的好坏取决于自己的filter rule
-        
+      
         - 记录sample数据的可利用率
-        
+      
         - 记录训练过程
-          - 
-        
-      - #### RL-model:
+      
+      - #### RL-model(不好做):
       
         - 提前随机给定一个target box序列
         - **States:**
