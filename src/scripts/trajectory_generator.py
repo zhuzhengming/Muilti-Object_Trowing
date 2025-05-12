@@ -9,6 +9,7 @@ from PyQt5.QtCore import qSNaN
 from lxml import etree
 
 sys.path.append("../")
+sys.path.append("../../..")
 from hedgehog import VelocityHedgehog
 import time
 import math
@@ -16,6 +17,7 @@ import numpy as np
 from ruckig import InputParameter, Ruckig, Trajectory, Result
 import rospy
 import mujoco
+from scipy.spatial import KDTree
 import glfw
 
 
@@ -31,6 +33,7 @@ class TrajectoryGenerator:
         self.Z_TOLERANCE = 0.01
         self.box_position = box_position
         self.freq = 200
+        self.hash_path = "../../../training_data"
 
         if q0 is None:
             self.q0 = np.array([0.4217-2.0, 0.5498-0.4, 0.1635, -0.7926, -0.0098, 0.6, 1.2881])
@@ -750,6 +753,45 @@ class TrajectoryGenerator:
             if cur_step > max_step:
                 break
 
+    def Hash_search(self, target_boxes):
+        target_boxes = target_boxes.copy().flatten()
+        X_path = self.hash_path + '/training_X.npy'
+        Y_path = self.hash_path + '/training_Y.npy'
+        Keys = np.load(X_path)
+        Values = np.load(Y_path)
+
+        tree = KDTree(Keys)
+
+        start = time.time()
+
+        dist, idx = tree.query(target_boxes)
+
+        matched_value = Values[idx]
+
+        qA = matched_value[:7]
+        qA_dot = matched_value[7:14]
+        qB = matched_value[14:21]
+        qB_dot = matched_value[21:]
+
+        time_1 = time.time()
+
+
+        traj_1 = self.get_traj_from_ruckig(self.q0, self.q0_dot,
+                                           qA, qA_dot)
+        traj_2 = self.get_traj_from_ruckig(qA, qA_dot, qB, qB_dot)
+        intermediate_time, final_trajectory = self.concatenate_trajectories(traj_1, traj_2)
+        config_full = ([target_boxes[:3]], [target_boxes[3:]])
+        time_2 = time.time()
+        print(time_1 - start, time_2 - time_1)
+
+        self.throw_simulation_mujoco(final_trajectory, config_full,
+                                         intermediate_time=intermediate_time)
+
+
+
+
+
+
 if __name__ == "__main__":
     rospy.init_node("trajectory_generator", anonymous=True)
     q_min = np.array([-2.96705972839, -2.09439510239, -2.96705972839, -2.09439510239, -2.96705972839,
@@ -767,6 +809,7 @@ if __name__ == "__main__":
 
     trajectory_generator = TrajectoryGenerator(q_max, q_min,
                                                hedgehog_path, brt_path,
-                                               robot_path,box_position,)
+                                               robot_path,box_position)
     # trajectory_generator.solve(animate=True, posture="posture1")
-    trajectory_generator.multi_waypoint_solve(box_positions)
+    # trajectory_generator.multi_waypoint_solve(box_positions)
+    trajectory_generator.Hash_search(box_positions)
