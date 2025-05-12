@@ -328,6 +328,7 @@
     
       - #### 实物实验设计：
     
+        - 66小时离线生成dictionary
         - 对比：
           - naive search：直接跑两次各自最好的
           - greedy search：
@@ -336,11 +337,11 @@
             - 设计释放顺序，减少碰撞可能，先释放posture 2的
         - reactive throwing
           - 移动两个盒子来看效果
-    
+      
       - #### NN-model-based（diffusion model）:
       
         - 利用自己的filter来选出最佳的(q0, Boxes) -> target set
-    
+      
         - 然后利用监督学习来mapping减小在线寻找最佳解的时间
       
         - 特点是解的好坏取决于自己的filter rule
