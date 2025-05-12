@@ -1,0 +1,35 @@
+<ycb_obj>
+      <geom material="soft_scrub" mesh="soft_scrub" class="visual" />
+      <geom mesh="soft_scrub_0" class="collision" />
+      <geom mesh="soft_scrub_1" class="collision" />
+      <geom mesh="soft_scrub_2" class="collision" />
+      <geom mesh="soft_scrub_3" class="collision" />
+      <geom mesh="soft_scrub_4" class="collision" />
+      <geom mesh="soft_scrub_5" class="collision" />
+      <geom mesh="soft_scrub_6" class="collision" />
+      <geom mesh="soft_scrub_7" class="collision" />
+      <geom mesh="soft_scrub_8" class="collision" />
+      <geom mesh="soft_scrub_9" class="collision" />
+      <geom mesh="soft_scrub_10" class="collision" />
+      <geom mesh="soft_scrub_11" class="collision" />
+      <geom mesh="soft_scrub_12" class="collision" />
+      <geom mesh="soft_scrub_13" class="collision" />
+      <geom mesh="soft_scrub_14" class="collision" />
+      <geom mesh="soft_scrub_15" class="collision" />
+      <geom mesh="soft_scrub_16" class="collision" />
+      <geom mesh="soft_scrub_17" class="collision" />
+      <geom mesh="soft_scrub_18" class="collision" />
+      <geom mesh="soft_scrub_19" class="collision" />
+      <geom mesh="soft_scrub_20" class="collision" />
+      <geom mesh="soft_scrub_21" class="collision" />
+      <geom mesh="soft_scrub_22" class="collision" />
+      <geom mesh="soft_scrub_23" class="collision" />
+      <geom mesh="soft_scrub_24" class="collision" />
+      <geom mesh="soft_scrub_25" class="collision" />
+      <geom mesh="soft_scrub_26" class="collision" />
+      <geom mesh="soft_scrub_27" class="collision" />
+      <geom mesh="soft_scrub_28" class="collision" />
+      <geom mesh="soft_scrub_29" class="collision" />
+      <geom mesh="soft_scrub_30" class="collision" />
+      <geom mesh="soft_scrub_31" class="collision" />
+</ycb_obj>

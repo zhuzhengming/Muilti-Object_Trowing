@@ -1,0 +1,2 @@
+.
+-DCATKIN_DEVEL_PREFIX=/home/zhengmingzhu/workspace/Muilti-Object_Trowing/devel -DCMAKE_INSTALL_PREFIX=/home/zhengmingzhu/workspace/Muilti-Object_Trowing/install -G Unix Makefiles

@@ -1,0 +1,6 @@
+<ycb_obj>
+      <body name="banana_body">
+            <geom material="material_0" mesh="textured" class="visual"/>
+            <geom mesh="textured" class="collision"/>
+      </body>
+</ycb_obj>

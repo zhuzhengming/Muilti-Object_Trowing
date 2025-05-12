@@ -1,0 +1,19 @@
+<ycb>
+
+
+    <include file="YCB_objects/banana/preloads.xml"/>
+    <include file="YCB_objects/bottle/preloads.xml"/>
+    <include file="YCB_objects/soft_scrub/preloads.xml"/>
+
+    <asset>
+        <mesh file="YCB_objects/chip_can/textured.obj" name="chip_can" />
+        <texture type="2d" name="chip_can" file="YCB_objects/chip_can/texture_map.png"/>
+        <material name="chip_can" texture="chip_can" specular="0.5" shininess="0.5" />
+
+        <texture type="2d" name="sugar_box" file="YCB_objects/sugar_box/texture_map.png"/>
+        <material name="sugar_box" texture="sugar_box" specular="0.5" shininess="0.5"/>
+        <mesh file="YCB_objects/sugar_box/textured.obj" name="sugar_box"/>
+
+    </asset>
+
+</ycb>
