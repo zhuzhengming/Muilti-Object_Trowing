@@ -761,7 +761,9 @@ if __name__ == "__main__":
 
     robot_path = '../description/iiwa7_allegro_throwing.xml'
     box_position = np.array([1.3, 0.07, -0.158])
-    box_positions = np.array([[0.3, -1.3, -0.0], [-1.3, -0.3, -0.0]])
+    box1 = np.array([0.3, -1.3, -0.0])
+    box2 = np.array([-1.3, -0.3, -0.0])
+    box_positions = np.array([box1, box2])
 
     trajectory_generator = TrajectoryGenerator(q_max, q_min,
                                                hedgehog_path, brt_path,
