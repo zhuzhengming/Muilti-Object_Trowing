@@ -210,7 +210,13 @@ class TrajectoryGenerator:
 
         return q_candidates, phi_candidates, x_candidates
 
-    def filter_candidates(self, q_candidates, phi_candidates, x_candidates):
+    def filter_candidates(self,
+                          q_candidates,
+                          phi_candidates,
+                          x_candidates,
+                          thres_r_ratio=None,
+                          thres_phi_ratio=None,
+                          thres_height=None):
         """
         Apply filters to the matched candidates to select the final set.
         :param q_candidates: The candidate configurations for q.
@@ -218,6 +224,13 @@ class TrajectoryGenerator:
         :param x_candidates: The candidate values for x.
         :return: The filtered candidates for q, phi, x.
         """
+        if thres_r_ratio is not None:
+            self.thres_r_ratio = thres_r_ratio
+        if thres_phi_ratio is not None:
+            self.thres_phi_ratio = thres_phi_ratio
+        if thres_height is not None:
+            self.thres_height = thres_height
+
         # 1. Close to target wrt r
         sorted_indices = np.argsort(abs(x_candidates[:, 0]))  # Sort by distance to target
         n_total = len(sorted_indices)
@@ -511,38 +524,77 @@ class TrajectoryGenerator:
         if animate:
             self.throw_simulation_mujoco(ref_trej, throw_config_full, posture=posture)
         else:
-            return trajs, throw_configs
+            return traj_throw, throw_config_full
 
-    def multi_waypoint_solve(self, box_positions, animate=True):
+    def multi_waypoint_solve(self, box_positions, animate=True, full_search=False):
+        start = time.time()
         base1 = box_positions[0][:2]
         base2 = box_positions[1][:2]
 
         q_candidates_1, phi_candidates_1, x_candidates_1 = (
             self.brt_robot_data_matching(posture='posture1', box_pos=box_positions[0]))
-        q_candidates_1, phi_candidates_1, x_candidates_1 = self.filter_candidates(q_candidates_1,
-                                                                                  phi_candidates_1,
-                                                                                   x_candidates_1)
+        if full_search:
+            q_candidates_1, phi_candidates_1, x_candidates_1 = self.filter_candidates(q_candidates_1,
+                                                                                      phi_candidates_1,
+                                                                                      x_candidates_1,
+                                                                                      thres_r_ratio=1.0,
+                                                                                      thres_phi_ratio=1.0,
+                                                                                      thres_height=-0.5)
+        else:
+            q_candidates_1, phi_candidates_1, x_candidates_1 = self.filter_candidates(q_candidates_1,
+                                                                                      phi_candidates_1,
+                                                                                      x_candidates_1
+                                                                                      )
         q_candidates_2, phi_candidates_2, x_candidates_2 = (
             self.brt_robot_data_matching(posture='posture2', box_pos=box_positions[1]))
-        q_candidates_2, phi_candidates_2, x_candidates_2 = self.filter_candidates(q_candidates_2,
-                                                                                  phi_candidates_2,
-                                                                                  x_candidates_2)
+        if full_search:
+            q_candidates_2, phi_candidates_2, x_candidates_2 = self.filter_candidates(q_candidates_2,
+                                                                                      phi_candidates_2,
+                                                                                      x_candidates_2,
+                                                                                      thres_r_ratio=1.0,
+                                                                                      thres_phi_ratio=1.0,
+                                                                                      thres_height=-0.5
+                                                                                      )
+        else:
+            q_candidates_2, phi_candidates_2, x_candidates_2 = self.filter_candidates(q_candidates_2,
+                                                                                      phi_candidates_2,
+                                                                                      x_candidates_2)
 
         if len(q_candidates_1) == 0 or len(q_candidates_2) == 0:
             # print("No result found")
             return None, None, None
 
-        trajs_1, throw_configs_1 = self.generate_throw_config(q_candidates_1,
-                                                              phi_candidates_1,
-                                                              x_candidates_1,
-                                                              base1,
-                                                              posture='posture1')
+        if full_search:
+            joint_velocity_limits = {
+                'max_abs': [None, None, None, None, None, None, None],
+                'min_abs': [None, None, None, None, None, None, None]
+            }
 
-        trajs_2, throw_configs_2 = self.generate_throw_config(q_candidates_2,
-                                                              phi_candidates_2,
-                                                              x_candidates_2,
-                                                              base2,
-                                                              posture='posture2')
+            trajs_1, throw_configs_1 = self.generate_throw_config(q_candidates_1,
+                                                                  phi_candidates_1,
+                                                                  x_candidates_1,
+                                                                  base1,
+                                                                  posture='posture1',
+                                                                  joint_velocity_limits=joint_velocity_limits)
+
+            trajs_2, throw_configs_2 = self.generate_throw_config(q_candidates_2,
+                                                                  phi_candidates_2,
+                                                                  x_candidates_2,
+                                                                  base2,
+                                                                  posture='posture2',
+                                                                  joint_velocity_limits=joint_velocity_limits)
+        else:
+            trajs_1, throw_configs_1 = self.generate_throw_config(q_candidates_1,
+                                                                  phi_candidates_1,
+                                                                  x_candidates_1,
+                                                                  base1,
+                                                                  posture='posture1')
+
+            trajs_2, throw_configs_2 = self.generate_throw_config(q_candidates_2,
+                                                                  phi_candidates_2,
+                                                                  x_candidates_2,
+                                                                  base2,
+                                                                  posture='posture2')
 
         if len(trajs_1) == 0 or len(trajs_2) == 0:
             # print("No trajectory found")
@@ -565,7 +617,10 @@ class TrajectoryGenerator:
             key=lambda x: len(x[1]['timestamp'])
         )
         intermediate_time, final_trajectory, best_throw_config_pair = min_duration_group
-
+        exe_time = final_trajectory["timestamp"][-1]
+        time_1 = time.time()
+        computation_time = time_1 - start
+        print(f"computation time:{computation_time}, exe time:{exe_time}")
         if animate:
             # for intermediate_time, final_trajectory, best_throw_config_pair \
             #         in zip(intermediate_time_all, final_trajectory_all, all_pair_configs):
@@ -782,14 +837,34 @@ class TrajectoryGenerator:
         intermediate_time, final_trajectory = self.concatenate_trajectories(traj_1, traj_2)
         config_full = ([target_boxes[:3]], [target_boxes[3:]])
         time_2 = time.time()
-        print(time_1 - start, time_2 - time_1)
+
+        computation_time = time_2 - start
+        exe_time = final_trajectory["timestamp"][-1]
+        print(f"computation time:{computation_time}, exe time:{exe_time}")
 
         self.throw_simulation_mujoco(final_trajectory, config_full,
                                          intermediate_time=intermediate_time)
 
+    def naive_search(self, target_boxes):
+        start = time.time()
+        box_A = target_boxes[0]
+        box_B = target_boxes[1]
+        trajs_A, throw_configs_A = self.solve(posture="posture1", box_pos=box_A, q0=self.q0)
+        q_A = throw_configs_A[0]
+        trajs_B, throw_configs_B = self.solve(posture="posture2", box_pos=box_B, q0=q_A)
 
+        config_pairs = (throw_configs_A, throw_configs_B)
 
+        intermediate_time, final_trajectory = (
+            self.concatenate_trajectories(trajs_A, trajs_B))
 
+        exe_time = trajs_A.duration + trajs_B.duration
+        time_1 = time.time()
+        computation_time = time_1 - start
+
+        print(f"NAIVE: computation time:{computation_time}, exe time:{exe_time}")
+        self.throw_simulation_mujoco(final_trajectory, config_pairs,
+                                     intermediate_time=intermediate_time)
 
 
 if __name__ == "__main__":
@@ -803,13 +878,18 @@ if __name__ == "__main__":
 
     robot_path = '../description/iiwa7_allegro_throwing.xml'
     box_position = np.array([1.3, 0.07, -0.158])
-    box1 = np.array([0.0, 1.3, -0.0])
-    box2 = np.array([-1.1, -0.6, -0.0])
+    box1 = np.array([0.3, -1.3, 0])
+    box2 = np.array([-1.3, -0.3, 0])
     box_positions = np.array([box1, box2])
 
     trajectory_generator = TrajectoryGenerator(q_max, q_min,
                                                hedgehog_path, brt_path,
                                                robot_path,box_position)
     # trajectory_generator.solve(animate=True, posture="posture1")
-    # trajectory_generator.multi_waypoint_solve(box_positions)
-    trajectory_generator.Hash_search(box_positions)
+
+    # naive search
+    # trajectory_generator.naive_search(box_positions)
+    # greedy search
+    trajectory_generator.multi_waypoint_solve(box_positions, full_search=False)
+    # hash search
+    # trajectory_generator.Hash_search(box_positions)

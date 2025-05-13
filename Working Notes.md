@@ -335,6 +335,14 @@
             - 需要动态调整参数，第一段phi角度大，可以利用第一段的速度
             - 需要看看实验那些位置demo可以做
             - 设计释放顺序，减少碰撞可能，先释放posture 2的
+          
+          |               | computation time | execution time | offline calculation time |
+          | ------------- | ---------------- | -------------- | ------------------------ |
+          | naive search  | 0.0535           | 6.581          | 0                        |
+          | greedy search | 43.309           | 3.510          | 0                        |
+          | hash map      | 0.0024           | 3.510          | ~66h                     |
+          
+          
         - reactive throwing
           - 移动两个盒子来看效果
       
