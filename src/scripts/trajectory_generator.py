@@ -19,6 +19,7 @@ import rospy
 import mujoco
 from scipy.spatial import KDTree
 import glfw
+import gc
 
 
 class TrajectoryGenerator:
@@ -480,13 +481,14 @@ class TrajectoryGenerator:
         return trajectory
 
 
-    def solve(self, animate=False, posture=None, box_pos=None, q0=None):
-        if q0 is not None:
-            self.q0 = q0
-        if box_pos is None:
-            base0 = self.box_position[:2]
-        else:
-            base0 = box_pos[:2]
+    def solve(self, animate=False,
+              posture=None,
+              box_pos=None,
+              q0=None,
+              q0_dot=None):
+        self.q0 = self.q0 if q0 is None else q0
+        self.q0_dot = self.q0_dot if q0_dot is None else q0_dot
+        base0 = self.box_position[:2] if box_pos is None else box_pos[:2]
         # search result for specific posture
         q_candidates, phi_candidates, x_candidates = self.brt_robot_data_matching(posture, box_pos=box_pos)
         q_candidates, phi_candidates, x_candidates = self.filter_candidates(q_candidates,
@@ -604,6 +606,11 @@ class TrajectoryGenerator:
         all_pairs = []
         all_pair_configs = []
 
+        del q_candidates_1, phi_candidates_1, x_candidates_1
+        del q_candidates_2, phi_candidates_2, x_candidates_2
+        del trajs_1, trajs_2
+        gc.collect()
+
         for i, cfg1 in enumerate(throw_configs_1):
             for j, cfg2 in enumerate(throw_configs_2):
                 all_pairs.append(np.array([[cfg1[0], cfg1[3]], [cfg2[0], cfg2[3]]]))
@@ -620,7 +627,12 @@ class TrajectoryGenerator:
         exe_time = final_trajectory["timestamp"][-1]
         time_1 = time.time()
         computation_time = time_1 - start
-        print(f"computation time:{computation_time}, exe time:{exe_time}")
+        print(f"Greedy search: computation time:{computation_time}, exe time:{exe_time}")
+
+        # clear data
+        del all_pairs, all_pair_configs
+        gc.collect()
+
         if animate:
             # for intermediate_time, final_trajectory, best_throw_config_pair \
             #         in zip(intermediate_time_all, final_trajectory_all, all_pair_configs):
@@ -840,7 +852,9 @@ class TrajectoryGenerator:
 
         computation_time = time_2 - start
         exe_time = final_trajectory["timestamp"][-1]
-        print(f"computation time:{computation_time}, exe time:{exe_time}")
+        print(f"Hash map computation time:{computation_time}, exe time:{exe_time}")
+        del tree, Keys, Values
+        gc.collect()
 
         self.throw_simulation_mujoco(final_trajectory, config_full,
                                          intermediate_time=intermediate_time)
@@ -851,7 +865,8 @@ class TrajectoryGenerator:
         box_B = target_boxes[1]
         trajs_A, throw_configs_A = self.solve(posture="posture1", box_pos=box_A, q0=self.q0)
         q_A = throw_configs_A[0]
-        trajs_B, throw_configs_B = self.solve(posture="posture2", box_pos=box_B, q0=q_A)
+        q_A_dot = throw_configs_A[3]
+        trajs_B, throw_configs_B = self.solve(posture="posture2", box_pos=box_B, q0=q_A, q0_dot=q_A_dot)
 
         config_pairs = (throw_configs_A, throw_configs_B)
 
@@ -878,18 +893,19 @@ if __name__ == "__main__":
 
     robot_path = '../description/iiwa7_allegro_throwing.xml'
     box_position = np.array([1.3, 0.07, -0.158])
-    box1 = np.array([0.3, -1.3, 0])
-    box2 = np.array([-1.3, -0.3, 0])
+    box1 = np.array([1.25, 0.35, -0.1])
+    box2 = np.array([0.4, 1.3, -0.1])
     box_positions = np.array([box1, box2])
 
     trajectory_generator = TrajectoryGenerator(q_max, q_min,
                                                hedgehog_path, brt_path,
                                                robot_path,box_position)
+
     # trajectory_generator.solve(animate=True, posture="posture1")
 
     # naive search
-    # trajectory_generator.naive_search(box_positions)
+    trajectory_generator.naive_search(box_positions)
     # greedy search
-    trajectory_generator.multi_waypoint_solve(box_positions, full_search=False)
+    trajectory_generator.multi_waypoint_solve(box_positions, full_search=True)
     # hash search
-    # trajectory_generator.Hash_search(box_positions)
+    trajectory_generator.Hash_search(box_positions)

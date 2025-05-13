@@ -91,6 +91,8 @@ class ThrowingController:
         # allegro controller
         self.hand_home_pose = np.array(rospy.get_param('/hand_home_pose'))
         self.envelop_pose = np.array(rospy.get_param('/exp_envelop_pose'))
+        self.release_pose_A = np.array(rospy.get_param('/release_pose_A'))
+        self.release_pose_B = np.array(rospy.get_param('/release_pose_B'))
         self.joint_cmd_pub = rospy.Publisher('/allegroHand_0/joint_cmd', JointState, queue_size=10)
         rospy.Subscriber('/allegroHand_0/joint_states', JointState, self._hand_joint_states_callback)
         self.hand = allegro.Robot(right_hand=False, path_prefix=self.path_prefix)  # load the left hand kinematics
@@ -181,20 +183,175 @@ class ThrowingController:
 
         threading.Thread(target=async_save).start()
 
+    def run_multi_throwing(self, boxes_pos, max_run_time=60.0):
+        start_time = rospy.get_time()
+        dT = self.dt
+        rate = rospy.Rate(1.0 / dT)
+        (final_trajectory,
+         best_throw_config_pair,
+         intermediate_time) = self.multi_match_configuration(boxes_pos)
+        qA = best_throw_config_pair[:7]
+        qA_dot = best_throw_config_pair[7:14]
+        qA_ddot = np.zeros(7)
+        qB = best_throw_config_pair[14:21]
+        qB_dot = best_throw_config_pair[21:28]
+        qB_ddot = np.zeros(7)
 
-    def run(self, max_run_time=60.0, save_data=True):
+        if SIMULATION:
+            throwing_traj_1 = self.get_traj_from_ruckig(self.qs, self.qs_dot, np.zeros(7),
+                                                      qA, qA_dot, qA_ddot,
+                                                      margin_velocity=self.MARGIN_VELOCITY,
+                                                      margin_acceleration=self.MARGIN_ACCELERATION)
+            throwing_traj_2 = self.get_traj_from_ruckig(qA, qA_dot, qA_ddot,
+                                                        qB, qB_dot, qB_ddot,
+                                                        margin_velocity=self.MARGIN_VELOCITY,
+                                                        margin_acceleration=self.MARGIN_ACCELERATION)
+
+            trajectory_back = self.get_traj_from_ruckig(qB, qB_dot, np.zeros(7),
+                                                        self.qs, self.qs_dot, self.qs_dotdot,
+                                                        margin_velocity=self.MARGIN_VELOCITY * 0.5,
+                                                        margin_acceleration=self.MARGIN_ACCELERATION * 0.5)
+
+            traj_back = self.trajectoryGenerator.process_trajectory(trajectory_back)
+
+            self.trajectoryGenerator.robot._set_joints(self.qs, render=True)
+
+            intermediate_time, traj_throw = self.trajectoryGenerator.concatenate_trajectories(
+                throwing_traj_1, throwing_traj_1
+            )
+
+            self.trajectoryGenerator.throw_simulation_mujoco(intermediate_time=intermediate_time,
+                                                             ref_sequence=traj_throw)
+
+            self.trajectoryGenerator.throw_simulation_mujoco(ref_sequence=traj_back)
+            return
+        else:
+            self._send_hand_position(self.envelop_pose)
+        while not rospy.is_shutdown():
+            if (rospy.get_time() - start_time) > max_run_time:
+                rospy.logwarn("run() time limit exceeded, saving data and breaking...")
+                break
+            # Publish state and fsm for debug
+            self.fsm_state_pub.publish(self.fsm_state)
+            # update robot state
+            q_cur = np.array(self.robot_state.position)
+            q_cur_dot = np.array(self.robot_state.velocity)
+            q_cur_effort = np.array(self.robot_state.effort)
+
+            if self.fsm_state == "IDLE":
+                if DEBUG and not self.start:
+                    pdb.set_trace(header="Press C to start homing...")
+                    self.start = True
+                    print("HOMING...")
+
+                self.homing_traj = self.get_traj_from_ruckig(q_cur, q_cur_dot, np.zeros(7),
+                                                             self.qs, self.qs_dot, self.qs_dotdot,
+                                                             margin_velocity=self.MARGIN_VELOCITY * 0.2,
+                                                             margin_acceleration=self.MARGIN_ACCELERATION *0.2)
+
+                if self.homing_traj is None:
+                    rospy.logerr("Trajectory is None")
+
+                # update state
+                self.fsm_state = "HOMING"
+                self.time_start_homing = rospy.get_time()
+
+            elif self.fsm_state == "HOMING":
+                # Activate integrator term when close to target
+                error_position = np.array(q_cur) - np.array(self.qs)
+                if np.linalg.norm(error_position) < self.ERROR_THRESHOLD:
+                    # Jump to next state
+                    self.fsm_state = "IDLE_THROWING"
+                    time.sleep(8)
+                    if DEBUG:
+                        print("IDLE_THROWING")
+                        # pdb.set_trace(header="Press C to see the throwing trajectory...")
+                    self.throw_time_A = self.scheduler_callback(Int64(1), qA, qA_dot, qA_ddot)
+
+                time_now = rospy.get_time()
+                ref = self.homing_traj.at_time(time_now - self.time_start_homing)
+                self.target_state.header.stamp = time_now
+                self.target_state.position = ref[0]
+                self.target_state.velocity = ref[1]
+                self.target_state.effort = ref[2]
+
+                self.target_state_pub.publish(self.target_state)
+                self.command_pub.publish(self.convert_command_to_ROS(time_now, ref[0], ref[1], ref[2]))
+
+            elif self.fsm_state == "IDLE_THROWING":
+                continue
+
+            elif self.fsm_state == "THROWING":
+                time_now = rospy.get_time()
+                throwing_time = time_now - self.time_start_throwing
+                release_A_time = self.throw_time_A - self.GRIPPER_DELAY
+                release_B_time = self.time_throw - self.GRIPPER_DELAY
+
+                if throwing_time > release_A_time:
+                    self._send_hand_position(self.release_pose_A)
+                elif throwing_time > release_B_time:
+                    self._send_hand_position(self.release_pose_B)
+
+                if time_now - self.time_start_throwing > self.throw_time_A - dT:
+                    self.fsm_state = "SLOWING"
+                    self.trajectory_back = self.get_traj_from_ruckig(q_cur, q_cur_dot, np.zeros(7),
+                                                                     self.qs, self.qs_dot, self.qs_dotdot,
+                                                                     margin_velocity=self.MARGIN_VELOCITY * 0.2,
+                                                                     margin_acceleration=self.MARGIN_ACCELERATION * 0.2)
+                    if self.trajectory_back is None:
+                        rospy.logerr("Trajectory is None")
+                    if DEBUG:
+                        print("SLOWING")
+                        # pdb.set_trace(header="Press C to see the slowing trajectory...")
+                    self.time_start_slowing = time_now
+
+                    if throwing_time <= release_A_time:
+                        ref = self.throwing_traj.at_time(throwing_time)
+                        self.target_state.header.stamp = time_now
+                        self.target_state.position = ref[0]
+                        self.target_state.velocity = ref[1]
+                        self.target_state.effort = ref[2]
+                    elif throwing_time <= release_B_time and throwing_time > release_A_time:
+                        ref = self.trajectory_back.at_time(throwing_time - release_A_time)
+                        self.target_state.header.stamp = time_now
+                        self.target_state.position = ref[0]
+                        self.target_state.velocity = ref[1]
+                        self.target_state.effort = ref[2]
+
+                    self.target_state_pub.publish(self.target_state)
+                    self.command_pub.publish(self.convert_command_to_ROS(time_now, ref[0], ref[1], ref[2]))
+
+            elif self.fsm_state == "SLOWING":
+                time_now = rospy.get_time()
+                if time_now - self.time_start_slowing > self.trajectory_back.duration - dT:
+                    break
+
+                ref = self.trajectory_back.at_time(time_now - self.time_start_slowing)
+                self.target_state.header.stamp = time_now
+                self.target_state.position = ref[0]
+                self.target_state.velocity = ref[1]
+                self.target_state.effort = ref[2]
+
+                self.target_state_pub.publish(self.target_state)
+                self.command_pub.publish(self.convert_command_to_ROS(time_now, ref[0], ref[1], ref[2]))
+
+            rate.sleep()
+
+
+    def run(self, max_run_time=60.0,
+            save_data=True):
         # ------------ Control Loop ------------ #
         start_time = rospy.get_time()
         dT = self.dt
         rate = rospy.Rate(1.0 / dT)
 
         qd, qd_dot, qd_dotdot = self.match_configuration(posture='posture1')
+
         if SIMULATION:
             self.simulation_mujoco(qd, qd_dot, qd_dotdot)
             return
         else:
             self._send_hand_position(self.envelop_pose)
-
 
         while not rospy.is_shutdown():
             if (rospy.get_time() - start_time) > max_run_time:
@@ -242,7 +399,7 @@ class ThrowingController:
                     if DEBUG:
                         print("IDLE_THROWING")
                         # pdb.set_trace(header="Press C to see the throwing trajectory...")
-                    self.scheduler_callback(Int64(1), qd, qd_dot, qd_dotdot)
+                    _ = self.scheduler_callback(Int64(1), qd, qd_dot, qd_dotdot)
 
                 time_now = rospy.get_time()
                 ref = self.homing_traj.at_time(time_now - self.time_start_homing)
@@ -445,7 +602,8 @@ class ThrowingController:
         ])
         self.box_position[2] -= BOX_HEIGHT
 
-    def scheduler_callback(self, msg, qd, qd_dot, qd_dotdot):
+    def scheduler_callback(self, msg, qA, qA_dot, qA_dotdot,
+                           qB=None, qB_dot=None, qB_dotdot=None):
         # print("scheduler msg", msg)
         if self.fsm_state == "IDLE_THROWING" and msg.data == 1:
             # compute new trajectory to throw from current position
@@ -453,16 +611,26 @@ class ThrowingController:
             q_cur_dot = np.array(self.robot_state.velocity)
 
             self.throwing_traj = self.get_traj_from_ruckig(q_cur, q_cur_dot, np.zeros(7),
-                                                           qd, qd_dot, qd_dotdot,
+                                                           qA, qA_dot, qA_dotdot,
                                                       margin_velocity=self.MARGIN_VELOCITY,
                                                       margin_acceleration=self.MARGIN_ACCELERATION)
+            if qB is not None:
+                self.throwing_traj_extend = self.get_traj_from_ruckig(qA, qA_dot, np.zeros(7),
+                                                               qB, qB_dot, qB_dotdot,
+                                                               margin_velocity=self.MARGIN_VELOCITY,
+                                                               margin_acceleration=self.MARGIN_ACCELERATION)
+            else:
+                self.throwing_traj_extend = None
             if self.throwing_traj is None:
                 rospy.logerr("Trajectory is None")
 
             self.time_start_throwing = rospy.get_time()
-            self.time_throw = self.throwing_traj.duration
+            self.time_throw = self.throwing_traj.duration + self.throwing_traj_extend.duration\
+                if self.throwing_traj_extend is not None else self.throwing_traj.duration
+
             self.fsm_state = "THROWING"
             # print("Throwing...")
+        return self.throwing_traj.duration
 
     def deactivate_gripper(self):
         self._send_hand_position(self.hand_home_pose)
@@ -516,17 +684,34 @@ class ThrowingController:
 
         self.trajectoryGenerator.throw_simulation_mujoco(intermediate_time=intermediate_time, ref_sequence=traj_throw_back)
 
+    def multi_match_configuration(self, boxes_pos):
+        _, best_throw_config_pair, _ = (
+            self.trajectoryGenerator.multi_waypoint_solve(boxes_pos, animate=False, full_search=True))
+
+        if best_throw_config_pair is None:
+            return None
+
+        desire_q_A = best_throw_config_pair[0][0]
+        desire_q_A_dot = best_throw_config_pair[0][3]
+        desire_q_B = best_throw_config_pair[1][0]
+        desire_q_B_dot = best_throw_config_pair[1][3]
+
+        return np.array([desire_q_A, desire_q_A_dot, desire_q_B, desire_q_B_dot])
 
 
 if __name__ == '__main__':
     rospy.init_node("throwing_controller", anonymous=True)
     box_position = [1.3, 0.07, -0.1586]
+    box1 = np.array([1.25, 0.35, -0.1])
+    box2 = np.array([0.4, 1.3, -0.1])
+    multi_box_positions = np.array([box1, box2])
     throwing_controller = ThrowingController(box_position=box_position)
     for nTry in range(100):
         print("test number", nTry + 1)
 
         throwing_controller.fsm_state = "IDLE"
-        throwing_controller.run(save_data=False)
+        # throwing_controller.run(save_data=False)
+        throwing_controller.run_multi_throwing(multi_box_positions)
 
         time.sleep(3)
 
