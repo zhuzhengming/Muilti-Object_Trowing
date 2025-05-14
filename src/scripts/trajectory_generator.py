@@ -37,7 +37,7 @@ class TrajectoryGenerator:
         self.hash_path = "../../../training_data"
 
         if q0 is None:
-            self.q0 = np.array([0.4217-2.0, 0.5498-0.4, 0.1635, -0.7926, -0.0098, 0.6, 1.2881])
+            self.q0 = np.array([-1.5783, 0.1498, 0.1635, -0.7926, -0.0098, 0.6, 1.2881])
         else:
             self.q0 = q0
 

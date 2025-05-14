@@ -20,8 +20,8 @@ import kinematics.allegro_hand_sym as allegro
 from datetime import datetime
 from trajectory_generator import TrajectoryGenerator
 
-SIMULATION = True
-DEBUG = True
+SIMULATION = False
+DEBUG = False
 
 class ThrowingController:
     def __init__(self, path_prefix='../', box_position=None):
@@ -47,7 +47,7 @@ class ThrowingController:
 
         self.trajectoryGenerator = TrajectoryGenerator(self.q_max, self.q_min,
                                                        hedgehog_path, brt_path,
-                                                       self.box_position, xml_path)
+                                                       xml_path, self.box_position)
 
         # initialize ROS subscriber/publisher
         self.fsm_state_pub = rospy.Publisher('fsm_state', String, queue_size=1)
@@ -111,7 +111,7 @@ class ThrowingController:
         # iiwa controller
         self.command_pub = rospy.Publisher('/iiwa_impedance_joint', JointState, queue_size=10)
         rospy.Subscriber('/iiwa/joint_states', JointState, self.joint_states_callback, queue_size=10)
-        rospy.Subscriber('/throw_node/throw_state', Int64, self.scheduler_callback)
+        # rospy.Subscriber('/throw_node/throw_state', Int64, self.scheduler_callback)
 
         # Initialize robot state, to be updated from robot
         self.robot_state = JointState()
@@ -187,14 +187,18 @@ class ThrowingController:
         start_time = rospy.get_time()
         dT = self.dt
         rate = rospy.Rate(1.0 / dT)
+
         (final_trajectory,
          best_throw_config_pair,
-         intermediate_time) = self.multi_match_configuration(boxes_pos)
-        qA = best_throw_config_pair[:7]
-        qA_dot = best_throw_config_pair[7:14]
+         intermediate_time) = self.trajectoryGenerator.multi_waypoint_solve(boxes_pos,
+                                                                            animate=False,
+                                                                            full_search=False)
+
+        qA = best_throw_config_pair[0][0]
+        qA_dot = best_throw_config_pair[0][3]
         qA_ddot = np.zeros(7)
-        qB = best_throw_config_pair[14:21]
-        qB_dot = best_throw_config_pair[21:28]
+        qB = best_throw_config_pair[1][0]
+        qB_dot = best_throw_config_pair[1][3]
         qB_ddot = np.zeros(7)
 
         if SIMULATION:
@@ -217,13 +221,13 @@ class ThrowingController:
             self.trajectoryGenerator.robot._set_joints(self.qs, render=True)
 
             intermediate_time, traj_throw = self.trajectoryGenerator.concatenate_trajectories(
-                throwing_traj_1, throwing_traj_1
+                throwing_traj_1, throwing_traj_2
             )
 
+            box_config = ((np.zeros(1),boxes_pos[0]), (np.zeros(1),boxes_pos[1]))
             self.trajectoryGenerator.throw_simulation_mujoco(intermediate_time=intermediate_time,
-                                                             ref_sequence=traj_throw)
-
-            self.trajectoryGenerator.throw_simulation_mujoco(ref_sequence=traj_back)
+                                                             ref_sequence=traj_throw,
+                                                             throw_config_full=box_config)
             return
         else:
             self._send_hand_position(self.envelop_pose)
@@ -236,7 +240,6 @@ class ThrowingController:
             # update robot state
             q_cur = np.array(self.robot_state.position)
             q_cur_dot = np.array(self.robot_state.velocity)
-            q_cur_effort = np.array(self.robot_state.effort)
 
             if self.fsm_state == "IDLE":
                 if DEBUG and not self.start:
@@ -683,20 +686,6 @@ class ThrowingController:
         )
 
         self.trajectoryGenerator.throw_simulation_mujoco(intermediate_time=intermediate_time, ref_sequence=traj_throw_back)
-
-    def multi_match_configuration(self, boxes_pos):
-        _, best_throw_config_pair, _ = (
-            self.trajectoryGenerator.multi_waypoint_solve(boxes_pos, animate=False, full_search=True))
-
-        if best_throw_config_pair is None:
-            return None
-
-        desire_q_A = best_throw_config_pair[0][0]
-        desire_q_A_dot = best_throw_config_pair[0][3]
-        desire_q_B = best_throw_config_pair[1][0]
-        desire_q_B_dot = best_throw_config_pair[1][3]
-
-        return np.array([desire_q_A, desire_q_A_dot, desire_q_B, desire_q_B_dot])
 
 
 if __name__ == '__main__':
