@@ -20,7 +20,7 @@ import kinematics.allegro_hand_sym as allegro
 from datetime import datetime
 from trajectory_generator import TrajectoryGenerator
 
-SIMULATION = False
+SIMULATION = True
 DEBUG = False
 
 class ThrowingController:
@@ -183,16 +183,22 @@ class ThrowingController:
 
         threading.Thread(target=async_save).start()
 
-    def run_multi_throwing(self, boxes_pos, max_run_time=60.0):
+    def run_multi_throwing(self, boxes_pos, max_run_time=60.0, mode='greedy'):
         start_time = rospy.get_time()
         dT = self.dt
         rate = rospy.Rate(1.0 / dT)
 
-        (final_trajectory,
-         best_throw_config_pair,
-         intermediate_time) = self.trajectoryGenerator.multi_waypoint_solve(boxes_pos,
-                                                                            animate=False,
-                                                                            full_search=False)
+        if mode == 'naive':
+            (final_trajectory,
+            best_throw_config_pair,
+            intermediate_time) = self.trajectoryGenerator.naive_search(boxes_pos)
+
+        elif mode == 'greedy':
+            (final_trajectory,
+             best_throw_config_pair,
+             intermediate_time) = self.trajectoryGenerator.multi_waypoint_solve(boxes_pos,
+                                                                                animate=False,
+                                                                                full_search=False)
 
         qA = best_throw_config_pair[0][0]
         qA_dot = best_throw_config_pair[0][3]
@@ -215,8 +221,6 @@ class ThrowingController:
                                                         self.qs, self.qs_dot, self.qs_dotdot,
                                                         margin_velocity=self.MARGIN_VELOCITY * 0.5,
                                                         margin_acceleration=self.MARGIN_ACCELERATION * 0.5)
-
-            traj_back = self.trajectoryGenerator.process_trajectory(trajectory_back)
 
             self.trajectoryGenerator.robot._set_joints(self.qs, render=True)
 
@@ -691,8 +695,8 @@ class ThrowingController:
 if __name__ == '__main__':
     rospy.init_node("throwing_controller", anonymous=True)
     box_position = [1.3, 0.07, -0.1586]
-    box1 = np.array([1.25, 0.35, -0.1])
-    box2 = np.array([0.4, 1.3, -0.1])
+    box1 = np.array([1.3, -0.1, -0.1])
+    box2 = np.array([0.6, 1.0, -0.1])
     multi_box_positions = np.array([box1, box2])
     throwing_controller = ThrowingController(box_position=box_position)
     for nTry in range(100):

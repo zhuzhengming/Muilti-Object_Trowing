@@ -545,7 +545,8 @@ class TrajectoryGenerator:
         else:
             q_candidates_1, phi_candidates_1, x_candidates_1 = self.filter_candidates(q_candidates_1,
                                                                                       phi_candidates_1,
-                                                                                      x_candidates_1
+                                                                                      x_candidates_1,
+                                                                                      thres_phi_ratio=self.thres_phi_ratio / 2
                                                                                       )
         q_candidates_2, phi_candidates_2, x_candidates_2 = (
             self.brt_robot_data_matching(posture='posture2', box_pos=box_positions[1]))
@@ -555,13 +556,12 @@ class TrajectoryGenerator:
                                                                                       x_candidates_2,
                                                                                       thres_r_ratio=1.0,
                                                                                       thres_phi_ratio=1.0,
-                                                                                      thres_height=-0.5
+                                                                                      thres_height=-0.5,
                                                                                       )
         else:
             q_candidates_2, phi_candidates_2, x_candidates_2 = self.filter_candidates(q_candidates_2,
                                                                                       phi_candidates_2,
                                                                                       x_candidates_2)
-
         if len(q_candidates_1) == 0 or len(q_candidates_2) == 0:
             # print("No result found")
             return None, None, None
@@ -880,6 +880,8 @@ class TrajectoryGenerator:
         print(f"NAIVE: computation time:{computation_time}, exe time:{exe_time}")
         self.throw_simulation_mujoco(final_trajectory, config_pairs,
                                      intermediate_time=intermediate_time)
+
+        return final_trajectory, config_pairs, intermediate_time
 
 
 if __name__ == "__main__":
