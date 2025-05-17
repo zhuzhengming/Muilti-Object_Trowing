@@ -286,9 +286,10 @@
         
           - #### 问题记录：
         
-            - greedy search函数的记录有问题，主要是generate_throw_config的函数需要知道qA, qA_dot，所以对于每一个qA，qA_dot的组合来遍历才对
+            - greedy search函数的记录有问题，主要是generate_throw_config的函数需要知道qA, qA_dot，所以对于每一个qA，qA_dot的组合来遍历才对:
+              - 也好像没啥必要，因为只是为了验证是否能生成这个轨迹并不是真的要用这个轨迹，基本验证都可以生成轨迹，这一步都可以删除来提高greedy search的速度。
           
-            - 不用再跑一次hash map了 因为查询时间是不变，都是基于greedy search在跑，还需要重新跑一次greedy search仿真实验
+            - throwing过程不对
           
           - #### comparison
           

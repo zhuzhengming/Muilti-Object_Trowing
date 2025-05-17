@@ -196,7 +196,7 @@ class ThrowingController:
         dT = self.dt
         rate = rospy.Rate(1.0 / dT)
         # update real-time position of boxes
-        boxes_pos = np.array(self.boxes_pos)
+        # boxes_pos = np.array(self.boxes_pos)
         print(boxes_pos)
 
         if mode == 'naive':
@@ -312,6 +312,7 @@ class ThrowingController:
 
                 print(throwing_time, release_A_time, release_B_time)
 
+                # release time when considering release delay
                 if throwing_time > release_A_time:
                     self._send_hand_position(self.release_pose_A)
                 elif throwing_time > release_B_time:
@@ -330,18 +331,19 @@ class ThrowingController:
                         # pdb.set_trace(header="Press C to see the slowing trajectory...")
                     self.time_start_slowing = time_now
 
-                    if throwing_time <= release_A_time:
-                        ref = self.throwing_traj.at_time(throwing_time)
-                        self.target_state.header.stamp = time_now
-                        self.target_state.position = ref[0]
-                        self.target_state.velocity = ref[1]
-                        self.target_state.effort = ref[2]
-                    elif throwing_time <= release_B_time and throwing_time > release_A_time:
-                        ref = self.throwing_traj_extend.at_time(throwing_time - self.throw_time_A)
-                        self.target_state.header.stamp = time_now
-                        self.target_state.position = ref[0]
-                        self.target_state.velocity = ref[1]
-                        self.target_state.effort = ref[2]
+                # execute different trajectory
+                if throwing_time <= self.throw_time_A:
+                    ref = self.throwing_traj.at_time(throwing_time)
+                    self.target_state.header.stamp = time_now
+                    self.target_state.position = ref[0]
+                    self.target_state.velocity = ref[1]
+                    self.target_state.effort = ref[2]
+                elif throwing_time <= self.time_throw and throwing_time > self.throw_time_A:
+                    ref = self.throwing_traj_extend.at_time(throwing_time - self.throw_time_A)
+                    self.target_state.header.stamp = time_now
+                    self.target_state.position = ref[0]
+                    self.target_state.velocity = ref[1]
+                    self.target_state.effort = ref[2]
 
                     self.target_state_pub.publish(self.target_state)
                     self.command_pub.publish(self.convert_command_to_ROS(time_now, ref[0], ref[1], ref[2]))
@@ -657,7 +659,7 @@ class ThrowingController:
             if self.throwing_traj is None:
                 rospy.logerr("Trajectory is None")
 
-            self.time_start_throwing = rospy.get_time()
+            self.time_start_throwing = time.time()
             self.time_throw = self.throwing_traj.duration + self.throwing_traj_extend.duration\
                 if self.throwing_traj_extend is not None else self.throwing_traj.duration
 
@@ -721,8 +723,8 @@ class ThrowingController:
 if __name__ == '__main__':
     rospy.init_node("throwing_controller", anonymous=True)
     box_position = [1.3, 0.07, -0.1586]
-    box1 = np.array([1.3, -0.1, 0.1])
-    box2 = np.array([0.7, 1.0, 0.1])
+    box1 = np.array([1.3, -0.1, -0.1])
+    box2 = np.array([0.7, 1.0, -0.1])
     multi_box_positions = np.array([box1, box2])
     throwing_controller = ThrowingController(box_position=box_position)
     for nTry in range(100):
@@ -730,7 +732,7 @@ if __name__ == '__main__':
 
         throwing_controller.fsm_state = "IDLE"
         # throwing_controller.run(save_data=False)
-        throwing_controller.run_multi_throwing(multi_box_positions, mode='naive')
+        throwing_controller.run_multi_throwing(multi_box_positions, mode='greedy')
 
         time.sleep(3)
 

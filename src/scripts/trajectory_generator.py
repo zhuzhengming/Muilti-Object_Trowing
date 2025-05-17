@@ -486,8 +486,8 @@ class TrajectoryGenerator:
               box_pos=None,
               q0=None,
               q0_dot=None):
-        self.q0 = self.q0 if q0 is None else q0
-        self.q0_dot = self.q0_dot if q0_dot is None else q0_dot
+        q0 = q0 if q0 is not None else self.q0
+        q0_dot = q0_dot if q0_dot is not None else self.q0_dot
         base0 = self.box_position[:2] if box_pos is None else box_pos[:2]
         # search result for specific posture
         q_candidates, phi_candidates, x_candidates = self.brt_robot_data_matching(posture, box_pos=box_pos)
@@ -504,6 +504,8 @@ class TrajectoryGenerator:
                                 phi_candidates,
                                 x_candidates,
                                 base0,
+                                qs=q0,
+                                qs_dot=q0_dot,
                                 posture=posture)
 
         if len(trajs) == 0:
@@ -622,7 +624,7 @@ class TrajectoryGenerator:
 
 
         # 2. choose the shortest trajectory
-        intermediate_time_all, final_trajectory_all = self.concatenate_all_pairs(all_pairs)
+        intermediate_time_all, final_trajectory_all = self.concatenate_all_pairs(all_pairs, q0=q0)
         min_duration_group = min(
             zip(intermediate_time_all, final_trajectory_all, all_pair_configs),
             key=lambda x: len(x[1]['timestamp'])
@@ -711,11 +713,12 @@ class TrajectoryGenerator:
 
         return time_offset, ref_sequence
 
-    def concatenate_all_pairs(self, all_pairs):
+    def concatenate_all_pairs(self, all_pairs, q0=None):
+        q0 = q0 if q0 is not None else self.q0
         intermediate_time_all = []
         final_trajectory_all = []
         for i, pair in enumerate(all_pairs):
-            traj_1 = self.get_traj_from_ruckig(self.q0, self.q0_dot,
+            traj_1 = self.get_traj_from_ruckig(q0, np.zeros(7),
                                                 pair[0][0], pair[0][1])
             traj_2 = self.get_traj_from_ruckig(pair[0][0], pair[0][1], pair[1][0], pair[1][1])
             intermediate_time, final_trajectory = self.concatenate_trajectories(traj_1, traj_2)
@@ -913,8 +916,8 @@ if __name__ == "__main__":
     # trajectory_generator.solve(animate=True, posture="posture1")
 
     # naive search
-    trajectory_generator.naive_search(box_positions)
+    # trajectory_generator.naive_search(box_positions)
     # greedy search
     trajectory_generator.multi_waypoint_solve(box_positions, full_search=True)
     # hash search
-    trajectory_generator.Hash_search(box_positions)
+    # trajectory_generator.Hash_search(box_positions)
