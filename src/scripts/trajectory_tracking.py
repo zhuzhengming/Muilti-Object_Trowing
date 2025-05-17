@@ -695,8 +695,8 @@ class ThrowingController:
 if __name__ == '__main__':
     rospy.init_node("throwing_controller", anonymous=True)
     box_position = [1.3, 0.07, -0.1586]
-    box1 = np.array([1.3, -0.1, -0.1])
-    box2 = np.array([0.6, 1.0, -0.1])
+    box1 = np.array([1.3, -0.1, 0.1])
+    box2 = np.array([0.7, 1.0, 0.1])
     multi_box_positions = np.array([box1, box2])
     throwing_controller = ThrowingController(box_position=box_position)
     for nTry in range(100):
@@ -704,7 +704,7 @@ if __name__ == '__main__':
 
         throwing_controller.fsm_state = "IDLE"
         # throwing_controller.run(save_data=False)
-        throwing_controller.run_multi_throwing(multi_box_positions)
+        throwing_controller.run_multi_throwing(multi_box_positions, mode='naive')
 
         time.sleep(3)
 

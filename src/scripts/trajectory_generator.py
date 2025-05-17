@@ -493,7 +493,8 @@ class TrajectoryGenerator:
         q_candidates, phi_candidates, x_candidates = self.brt_robot_data_matching(posture, box_pos=box_pos)
         q_candidates, phi_candidates, x_candidates = self.filter_candidates(q_candidates,
                                                                             phi_candidates,
-                                                                            x_candidates)
+                                                                            x_candidates,
+                                                                            thres_r_ratio=self.thres_r_ratio/2)
         if len(q_candidates) == 0:
             print("No result found")
             return 0
