@@ -26,6 +26,7 @@ DEBUG = False
 class ThrowingController:
     def __init__(self, path_prefix='../', box_position=None):
         self.box_position = box_position if box_position is not None else np.zeros(3)
+        self.boxes_pos = [np.zeros(3), np.zeros(3)]
         self.path_prefix = path_prefix
         self._allegro_init()
         self._iiwa_init()
@@ -60,12 +61,19 @@ class ThrowingController:
                             queue_size=100
                         )
 
-        self.box_pos_sub = rospy.Subscriber(
-            '/vrpn_client_node/box_1/pose_from_iiwa_7_base',
+        self.box1_pos_sub = rospy.Subscriber(
+            '/vrpn_client_node/box1/pose_from_iiwa_7_base',
             PoseStamped,
-            self._box_pos_callback,
+            self._box1_pos_callback,
             queue_size=100
         )
+        self.box2_pos_sub = rospy.Subscriber(
+            '/vrpn_client_node/box2/pose_from_iiwa_7_base',
+            PoseStamped,
+            self._box2_pos_callback,
+            queue_size=100
+        )
+
 
         self.obj_cur = []
         self.obj_trajectory = []
@@ -183,22 +191,28 @@ class ThrowingController:
 
         threading.Thread(target=async_save).start()
 
-    def run_multi_throwing(self, boxes_pos, max_run_time=60.0, mode='greedy'):
+    def run_multi_throwing(self, boxes_pos, max_run_time=6000.0, mode='greedy'):
         start_time = rospy.get_time()
         dT = self.dt
         rate = rospy.Rate(1.0 / dT)
+        # update real-time position of boxes
+        boxes_pos = np.array(self.boxes_pos)
+        print(boxes_pos)
 
         if mode == 'naive':
             (final_trajectory,
             best_throw_config_pair,
-            intermediate_time) = self.trajectoryGenerator.naive_search(boxes_pos)
+            intermediate_time) = self.trajectoryGenerator.naive_search(boxes_pos,
+                                                                       simulation=False,
+                                                                       q0=self.qs)
 
         elif mode == 'greedy':
             (final_trajectory,
              best_throw_config_pair,
              intermediate_time) = self.trajectoryGenerator.multi_waypoint_solve(boxes_pos,
                                                                                 animate=False,
-                                                                                full_search=False)
+                                                                                full_search=False,
+                                                                                q0=self.qs)
 
         qA = best_throw_config_pair[0][0]
         qA_dot = best_throw_config_pair[0][3]
@@ -235,6 +249,8 @@ class ThrowingController:
             return
         else:
             self._send_hand_position(self.envelop_pose)
+
+        # start throwing process
         while not rospy.is_shutdown():
             if (rospy.get_time() - start_time) > max_run_time:
                 rospy.logwarn("run() time limit exceeded, saving data and breaking...")
@@ -273,7 +289,7 @@ class ThrowingController:
                     if DEBUG:
                         print("IDLE_THROWING")
                         # pdb.set_trace(header="Press C to see the throwing trajectory...")
-                    self.throw_time_A = self.scheduler_callback(Int64(1), qA, qA_dot, qA_ddot)
+                    self.throw_time_A = self.scheduler(qA, qA_dot, qA_ddot, qB, qB_dot, qB_ddot)
 
                 time_now = rospy.get_time()
                 ref = self.homing_traj.at_time(time_now - self.time_start_homing)
@@ -294,12 +310,14 @@ class ThrowingController:
                 release_A_time = self.throw_time_A - self.GRIPPER_DELAY
                 release_B_time = self.time_throw - self.GRIPPER_DELAY
 
+                print(throwing_time, release_A_time, release_B_time)
+
                 if throwing_time > release_A_time:
                     self._send_hand_position(self.release_pose_A)
                 elif throwing_time > release_B_time:
-                    self._send_hand_position(self.release_pose_B)
+                    self._send_hand_position(self.hand_home_pose)
 
-                if time_now - self.time_start_throwing > self.throw_time_A - dT:
+                if time_now - self.time_start_throwing > self.time_throw - dT:
                     self.fsm_state = "SLOWING"
                     self.trajectory_back = self.get_traj_from_ruckig(q_cur, q_cur_dot, np.zeros(7),
                                                                      self.qs, self.qs_dot, self.qs_dotdot,
@@ -319,7 +337,7 @@ class ThrowingController:
                         self.target_state.velocity = ref[1]
                         self.target_state.effort = ref[2]
                     elif throwing_time <= release_B_time and throwing_time > release_A_time:
-                        ref = self.trajectory_back.at_time(throwing_time - release_A_time)
+                        ref = self.throwing_traj_extend.at_time(throwing_time - self.throw_time_A)
                         self.target_state.header.stamp = time_now
                         self.target_state.position = ref[0]
                         self.target_state.velocity = ref[1]
@@ -406,7 +424,7 @@ class ThrowingController:
                     if DEBUG:
                         print("IDLE_THROWING")
                         # pdb.set_trace(header="Press C to see the throwing trajectory...")
-                    _ = self.scheduler_callback(Int64(1), qd, qd_dot, qd_dotdot)
+                    _ = self.scheduler(qd, qd_dot, qd_dotdot)
 
                 time_now = rospy.get_time()
                 ref = self.homing_traj.at_time(time_now - self.time_start_homing)
@@ -600,19 +618,27 @@ class ThrowingController:
             msg.pose.position.z
         ])
 
-    def _box_pos_callback(self, msg):
-        BOX_HEIGHT = 0.1
-        self.box_position = np.array([
+    def _box1_pos_callback(self, msg):
+        BOX_HEIGHT = -0.1
+        self.boxes_pos[0] = np.array([
             msg.pose.position.x,
             msg.pose.position.y,
             msg.pose.position.z
         ])
-        self.box_position[2] -= BOX_HEIGHT
+        self.boxes_pos[0][2] -= BOX_HEIGHT
 
-    def scheduler_callback(self, msg, qA, qA_dot, qA_dotdot,
+    def _box2_pos_callback(self, msg):
+        BOX_HEIGHT = -0.1
+        self.boxes_pos[1] = np.array([
+            msg.pose.position.x,
+            msg.pose.position.y,
+            msg.pose.position.z
+        ])
+        self.boxes_pos[1][2] -= BOX_HEIGHT
+
+    def scheduler(self, qA, qA_dot, qA_dotdot,
                            qB=None, qB_dot=None, qB_dotdot=None):
-        # print("scheduler msg", msg)
-        if self.fsm_state == "IDLE_THROWING" and msg.data == 1:
+        if self.fsm_state == "IDLE_THROWING":
             # compute new trajectory to throw from current position
             q_cur = np.array(self.robot_state.position)
             q_cur_dot = np.array(self.robot_state.velocity)

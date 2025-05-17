@@ -529,7 +529,8 @@ class TrajectoryGenerator:
         else:
             return traj_throw, throw_config_full
 
-    def multi_waypoint_solve(self, box_positions, animate=True, full_search=False):
+    def multi_waypoint_solve(self, box_positions, animate=True, full_search=False, q0=None):
+        q0 = q0 if q0 is not None else self.q0
         start = time.time()
         base1 = box_positions[0][:2]
         base2 = box_positions[1][:2]
@@ -577,6 +578,7 @@ class TrajectoryGenerator:
                                                                   phi_candidates_1,
                                                                   x_candidates_1,
                                                                   base1,
+                                                                  qs=q0,
                                                                   posture='posture1',
                                                                   joint_velocity_limits=joint_velocity_limits)
 
@@ -591,6 +593,7 @@ class TrajectoryGenerator:
                                                                   phi_candidates_1,
                                                                   x_candidates_1,
                                                                   base1,
+                                                                  qs=q0,
                                                                   posture='posture1')
 
             trajs_2, throw_configs_2 = self.generate_throw_config(q_candidates_2,
@@ -860,11 +863,12 @@ class TrajectoryGenerator:
         self.throw_simulation_mujoco(final_trajectory, config_full,
                                          intermediate_time=intermediate_time)
 
-    def naive_search(self, target_boxes):
+    def naive_search(self, target_boxes,q0=None,simulation=True):
         start = time.time()
         box_A = target_boxes[0]
         box_B = target_boxes[1]
-        trajs_A, throw_configs_A = self.solve(posture="posture1", box_pos=box_A, q0=self.q0)
+        q0 = q0 if q0 is not None else self.q0
+        trajs_A, throw_configs_A = self.solve(posture="posture1", box_pos=box_A, q0=q0)
         q_A = throw_configs_A[0]
         q_A_dot = throw_configs_A[3]
         trajs_B, throw_configs_B = self.solve(posture="posture2", box_pos=box_B, q0=q_A, q0_dot=q_A_dot)
@@ -879,8 +883,10 @@ class TrajectoryGenerator:
         computation_time = time_1 - start
 
         print(f"NAIVE: computation time:{computation_time}, exe time:{exe_time}")
-        self.throw_simulation_mujoco(final_trajectory, config_pairs,
-                                     intermediate_time=intermediate_time)
+
+        if simulation:
+            self.throw_simulation_mujoco(final_trajectory, config_pairs,
+                                         intermediate_time=intermediate_time)
 
         return final_trajectory, config_pairs, intermediate_time
 

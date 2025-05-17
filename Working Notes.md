@@ -281,6 +281,26 @@
             - 数据分析记得统一末端位置是指尖
           - (done)增加一个filter来选择使用使用哪些轴提供更大的速度
           - (done)增加一个投掷泛化性测试，一个随机移动的盒子
+          
+        - #### 多物体抛掷实验记录
+        
+          - #### 问题记录：
+        
+            - greedy search函数的记录有问题，主要是generate_throw_config的函数需要知道qA, qA_dot，所以对于每一个qA，qA_dot的组合来遍历才对
+          
+            - 不用再跑一次hash map了 因为查询时间是不变，都是基于greedy search在跑，还需要重新跑一次greedy search仿真实验
+          
+          - #### comparison
+          
+            - naive search：
+              - 给出怪异的抛掷方式，并且调大靠近物体的参数
+            - greedy search：
+              - 给出比较好的抛掷解，调大第一个抛掷的phi角度
+          
+          - #### Reactive 
+          
+            - 在greedy search or naive search的情况下进行 3 组位置的实验
+          
       
     - #### RL-based:
     
