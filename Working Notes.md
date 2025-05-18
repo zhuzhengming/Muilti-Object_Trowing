@@ -350,7 +350,9 @@
       - #### 实物实验设计：
     
         - 66小时离线生成dictionary
-        - 对比：
+        - (done)对比：
+          
+          - 实际上没有很大的差别，除非full greedy search
           - naive search：直接跑两次各自最好的
           - greedy search：
             - 需要动态调整参数，第一段phi角度大，可以利用第一段的速度
@@ -363,8 +365,9 @@
           | greedy search | 43.309<br />130.985<br />100.128<br />109.45<br />44.797<br />33.344<br />74.338<br />68.748<br />43.991<br />49.249 | 3.510<br />3.421<br />3.601<br />3.623<br />3.795<br />4.079<br />3.165<br />3.421<br />3.937<br />4.293 | 0                        |
           | hash map      | 0.0024<br />0.0055<br />0.0128<br />0.0102<br />0.0028<br />0.0036<br />0.0031<br />0.0025<br />0.0027<br />0.0030 | 同上                                                         | ~66h                     |
           
-        - reactive throwing
+        - (done)reactive throwing 
           - 移动两个盒子来看效果
+          - 两次
         
       - #### NN-model-based（diffusion model）:
       
