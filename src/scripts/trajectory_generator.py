@@ -550,7 +550,7 @@ class TrajectoryGenerator:
             q_candidates_1, phi_candidates_1, x_candidates_1 = self.filter_candidates(q_candidates_1,
                                                                                       phi_candidates_1,
                                                                                       x_candidates_1,
-                                                                                      thres_phi_ratio=self.thres_phi_ratio / 2
+                                                                                      thres_phi_ratio=self.thres_phi_ratio / 3
                                                                                       )
         q_candidates_2, phi_candidates_2, x_candidates_2 = (
             self.brt_robot_data_matching(posture='posture2', box_pos=box_positions[1]))

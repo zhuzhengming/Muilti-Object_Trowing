@@ -21,7 +21,7 @@ from datetime import datetime
 from trajectory_generator import TrajectoryGenerator
 
 SIMULATION = True
-DEBUG = False
+DEBUG = True
 
 class ThrowingController:
     def __init__(self, path_prefix='../', box_position=None):
@@ -196,7 +196,7 @@ class ThrowingController:
         dT = self.dt
         rate = rospy.Rate(1.0 / dT)
         # update real-time position of boxes
-        # boxes_pos = np.array(self.boxes_pos)
+        boxes_pos = np.array(self.boxes_pos)
         print(boxes_pos)
 
         if mode == 'naive':
@@ -230,11 +230,6 @@ class ThrowingController:
                                                         qB, qB_dot, qB_ddot,
                                                         margin_velocity=self.MARGIN_VELOCITY,
                                                         margin_acceleration=self.MARGIN_ACCELERATION)
-
-            trajectory_back = self.get_traj_from_ruckig(qB, qB_dot, np.zeros(7),
-                                                        self.qs, self.qs_dot, self.qs_dotdot,
-                                                        margin_velocity=self.MARGIN_VELOCITY * 0.5,
-                                                        margin_acceleration=self.MARGIN_ACCELERATION * 0.5)
 
             self.trajectoryGenerator.robot._set_joints(self.qs, render=True)
 
@@ -310,13 +305,11 @@ class ThrowingController:
                 release_A_time = self.throw_time_A - self.GRIPPER_DELAY
                 release_B_time = self.time_throw - self.GRIPPER_DELAY
 
-                print(throwing_time, release_A_time, release_B_time)
-
                 # release time when considering release delay
-                if throwing_time > release_A_time:
+                if throwing_time >= release_A_time and throwing_time < release_B_time:
                     self._send_hand_position(self.release_pose_A)
-                elif throwing_time > release_B_time:
-                    self._send_hand_position(self.hand_home_pose)
+                elif throwing_time >= release_B_time:
+                    self._send_hand_position(self.release_pose_B)
 
                 if time_now - self.time_start_throwing > self.time_throw - dT:
                     self.fsm_state = "SLOWING"
@@ -345,8 +338,8 @@ class ThrowingController:
                     self.target_state.velocity = ref[1]
                     self.target_state.effort = ref[2]
 
-                    self.target_state_pub.publish(self.target_state)
-                    self.command_pub.publish(self.convert_command_to_ROS(time_now, ref[0], ref[1], ref[2]))
+                self.target_state_pub.publish(self.target_state)
+                self.command_pub.publish(self.convert_command_to_ROS(time_now, ref[0], ref[1], ref[2]))
 
             elif self.fsm_state == "SLOWING":
                 time_now = rospy.get_time()
@@ -621,7 +614,7 @@ class ThrowingController:
         ])
 
     def _box1_pos_callback(self, msg):
-        BOX_HEIGHT = -0.1
+        BOX_HEIGHT = -0.0
         self.boxes_pos[0] = np.array([
             msg.pose.position.x,
             msg.pose.position.y,
@@ -659,7 +652,7 @@ class ThrowingController:
             if self.throwing_traj is None:
                 rospy.logerr("Trajectory is None")
 
-            self.time_start_throwing = time.time()
+            self.time_start_throwing = rospy.get_time()
             self.time_throw = self.throwing_traj.duration + self.throwing_traj_extend.duration\
                 if self.throwing_traj_extend is not None else self.throwing_traj.duration
 
