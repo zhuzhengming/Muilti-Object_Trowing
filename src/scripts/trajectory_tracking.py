@@ -20,7 +20,7 @@ import kinematics.allegro_hand_sym as allegro
 from datetime import datetime
 from trajectory_generator import TrajectoryGenerator
 
-SIMULATION = True
+SIMULATION = False
 DEBUG = True
 
 class ThrowingController:
@@ -614,7 +614,7 @@ class ThrowingController:
         ])
 
     def _box1_pos_callback(self, msg):
-        BOX_HEIGHT = -0.0
+        BOX_HEIGHT = 0
         self.boxes_pos[0] = np.array([
             msg.pose.position.x,
             msg.pose.position.y,
@@ -725,7 +725,7 @@ if __name__ == '__main__':
 
         throwing_controller.fsm_state = "IDLE"
         # throwing_controller.run(save_data=False)
-        throwing_controller.run_multi_throwing(multi_box_positions, mode='greedy')
+        throwing_controller.run_multi_throwing(multi_box_positions, mode='naive')
 
         time.sleep(3)
 

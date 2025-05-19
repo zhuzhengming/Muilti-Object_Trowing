@@ -572,8 +572,8 @@ class TrajectoryGenerator:
 
         if full_search:
             joint_velocity_limits = {
-                'max_abs': [None, None, None, None, None, None, None],
-                'min_abs': [None, None, None, None, None, None, None]
+                'max_abs': [1.5, 0.6, None, None, None, 2.0, None],
+                'min_abs': [None, 0.0, None, None, None, 1.0, None]
             }
 
             trajs_1, throw_configs_1 = self.generate_throw_config(q_candidates_1,
