@@ -347,7 +347,7 @@
       
     - #### Model-based + Learning-based:
     
-      - #### 实物实验设计：
+      - #### (done)实物实验设计：
     
         - 66小时离线生成dictionary
         - (done)对比：
@@ -368,33 +368,38 @@
         - (done)reactive throwing 
           - 移动两个盒子来看效果
           - 两次
-        
-      - #### NN-model-based（diffusion model）:
       
-        - 利用自己的filter来选出最佳的(q0, Boxes) -> target set
       
-        - 然后利用监督学习来mapping减小在线寻找最佳解的时间
       
-        - 特点是解的好坏取决于自己的filter rule
+      - ## Discussion, future work
       
-        - 记录sample数据的可利用率
+        - #### NN-model-based（diffusion model）:
       
-        - 记录训练过程
+          - 利用自己的filter来选出最佳的(q0, Boxes) -> target set
       
-      - #### RL-model(不好做):
+          - 然后利用监督学习来mapping减小在线寻找最佳解的时间
       
-        - 提前随机给定一个target box序列
-        - **States:**
-          - q0, box
-        - **Observation**: 
-          - 会生成一个(q_cur, box)的一个解集，也就是动作空间
-          - 问题在于动作空间的内容大小是动态的，这个模型需要确定动作空间大小
-          - 固定最大动作的数量
-        - **actions**:
-          - 学习一个概率分布，给出当前解集的一个determinastic的解
-        - **rewards:**
-          - current duration， whole duration
-        - Maskable PPO
+          - 特点是解的好坏取决于自己的filter rule
+      
+          - 记录sample数据的可利用率
+      
+          - 记录训练过程
+      
+      
+        - #### RL-model(不好做):
+      
+          - 提前随机给定一个target box序列
+            - **States:**
+              - q0, box
+            - **Observation**: 
+              - 会生成一个(q_cur, box)的一个解集，也就是动作空间
+              - 问题在于动作空间的内容大小是动态的，这个模型需要确定动作空间大小
+              - 固定最大动作的数量
+            - **actions**:
+              - 学习一个概率分布，给出当前解集的一个determinastic的解
+            - **rewards:**
+              - current duration， whole duration
+            - Maskable PPO
     
     
     
@@ -432,9 +437,21 @@
     - ### 待办
     
       - (done)在mujoco里面生成在手指之间的末端hedgehog数据，并测试
-      - 实物测试，使用optitrack
-      - 测试release delay，参考tube acceleration
-      - 考虑异步投掷两个物体的motion planning
+      - (done)实物测试，使用optitrack
+      - (done)测试release delay，参考tube acceleration
+      - (done)考虑异步投掷两个物体的motion planning
+
+
+
+
+
+
+
+
+
+
+
+
 
 ### VLA抓取任务
 
