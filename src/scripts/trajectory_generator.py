@@ -34,7 +34,7 @@ class TrajectoryGenerator:
         self.Z_TOLERANCE = 0.01
         self.box_position = box_position
         self.freq = 200
-        self.hash_path = "../../../training_data"
+        self.off_data_path = "../../../training_data"
 
         if q0 is None:
             self.q0 = np.array([-1.5783, 0.1498, 0.1635, -0.7926, -0.0098, 0.6, 1.2881])
@@ -827,10 +827,10 @@ class TrajectoryGenerator:
             if cur_step > max_step:
                 break
 
-    def Hash_search(self, target_boxes):
+    def KD_Tree_search(self, target_boxes):
         target_boxes = target_boxes.copy().flatten()
-        X_path = self.hash_path + '/training_X.npy'
-        Y_path = self.hash_path + '/training_Y.npy'
+        X_path = self.off_data_path + '/training_X.npy'
+        Y_path = self.off_data_path + '/training_Y.npy'
         Keys = np.load(X_path)
         Values = np.load(Y_path)
 
@@ -859,7 +859,7 @@ class TrajectoryGenerator:
 
         computation_time = time_2 - start
         exe_time = final_trajectory["timestamp"][-1]
-        print(f"Hash map computation time:{computation_time}, exe time:{exe_time}")
+        print(f"KD-Tree map computation time:{computation_time}, exe time:{exe_time}")
         del tree, Keys, Values
         gc.collect()
 
@@ -919,5 +919,5 @@ if __name__ == "__main__":
     # trajectory_generator.naive_search(box_positions)
     # greedy search
     trajectory_generator.multi_waypoint_solve(box_positions, full_search=True)
-    # hash search
-    # trajectory_generator.Hash_search(box_positions)
+    # KD-Tree search
+    # trajectory_generator.KD_Tree_search(box_positions)
