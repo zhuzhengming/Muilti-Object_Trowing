@@ -19,6 +19,7 @@ import matplotlib.pyplot as plt
 from scipy.interpolate import griddata
 import matplotlib
 matplotlib.use('Qt5Agg')
+from matplotlib.collections import LineCollection
 
 def flying_dynamics(t, s):
     g = 9.81
@@ -135,6 +136,8 @@ class BRT:
         plt.legend(fontsize=16)
         plt.tight_layout()
         plt.show()
+
+
 
     def convert2tensor(self ):
         # generate original brt data
