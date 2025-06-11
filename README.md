@@ -1,1 +1,1 @@
-# Multi-Oobject Multi-target Throwing
+# Multi-object Multi-target Throwing
