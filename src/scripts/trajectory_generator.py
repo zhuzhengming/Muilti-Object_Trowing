@@ -15,7 +15,7 @@ import time
 import math
 import numpy as np
 from ruckig import InputParameter, Ruckig, Trajectory, Result
-import rospy
+from utils.config_loader import get_param
 import mujoco
 from scipy.spatial import KDTree
 import glfw
@@ -54,20 +54,20 @@ class TrajectoryGenerator:
         self.load_data()
 
     def load_params(self):
-        self.max_velocity = np.array(rospy.get_param('/max_velocity'))
+        self.max_velocity = np.array(get_param('/max_velocity'))
         # self.max_acceleration = np.array([15, 7.5, 10, 12.5, 15, 20, 20])
         # self.max_jerk = np.array([7500, 3750, 5000, 6250, 7500, 10000, 10000])
-        self.max_acceleration = np.array(rospy.get_param('/max_acceleration'))
-        self.max_jerk = np.array(rospy.get_param('/max_jerk'))
-        self.MARGIN_VELOCITY = rospy.get_param('/MARGIN_VELOCITY')
-        self.MARGIN_ACCELERATION = rospy.get_param('/MARGIN_ACCELERATION')
-        self.MARGIN_JERK = rospy.get_param('/MARGIN_JERK')
+        self.max_acceleration = np.array(get_param('/max_acceleration'))
+        self.max_jerk = np.array(get_param('/max_jerk'))
+        self.MARGIN_VELOCITY = get_param('/MARGIN_VELOCITY')
+        self.MARGIN_ACCELERATION = get_param('/MARGIN_ACCELERATION')
+        self.MARGIN_JERK = get_param('/MARGIN_JERK')
 
-        self.thres_dis = rospy.get_param('/thres_dis')
-        self.thres_v = rospy.get_param('/thres_v')
-        self.thres_r_ratio = rospy.get_param('/thres_r_ratio')
-        self.thres_height = rospy.get_param('/thres_height')
-        self.thres_phi_ratio = rospy.get_param('/thres_phi_ratio')
+        self.thres_dis = get_param('/thres_dis')
+        self.thres_v = get_param('/thres_v')
+        self.thres_r_ratio = get_param('/thres_r_ratio')
+        self.thres_height = get_param('/thres_height')
+        self.thres_phi_ratio = get_param('/thres_phi_ratio')
 
     def load_data(self):
         # load hedgehog data
@@ -895,7 +895,6 @@ class TrajectoryGenerator:
 
 
 if __name__ == "__main__":
-    rospy.init_node("trajectory_generator", anonymous=True)
     q_min = np.array([-2.96705972839, -2.09439510239, -2.96705972839, -2.09439510239, -2.96705972839,
                       -2.09439510239, -3.05432619099])
     q_max = np.array([2.96705972839, 2.09439510239, 2.96705972839, 2.09439510239, 2.96705972839,
