@@ -1,9 +1,12 @@
 import sys
+import os
 
-import rospy
+# import rospy
 from cv2.gapi.wip.draw import render
+from utils.config_loader import get_param
 
-sys.path.append("../")
+current_dir = os.path.dirname(os.path.abspath(__file__))
+sys.path.append(os.path.join(current_dir, "../"))
 import numpy as np
 import mujoco
 from mujoco import viewer
@@ -36,14 +39,15 @@ class Robot:
         self.viewer_setup()  # setup camera perspective of the GUI, you can adjust it in GUI by mouse and print self.view.cam to get the current one you like
 
         # hand kinematics
-        self.hand = allegro.Robot(right_hand=False, path_prefix='../')  # load the left hand kinematics
+        hand_path = os.path.join(current_dir, '../')
+        self.hand = allegro.Robot(right_hand=False, path_prefix=hand_path)  # load the left hand kinematics
         self.fingertip_sites = ['index_site', 'middle_site', 'ring_site',
                                 'thumb_site']  # These site points are the fingertip (center of semisphere) positions
 
         self._joint_kp = np.array([430, 400, 440, 100, 100, 100, 100])
         self._joint_kd = np.array([240, 240, 240, 50, 50, 30, 30])
 
-        self.max_torque = np.array(rospy.get_param('/max_torque'))
+        self.max_torque = np.array(get_param('/max_torque'))
 
     def step(self):
         mujoco.mj_step(self.m, self.d)  # run one-step dynamics simulation

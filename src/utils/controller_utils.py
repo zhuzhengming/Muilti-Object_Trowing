@@ -2,7 +2,10 @@
 control interface for iiwa and allegro hand
 """
 import sys
-sys.path.append("../")
+import os
+
+current_dir = os.path.dirname(os.path.abspath(__file__))
+sys.path.append(os.path.join(current_dir, "../"))
 import time
 
 import rospy
@@ -37,9 +40,12 @@ class Robot():
         sys.exit()
 
     def __init__(self, optitrack_frame_names=None, position_control=True, calibration=False, camera=False,
-                 camera_object_name=None, path_prefix='../'):
+                 camera_object_name=None, path_prefix=None):
 
-        rospy.init_node('iiwa_allegro_controller', anonymous=True)
+        if path_prefix is None:
+            path_prefix = os.path.join(current_dir, '../')
+
+        # rospy.init_node('iiwa_allegro_controller', anonymous=True)
 
         self.optitrack_frame_names = optitrack_frame_names
 
@@ -724,7 +730,7 @@ class Robot():
         error_velocity_percent = np.array([entry[1] for entry in v_error_record])
 
         # write into file
-        filename = '../output/data/sin_test_{}.npy'.format(i)
+        filename = os.path.join(current_dir, '../output/data/sin_test_{}.npy'.format(i))
         np.save(filename, {'timestamp': timestamp,
                                 'actual_position': actual_position,
                                 'target_position': target_position,

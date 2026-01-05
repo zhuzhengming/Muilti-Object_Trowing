@@ -165,6 +165,18 @@
           <geom name="box2_right" type="box" size="0.005 0.1 0.01" pos="0.1 0 0" rgba="1 0 0 1" class="collision0" contype="0" conaffinity="0"/>
         </body>
 
+        <body name="box3" pos="0.0 0 0.0" gravcomp="1">
+          <joint name="box3_joint_x" type="slide" axis="1 0 0"/>
+          <joint name="box3_joint_y" type="slide" axis="0 1 0"/>
+          <joint name="box3_joint_z" type="slide" axis="0 0 1"/>
+          <inertial pos="0 0 0" mass="5.0" diaginertia="0.01 0.01 0.01"/>
+
+          <geom name="box3_front" type="box" size="0.1 0.005 0.01" pos="0 0.1 0" rgba="1 1 0 1" class="collision0" contype="0" conaffinity="0"/>
+          <geom name="box3_back" type="box" size="0.1 0.005 0.01" pos="0 -0.1 0" rgba="1 1 0 1" class="collision0" contype="0" conaffinity="0"/>
+          <geom name="box3_left" type="box" size="0.005 0.1 0.01" pos="-0.1 0 0" rgba="1 1 0 1" class="collision0" contype="0" conaffinity="0"/>
+          <geom name="box3_right" type="box" size="0.005 0.1 0.01" pos="0.1 0 0" rgba="1 1 0 1" class="collision0" contype="0" conaffinity="0"/>
+        </body>
+
         <body name="sphere1" pos="0 0.0 0.0">
             <joint name="sphere1_joint_x" type="slide" axis="1 0 0"/>
             <joint name="sphere1_joint_y" type="slide" axis="0 1 0"/>
@@ -187,6 +199,19 @@
               type="sphere"
               size="0.02"
               rgba="1 0 0 1"
+              class="collision0"
+              contype="0" conaffinity="0"/>
+        </body>
+
+        <body name="sphere3" pos="0 0.0 0.0">
+            <joint name="sphere3_joint_x" type="slide" axis="1 0 0"/>
+            <joint name="sphere3_joint_y" type="slide" axis="0 1 0"/>
+            <joint name="sphere3_joint_z" type="slide" axis="0 0 1"/>
+            <inertial pos="0 0 0" mass="1.0" diaginertia="0.01 0.01 0.01"/>
+            <geom name="sphere3_geom"
+              type="sphere"
+              size="0.02"
+              rgba="0 0 1 1"
               class="collision0"
               contype="0" conaffinity="0"/>
         </body>
@@ -238,6 +263,8 @@
         <exclude body1="allegro_base" body2="sphere1"/>
         <exclude body1="iiwa_link_7" body2="sphere2"/>
         <exclude body1="allegro_base" body2="sphere2"/>
+        <exclude body1="iiwa_link_7" body2="sphere3"/>
+        <exclude body1="allegro_base" body2="sphere3"/>
 
 	</contact>
 

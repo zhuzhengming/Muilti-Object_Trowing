@@ -12,33 +12,38 @@ Data:
 * D, Z, Phi, Gamma -- velocity hedgehog_data grids
 """
 import sys
-sys.path.append("../")
+import os
+current_dir = os.path.dirname(os.path.abspath(__file__))
+sys.path.append(os.path.join(current_dir, "../"))
 import time
 import cvxpy as cp
 import numpy as np
 import mujoco
 from mujoco import viewer
+import mujoco_viewer
 from tqdm import tqdm
-import rospy
+from utils.config_loader import get_param
 
 
 class VelocityHedgehog:
-    def __init__(self, q_min, q_max, q_dot_min, q_dot_max, robot_path, train_mode=False, model_exist=False):
+    def __init__(self, q_min, q_max, q_dot_min, q_dot_max, robot_path=None, train_mode=False, model_exist=False):
         self.q_min = q_min
         self.q_max = q_max
         self.q_dot_min = q_dot_min
         self.q_dot_max = q_dot_max
-        robot_path = '/home/zhuzhengming/workspace/Muilti-Object_Trowing/src/description/iiwa7_allegro_throwing.xml'
+        if robot_path is None:
+            robot_path = os.path.join(current_dir, '../description/iiwa7_allegro_throwing.xml')
         self.model = mujoco.MjModel.from_xml_path(robot_path)
         self.data = mujoco.MjData(self.model)
 
         self.q0 = np.array(
             [-0.32032486, 0.02707055, -0.22881525, -1.42611918, 1.38608943, 0.5596685, -1.34659665 + np.pi])
-        self.hand_home_pose = np.array(rospy.get_param('/hand_home_pose'))
-        self.envelop_pose = np.array(rospy.get_param('/envelop_pose'))
+        self.hand_home_pose = np.array(get_param('/hand_home_pose'))
+        self.envelop_pose = np.array(get_param('/envelop_pose'))
 
         if not train_mode and not model_exist:
-            self.view = viewer.launch_passive(self.model, self.data)
+            # self.view = viewer.launch_passive(self.model, self.data)
+            self.view = mujoco_viewer.MujocoViewer(self.model, self.data)
             self._set_joints(self.q0.tolist(), render=True)
             self.viewer_setup()
 
@@ -65,7 +70,11 @@ class VelocityHedgehog:
         mujoco.mj_forward(self.model, self.data)
         if render:
             mujoco.mj_step(self.model, self.data)
-            self.view.sync()
+            if self.view.is_alive:
+                self.view.render()
+            else:
+                pass
+            # self.view.sync()
 
     def _set_hand_joints(self, qh: list, qh_dot: list=None, render=False):
         self.data.qpos[7:23] = qh
@@ -73,7 +82,11 @@ class VelocityHedgehog:
             self.data.qvel[7:23] = qh_dot
         if render:
             mujoco.mj_forward(self.model, self.data)
-            self.view.sync()
+            if self.view.is_alive:
+                self.view.render()
+            else:
+                pass
+            # self.view.sync()
 
     def _set_object_position(self, id, x, vel=None):
         jnt_adr = self.model.body_jntadr[id]
@@ -85,7 +98,11 @@ class VelocityHedgehog:
         else:
             self.data.xpos[id] = x
         mujoco.mj_step(self.model, self.data)
-        self.view.sync()
+        if self.view.is_alive:
+                self.view.render()
+        else:
+            pass
+        # self.view.sync()
 
     def forward(self, q: list, render=False, posture=None) -> (np.ndarray, np.ndarray):
         self._set_joints(q, render=render)
@@ -160,7 +177,13 @@ class VelocityHedgehog:
 
         self.data.body(arrow_id).xpos = pos
         mujoco.mj_step(self.model, self.data)
-        self.view.sync()
+        if self.view.is_alive:
+                self.view.render()
+        else:
+            pass
+        # self.view.sync()
+
+
 
     @property
     def dq(self):
@@ -429,8 +452,8 @@ def construct_quick_search(prefix, Dis, Z, Phi, Gamma, argmax_q, q_ae, posture):
 
 if __name__ == '__main__':
 
-    prefix = '/home/zhuzhengming/workspace/Muilti-Object_Trowing/src/hedgehog_revised/'
-    robot_path = '/home/zhuzhengming/workspace/Muilti-Object_Trowing/src/description/iiwa7_allegro_throwing.xml'
+    prefix = os.path.join(current_dir, '../hedgehog_revised/')
+    robot_path = os.path.join(current_dir, '../description/iiwa7_allegro_throwing.xml')
 
     q_min = np.array([-2.96705972839, -2.09439510239, -2.96705972839, -2.09439510239, -2.96705972839,
                                       -2.09439510239, -3.05432619099])

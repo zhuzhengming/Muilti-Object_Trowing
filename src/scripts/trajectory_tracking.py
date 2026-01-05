@@ -37,9 +37,10 @@ class ThrowingController:
 
 
     def _general_init(self):
-        hedgehog_path = '../hedgehog_revised'
-        brt_path = '../brt_data'
-        xml_path = '../description/iiwa7_allegro_throwing.xml'
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        hedgehog_path = os.path.join(current_dir, '../hedgehog_revised')
+        brt_path = os.path.join(current_dir, '../brt_data')
+        xml_path = os.path.join(current_dir, '../description/iiwa7_allegro_throwing.xml')
 
         self.q_min = np.array([-2.96705972839, -2.09439510239, -2.96705972839, -2.09439510239, -2.96705972839,
                           -2.09439510239, -3.05432619099])
@@ -102,6 +103,7 @@ class ThrowingController:
         self.release_pose_A = np.array(rospy.get_param('/release_pose_A'))
         self.release_pose_B = np.array(rospy.get_param('/release_pose_B'))
         self.joint_cmd_pub = rospy.Publisher('/allegroHand_0/joint_cmd', JointState, queue_size=10)
+
         rospy.Subscriber('/allegroHand_0/joint_states', JointState, self._hand_joint_states_callback)
         self.hand = allegro.Robot(right_hand=False, path_prefix=self.path_prefix)  # load the left hand kinematics
         self.fingertip_sites = ['index_site', 'middle_site', 'ring_site',
@@ -119,7 +121,6 @@ class ThrowingController:
         # iiwa controller
         self.command_pub = rospy.Publisher('/iiwa_impedance_joint', JointState, queue_size=10)
         rospy.Subscriber('/iiwa/joint_states', JointState, self.joint_states_callback, queue_size=10)
-        # rospy.Subscriber('/throw_node/throw_state', Int64, self.scheduler_callback)
 
         # Initialize robot state, to be updated from robot
         self.robot_state = JointState()
@@ -159,7 +160,8 @@ class ThrowingController:
 
     def save_tracking_data_to_npy(self):
 
-        save_dir = '../output/data/ee_tracking/throw_tracking_batch'
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        save_dir = os.path.join(current_dir, '../output/data/ee_tracking/throw_tracking_batch')
         os.makedirs(save_dir, exist_ok=True)
 
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -719,7 +721,8 @@ if __name__ == '__main__':
     box1 = np.array([1.3, -0.1, -0.1])
     box2 = np.array([0.7, 1.0, -0.1])
     multi_box_positions = np.array([box1, box2])
-    throwing_controller = ThrowingController(path_prefix='/home/zhuzhengming/workspace/Muilti-Object_Trowing/src/',
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    throwing_controller = ThrowingController(path_prefix=os.path.join(current_dir, '../'),
                                                 box_position=box_position )
     for nTry in range(100):
         print("test number", nTry + 1)

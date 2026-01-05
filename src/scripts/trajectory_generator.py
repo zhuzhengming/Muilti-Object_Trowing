@@ -4,16 +4,18 @@ input: box_position
 output: target[q, q_dot]
 """
 import sys
+import os
 
-from PyQt5.QtCore import qSNaN
 from lxml import etree
 
-sys.path.append("../")
-sys.path.append("../../..")
+current_dir = os.path.dirname(os.path.abspath(__file__))
+sys.path.append(os.path.join(current_dir, "../"))
+sys.path.append(os.path.join(current_dir, "../../.."))
 from hedgehog import VelocityHedgehog
 import time
 import math
 import numpy as np
+import itertools
 from ruckig import InputParameter, Ruckig, Trajectory, Result
 from utils.config_loader import get_param
 import mujoco
@@ -34,7 +36,7 @@ class TrajectoryGenerator:
         self.Z_TOLERANCE = 0.01
         self.box_position = box_position
         self.freq = 200
-        self.off_data_path = "../../../training_data"
+        self.off_data_path = os.path.join(current_dir, "../../../training_data")
 
         if q0 is None:
             self.q0 = np.array([-1.5783, 0.1498, 0.1635, -0.7926, -0.0098, 0.6, 1.2881])
@@ -44,7 +46,9 @@ class TrajectoryGenerator:
 
         # mujoco similator
         if robot_path is None:
-            self.robot_path = '../description/iiwa7_allegro_throwing.xml'
+            self.robot_path = os.path.join(current_dir, '../description/iiwa7_allegro_throwing.xml')
+        else:
+            self.robot_path = robot_path
 
         q_dot_max = np.array([1.71, 1.74, 1.745, 2.269, 2.443, 3.142, 3.142])
         q_dot_min = -q_dot_max
@@ -640,15 +644,187 @@ class TrajectoryGenerator:
         gc.collect()
 
         if animate:
-            # for intermediate_time, final_trajectory, best_throw_config_pair \
-            #         in zip(intermediate_time_all, final_trajectory_all, all_pair_configs):
-                # self.throw_simulation_mujoco(final_trajectory, best_throw_config_pair, intermediate_time=intermediate_time)
-                # print("try once!")
-
             self.throw_simulation_mujoco(final_trajectory, best_throw_config_pair,
                                      intermediate_time=intermediate_time)
         else:
             return final_trajectory, best_throw_config_pair, intermediate_time
+
+    def solve_multi_targets(self, box_positions, postures=None, animate=True, full_search=False, q0=None):
+       
+        q0 = q0 if q0 is not None else self.q0
+        n_targets = len(box_positions)
+        if postures is None:
+            postures = ['posture1'] * n_targets
+            
+        start_time = time.time()
+        
+        all_targets_configs = []
+        for i in range(n_targets):
+            pos = box_positions[i]
+            posture = postures[i]
+            base = pos[:2]
+            
+            q_c, phi_c, x_c = self.brt_robot_data_matching(posture=posture, box_pos=pos)
+            if full_search:
+                q_c, phi_c, x_c = self.filter_candidates(q_c, phi_c, x_c, thres_r_ratio=1.0, thres_phi_ratio=1.0, thres_height=-0.5)
+            else:
+                q_c, phi_c, x_c = self.filter_candidates(q_c, phi_c, x_c)
+                
+            if len(q_c) == 0:
+                print(f"目标 {i} 未找到解集")
+                return None, None, None
+                
+            _, throw_configs = self.generate_throw_config(
+                q_c, phi_c, x_c, base,
+                qs=q0, qs_dot=np.zeros(7), 
+                posture=posture, simulation=False
+            )
+            
+            if len(throw_configs) == 0:
+                print(f"目标 {i} 生成合法配置失败")
+                return None, None, None
+            
+            all_targets_configs.append(throw_configs)
+
+        all_sequences = list(itertools.product(*all_targets_configs))
+
+        best_duration = np.inf
+        best_result = None 
+
+        for seq in all_sequences:
+            current_q = q0
+            current_q_dot = np.zeros(7)
+            current_total_duration = 0
+            temp_trajs = []
+            valid_seq = True
+            
+            for i in range(n_targets):
+                target_q = seq[i][0]
+                target_q_dot = seq[i][3]
+                try:
+                    t = self.get_traj_from_ruckig(current_q, current_q_dot, target_q, target_q_dot)
+                    if t is None or t.duration < 1e-10:
+                        valid_seq = False; break
+                    current_total_duration += t.duration
+                    if current_total_duration >= best_duration:
+                        valid_seq = False; break
+                    temp_trajs.append(t)
+                    current_q, current_q_dot = target_q, target_q_dot
+                except:
+                    valid_seq = False; break
+            
+            if valid_seq and current_total_duration < best_duration:
+                best_duration = current_total_duration
+                best_result = (list(seq), temp_trajs)
+
+        if best_result is None:
+            print("未能找到可行的轨迹序列")
+            return None, None, None
+
+        best_configs, best_trajs = best_result
+        
+        total_traj = {
+            'timestamp': np.array([]),
+            'position': np.empty((0, 7)),
+            'velocity': np.empty((0, 7)),
+            'acceleration': np.empty((0, 7))
+        }
+        current_offset = 0.0
+        intermediate_times = []
+        for t_obj in best_trajs:
+            seg = self.process_trajectory(t_obj, current_offset)
+            if len(total_traj['timestamp']) > 0:
+                start_idx = 1 if np.isclose(seg['timestamp'][0], total_traj['timestamp'][-1]) else 0
+            else:
+                start_idx = 0
+            total_traj['timestamp'] = np.concatenate([total_traj['timestamp'], seg['timestamp'][start_idx:]])
+            total_traj['position'] = np.concatenate([total_traj['position'], seg['position'][start_idx:]], axis=0)
+            total_traj['velocity'] = np.concatenate([total_traj['velocity'], seg['velocity'][start_idx:]], axis=0)
+            total_traj['acceleration'] = np.concatenate([total_traj['acceleration'], seg['acceleration'][start_idx:]], axis=0)
+            current_offset += t_obj.duration
+            intermediate_times.append(current_offset)
+
+        print(f"全排列搜索完成: 最优耗时 {best_duration:.2f}s, 搜索总用时 {time.time()-start_time:.2f}s")
+        
+        if animate:
+            self.throw_simulation_mujoco_generic(total_traj, best_configs, intermediate_times, postures)
+        
+        return total_traj, best_configs, intermediate_times
+
+
+    def throw_simulation_mujoco_generic(self, ref_sequence, throw_configs, intermediate_times, postures):
+        ROBOT_BASE_HEIGHT = 0.5
+        n_targets = len(throw_configs)
+        
+        for i in range(n_targets):
+            try:
+                box_name = f"box{i+1}"
+                sphere_name = f"sphere{i+1}"
+                
+                target_id = self.robot.model.body(box_name).id
+                box_pos = throw_configs[i][-1].copy()
+                box_pos[2] += ROBOT_BASE_HEIGHT
+                self.robot._set_object_position(target_id, box_pos)
+            except Exception:
+                pass
+
+        delta_t = 1.0 / self.freq
+        
+        q0 = ref_sequence['position'][0].copy()
+        self.robot._set_joints(q0.tolist(), render=True)
+        
+        plan_time = ref_sequence['timestamp'][-1]
+        sim_time = plan_time + 1.0 
+        max_step = int(sim_time * self.freq)
+        final_step = int(plan_time * self.freq)
+        
+        target_steps = [int(t * self.freq) for t in intermediate_times]
+        
+        cur_step = 0
+        while cur_step < max_step:
+            if cur_step < final_step:
+                pos = ref_sequence['position'][cur_step]
+                vel = ref_sequence['velocity'][cur_step]
+            else:
+                pos = ref_sequence['position'][-1]
+                vel = ref_sequence['velocity'][-1]
+            
+            self.robot._set_joints(pos, vel, render=True)
+            
+            current_target_idx = 0
+            for i, step in enumerate(target_steps):
+                if cur_step < step:
+                    current_target_idx = i
+                    break
+                else:
+                    current_target_idx = n_targets 
+            
+            
+            self.robot._set_hand_joints(self.robot.envelop_pose.copy().tolist(), render=True)
+            
+           
+            for i in range(n_targets):
+                if i >= current_target_idx: 
+                    try:
+                        sphere_name = f"sphere{i+1}"
+                        sphere_id = self.robot.model.body(sphere_name).id
+                        posture = postures[i]
+                        
+                        if posture == 'posture1':
+                            ee_pos = (self.robot.obj_x2base("thumb_site") + self.robot.obj_x2base("middle_site")) / 2
+                            ee_vel = (self.robot.obj_v("thumb_site") + self.robot.obj_v("middle_site")) / 2
+                        else:
+                            ee_pos = (self.robot.obj_x2base("index_site") + self.robot.obj_x2base("ring_site")) / 2
+                            ee_vel = (self.robot.obj_v("index_site") + self.robot.obj_v("ring_site")) / 2
+                            
+                        ee_pos[2] += ROBOT_BASE_HEIGHT
+                        self.robot._set_object_position(sphere_id, ee_pos, ee_vel[:3])
+                    except Exception:
+                        pass
+
+            cur_step += 1
+            time.sleep(delta_t)
+
 
     def process_trajectory(self, traj, time_offset=0.0):
 
@@ -899,10 +1075,12 @@ if __name__ == "__main__":
                       -2.09439510239, -3.05432619099])
     q_max = np.array([2.96705972839, 2.09439510239, 2.96705972839, 2.09439510239, 2.96705972839,
                       2.09439510239, 3.05432619099])
-    hedgehog_path = '../hedgehog_revised'
-    brt_path = '../brt_data'
-
-    robot_path = '../description/iiwa7_allegro_throwing.xml'
+    
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    hedgehog_path = os.path.abspath(os.path.join(current_dir, '../hedgehog_revised'))
+    brt_path = os.path.abspath(os.path.join(current_dir, '../brt_data'))
+    robot_path = os.path.abspath(os.path.join(current_dir, '../description/iiwa7_allegro_throwing.xml'))
+    
     box_position = np.array([1.3, 0.07, -0.158])
     box1 = np.array([1.25, 0.35, -0.1])
     box2 = np.array([0.4, 1.3, -0.1])
@@ -916,7 +1094,9 @@ if __name__ == "__main__":
 
     # naive search
     # trajectory_generator.naive_search(box_positions)
+
     # greedy search
     trajectory_generator.multi_waypoint_solve(box_positions, full_search=True)
+    
     # KD-Tree search
     # trajectory_generator.KD_Tree_search(box_positions)
