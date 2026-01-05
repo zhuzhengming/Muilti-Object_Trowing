@@ -1,0 +1,40 @@
+cmake_minimum_required(VERSION 3.5)
+project(multi_object_throwing)
+
+# Find ament_cmake
+find_package(ament_cmake REQUIRED)
+find_package(ament_cmake_python REQUIRED)
+
+# Install Python packages using setup.py
+ament_python_install_package(${PROJECT_NAME})
+
+# Install scripts
+install(PROGRAMS
+  scripts/trajectory_tracking.py
+  scripts/hedgehog.py
+  scripts/NN_search.py
+  scripts/RL_throwing.py
+  scripts/sample_generation.py
+  scripts/training.py
+  scripts/trajectory_generator.py
+  DESTINATION lib/${PROJECT_NAME}
+)
+
+# Install data directories
+install(DIRECTORY
+  config
+  description
+  brt_data
+  hedgehog_data
+  hedgehog_revised
+  DESTINATION share/${PROJECT_NAME}
+)
+
+# Install launch files if any
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/launch")
+  install(DIRECTORY launch
+    DESTINATION share/${PROJECT_NAME}
+  )
+endif()
+
+ament_package()

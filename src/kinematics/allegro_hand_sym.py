@@ -7,11 +7,30 @@ import xml.etree.ElementTree as ET
 import numpy as np
 
 import sys
+import os
 
-sys.path.append("..")
-import tools.rotations as rot
 import os.path
 import pickle
+
+sys.path.append("../")
+
+def pose2T(pose):
+    # [x,y,z, qw, qx, qy, qz]
+    assert len(pose) == 7
+
+    pos = pose[:3].reshape(-1, 1)
+    quat = pose[3:]
+    R = quat2mat(quat)
+    return np.concatenate([np.concatenate([R, pos], axis=1), np.array([[0., 0, 0, 1]])])
+
+def T2pose(T):
+    # return [x,y,z, qw, qx, qy, qz]
+    assert T.shape[1] == 4
+
+    pos = T[:3, 3]
+    quat = mat2quat(T[:3, :3])
+    return np.concatenate([pos, quat])
+
 
 
 class Robot:
@@ -84,7 +103,7 @@ class Robot:
                 pos = np.fromstring(b[i]['pos'], sep=' ')
                 quat = np.fromstring(b[i]['quat'], sep=' ') if 'quat' in b[i] else np.array([1, 0, 0, 0.])
                 # print(pos, quat)
-                T = T * rot.pose2T(np.concatenate([pos, quat]))
+                T = T * pose2T(np.concatenate([pos, quat]))
                 # print(T)
                 T = T * rotation(q[i], j[i]['axis'])
                 # print(T)
@@ -110,7 +129,7 @@ class Robot:
         for i in range(4):
             pose = self.fk[i](q[i * 4: 4 + i * 4])  # (4,4)
             if quat:
-                pose = rot.T2pose(pose)  # (7, )
+                pose = T2pose(pose)  # (7, )
             poses.append(pose)
         return poses
 

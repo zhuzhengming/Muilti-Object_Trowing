@@ -20,8 +20,8 @@ import kinematics.allegro_hand_sym as allegro
 from datetime import datetime
 from trajectory_generator import TrajectoryGenerator
 
-SIMULATION = False
-DEBUG = True
+SIMULATION = True
+DEBUG = False
 
 class ThrowingController:
     def __init__(self, path_prefix='../', box_position=None):
@@ -719,7 +719,8 @@ if __name__ == '__main__':
     box1 = np.array([1.3, -0.1, -0.1])
     box2 = np.array([0.7, 1.0, -0.1])
     multi_box_positions = np.array([box1, box2])
-    throwing_controller = ThrowingController(box_position=box_position)
+    throwing_controller = ThrowingController(path_prefix='/home/zhuzhengming/workspace/Muilti-Object_Trowing/src/',
+                                                box_position=box_position )
     for nTry in range(100):
         print("test number", nTry + 1)
 

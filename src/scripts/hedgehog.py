@@ -28,6 +28,7 @@ class VelocityHedgehog:
         self.q_max = q_max
         self.q_dot_min = q_dot_min
         self.q_dot_max = q_dot_max
+        robot_path = '/home/zhuzhengming/workspace/Muilti-Object_Trowing/src/description/iiwa7_allegro_throwing.xml'
         self.model = mujoco.MjModel.from_xml_path(robot_path)
         self.data = mujoco.MjData(self.model)
 
@@ -36,7 +37,7 @@ class VelocityHedgehog:
         self.hand_home_pose = np.array(rospy.get_param('/hand_home_pose'))
         self.envelop_pose = np.array(rospy.get_param('/envelop_pose'))
 
-        if train_mode is False and model_exist is False:
+        if not train_mode and not model_exist:
             self.view = viewer.launch_passive(self.model, self.data)
             self._set_joints(self.q0.tolist(), render=True)
             self.viewer_setup()
@@ -428,8 +429,8 @@ def construct_quick_search(prefix, Dis, Z, Phi, Gamma, argmax_q, q_ae, posture):
 
 if __name__ == '__main__':
 
-    prefix = '../hedgehog_revised/'
-    robot_path = '../description/iiwa7_allegro_throwing.xml'
+    prefix = '/home/zhuzhengming/workspace/Muilti-Object_Trowing/src/hedgehog_revised/'
+    robot_path = '/home/zhuzhengming/workspace/Muilti-Object_Trowing/src/description/iiwa7_allegro_throwing.xml'
 
     q_min = np.array([-2.96705972839, -2.09439510239, -2.96705972839, -2.09439510239, -2.96705972839,
                                       -2.09439510239, -3.05432619099])
