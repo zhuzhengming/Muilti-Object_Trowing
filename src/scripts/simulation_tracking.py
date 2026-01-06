@@ -28,9 +28,9 @@ class SimulationTracking:
 
     def run_multi_throwing_sim(self, mode='greedy'):
         
-        box1 = np.array([1.25, 0.35, -0.1])
-        box2 = np.array([0.4, 1.3, -0.1])
-        box3 = np.array([0.8, -0.5, -0.1])
+        box1 = np.array([1.25, 0.35, -0.1]) # blue
+        box3 = np.array([0.8, -0.5, -0.1]) # yellow
+        box2 = np.array([0.4, 1.3, -0.1]) # red
         
         
         if mode == 'greedy':
@@ -49,7 +49,8 @@ if __name__ == "__main__":
     
     try:
         while True:
-            choice = input("mode: ").strip().upper()
+            # choice = input("mode: ").strip().upper()
+            choice = '1'
             
             if choice == '1':
                 sim.run_multi_throwing_sim(mode='greedy')

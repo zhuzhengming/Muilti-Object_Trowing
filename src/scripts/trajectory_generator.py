@@ -35,7 +35,7 @@ class TrajectoryGenerator:
         self.GAMMA_TOLERANCE = 0.2/180.0*np.pi
         self.Z_TOLERANCE = 0.01
         self.box_position = box_position
-        self.freq = 200
+        self.freq = 1000
         self.off_data_path = os.path.join(current_dir, "../../../training_data")
 
         if q0 is None:
@@ -752,7 +752,12 @@ class TrajectoryGenerator:
         return total_traj, best_configs, intermediate_times
 
 
-    def throw_simulation_mujoco_generic(self, ref_sequence, throw_configs, intermediate_times, postures):
+    def throw_simulation_mujoco_generic(self,
+                                        ref_sequence,
+                                          throw_configs,
+                                            intermediate_times,
+                                              postures,
+                                                speed_up=50):
         ROBOT_BASE_HEIGHT = 0.5
         n_targets = len(throw_configs)
         
@@ -782,9 +787,10 @@ class TrajectoryGenerator:
         
         cur_step = 0
         while cur_step < max_step:
+            step_idx = min(cur_step, final_step - 1)
             if cur_step < final_step:
-                pos = ref_sequence['position'][cur_step]
-                vel = ref_sequence['velocity'][cur_step]
+                pos = ref_sequence['position'][step_idx]
+                vel = ref_sequence['velocity'][step_idx]
             else:
                 pos = ref_sequence['position'][-1]
                 vel = ref_sequence['velocity'][-1]
@@ -802,7 +808,7 @@ class TrajectoryGenerator:
             
             self.robot._set_hand_joints(self.robot.envelop_pose.copy().tolist(), render=True)
             
-           
+            
             for i in range(n_targets):
                 if i >= current_target_idx: 
                     try:
@@ -822,7 +828,7 @@ class TrajectoryGenerator:
                     except Exception:
                         pass
 
-            cur_step += 1
+            cur_step += speed_up
             time.sleep(delta_t)
 
 
@@ -906,7 +912,8 @@ class TrajectoryGenerator:
     def throw_simulation_mujoco(self, ref_sequence,
                                 throw_config_full=None,
                                 intermediate_time=None,
-                                posture =None):
+                                posture =None,
+                                speed_up=50):
         ROBOT_BASE_HEIGHT = 0.5
         if throw_config_full is not None:
             if len(throw_config_full) == 2:
@@ -959,9 +966,10 @@ class TrajectoryGenerator:
             'posture2': np.array([])
         }
         while True:
+            step_idx = min(cur_step, final_step - 1)
             if flag:
-                pos = ref_sequence['position'][cur_step].copy()
-                vel = ref_sequence['velocity'][cur_step].copy()
+                pos = ref_sequence['position'][step_idx].copy()
+                vel = ref_sequence['velocity'][step_idx].copy()
                 self.robot._set_joints(pos, vel, render=True)
             else:
                 pos = ref_sequence['position'][-1].copy()
@@ -995,7 +1003,7 @@ class TrajectoryGenerator:
                 else:
                     self.robot._set_hand_joints(self.robot.hand_home_pose.copy().tolist(), render=True)
 
-            cur_step += 1
+            cur_step += speed_up
             if cur_step > final_step:
                 flag = False
             time.sleep(delta_t)
