@@ -43,8 +43,10 @@ class VelocityHedgehog:
 
         if not train_mode and not model_exist:
             # self.view = viewer.launch_passive(self.model, self.data)
-            self.view = mujoco_viewer.MujocoViewer(self.model, self.data)
-            self._set_joints(self.q0.tolist(), render=True)
+            self.view = mujoco_viewer.MujocoViewer(self.model, self.data, width=600, height=450)
+            self.view._hide_menu = True  
+            self._set_joints(self.q0.tolist())
+            self.step_physics(steps=1, render=True)
             self.viewer_setup()
 
     def viewer_setup(self):
@@ -61,32 +63,19 @@ class VelocityHedgehog:
         self.view.cam.elevation = -21.105028822285007  # camera rotation around the axis in the plane going through the frame origin (if 0 you just see a line)
         self.view.cam.azimuth = 94.61867426942274  # camera rotation around the camera's vertical axis
 
-    def _set_joints(self, q: list, q_dot: list=None, render=False):
+    def _set_joints(self, q: list, q_dot: list=None):
         size_q = len(q)
         self.data.qpos[:size_q] = q
         if q_dot is not None:
             size_qdot = len(q_dot)
             self.data.qvel[:size_qdot] = q_dot
         mujoco.mj_forward(self.model, self.data)
-        if render:
-            mujoco.mj_step(self.model, self.data)
-            if self.view.is_alive:
-                self.view.render()
-            else:
-                pass
-            # self.view.sync()
 
-    def _set_hand_joints(self, qh: list, qh_dot: list=None, render=False):
+    def _set_hand_joints(self, qh: list, qh_dot: list=None):
         self.data.qpos[7:23] = qh
         if qh_dot is not None:
             self.data.qvel[7:23] = qh_dot
-        if render:
-            mujoco.mj_forward(self.model, self.data)
-            if self.view.is_alive:
-                self.view.render()
-            else:
-                pass
-            # self.view.sync()
+        mujoco.mj_forward(self.model, self.data)
 
     def _set_object_position(self, id, x, vel=None):
         jnt_adr = self.model.body_jntadr[id]
@@ -97,18 +86,23 @@ class VelocityHedgehog:
                 self.data.qvel[dof_adr:dof_adr + 3] = vel[:3]
         else:
             self.data.xpos[id] = x
-        mujoco.mj_step(self.model, self.data)
-        if self.view.is_alive:
-                self.view.render()
-        else:
-            pass
-        # self.view.sync()
+        mujoco.mj_forward(self.model, self.data)
+
+    def step_physics(self, steps=1, render=True):
+        for _ in range(steps):
+            mujoco.mj_step(self.model, self.data)
+        if render and self.view.is_alive:
+            self.view.render()
 
     def forward(self, q: list, render=False, posture=None) -> (np.ndarray, np.ndarray):
-        self._set_joints(q, render=render)
+        self._set_joints(q)
+        if render:
+            self.step_physics(steps=1, render=True)
 
         if posture == "posture1":
-            self._set_hand_joints(self.envelop_pose.tolist(), render=render)
+            self._set_hand_joints(self.envelop_pose.tolist())
+            if render:
+                self.step_physics(steps=1, render=True)
             jacp1 = np.zeros((3, self.model.nv))
             jacr1 = np.zeros((3, self.model.nv))
             jacp2 = np.zeros((3, self.model.nv))
@@ -120,7 +114,9 @@ class VelocityHedgehog:
             AE = (self.obj_x2base("thumb_site") + self.obj_x2base("middle_site"))/2
             J = (np.vstack((jacp1, jacr1))[:, :7] + np.vstack((jacp2, jacr2))[:, :7]) /2
         elif posture == "posture2":
-            self._set_hand_joints(self.envelop_pose.tolist(), render=render)
+            self._set_hand_joints(self.envelop_pose.tolist())
+            if render:
+                self.step_physics(steps=1, render=True)
             jacp1 = np.zeros((3, self.model.nv))
             jacr1 = np.zeros((3, self.model.nv))
             jacp2 = np.zeros((3, self.model.nv))
@@ -452,7 +448,7 @@ def construct_quick_search(prefix, Dis, Z, Phi, Gamma, argmax_q, q_ae, posture):
 
 if __name__ == '__main__':
 
-    prefix = os.path.join(current_dir, '../hedgehog_revised/')
+    prefix = os.path.join(current_dir, '../hedgehog_data/')
     robot_path = os.path.join(current_dir, '../description/iiwa7_allegro_throwing.xml')
 
     q_min = np.array([-2.96705972839, -2.09439510239, -2.96705972839, -2.09439510239, -2.96705972839,

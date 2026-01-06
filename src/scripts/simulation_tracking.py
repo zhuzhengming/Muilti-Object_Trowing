@@ -12,7 +12,7 @@ class SimulationTracking:
     def __init__(self, box_position=None):
         self.box_position = box_position if box_position is not None else np.array([1.3, 0.07, -0.158])
         
-        self.hedgehog_path = os.path.abspath(os.path.join(current_dir, '../hedgehog_revised'))
+        self.hedgehog_path = os.path.abspath(os.path.join(current_dir, '../hedgehog_data'))
         self.brt_path = os.path.abspath(os.path.join(current_dir, '../brt_data'))
         self.robot_path = os.path.abspath(os.path.join(current_dir, '../description/iiwa7_allegro_throwing.xml'))
         
@@ -28,9 +28,9 @@ class SimulationTracking:
 
     def run_multi_throwing_sim(self, mode='greedy'):
         
-        box1 = np.array([1.25, 0.35, -0.1]) # blue
-        box3 = np.array([0.8, -0.5, -0.1]) # yellow
-        box2 = np.array([0.4, 1.3, -0.1]) # red
+        box1 = np.array([0.4, 1.3, -0.1]) # blue
+        box2 = np.array([1.0, 0.0, -0.1]) # red
+        box3 = np.array([-0.8, 0.7, -0.1]) # yellow
         
         
         if mode == 'greedy':

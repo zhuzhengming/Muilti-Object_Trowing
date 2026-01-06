@@ -23,7 +23,7 @@ class OptimalSolver:
         # Fixed q0
         self.q0 = np.array([-1.5783, 0.1498, 0.1635, -0.7926, -0.0098, 0.6, 1.2881])
 
-        hedgehog_path = '../hedgehog_revised'
+        hedgehog_path = '../hedgehog_data'
         brt_path = '../brt_data'
         xml_path = '../description/iiwa7_allegro_throwing.xml'
         self.trajectoryGenerator = TrajectoryGenerator(self.q_max, self.q_min,

@@ -38,7 +38,7 @@ class ThrowingController:
 
     def _general_init(self):
         current_dir = os.path.dirname(os.path.abspath(__file__))
-        hedgehog_path = os.path.join(current_dir, '../hedgehog_revised')
+        hedgehog_path = os.path.join(current_dir, '../hedgehog_data')
         brt_path = os.path.join(current_dir, '../brt_data')
         xml_path = os.path.join(current_dir, '../description/iiwa7_allegro_throwing.xml')
 

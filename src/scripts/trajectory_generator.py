@@ -757,7 +757,7 @@ class TrajectoryGenerator:
                                           throw_configs,
                                             intermediate_times,
                                               postures,
-                                                speed_up=50):
+                                                speed_up=5):
         ROBOT_BASE_HEIGHT = 0.5
         n_targets = len(throw_configs)
         
@@ -774,9 +774,11 @@ class TrajectoryGenerator:
                 pass
 
         delta_t = 1.0 / self.freq
+        physics_steps = int(speed_up * delta_t / self.robot.model.opt.timestep)
         
         q0 = ref_sequence['position'][0].copy()
-        self.robot._set_joints(q0.tolist(), render=True)
+        self.robot._set_joints(q0.tolist())
+        self.robot.step_physics(steps=1, render=True)
         
         plan_time = ref_sequence['timestamp'][-1]
         sim_time = plan_time + 1.0 
@@ -795,7 +797,7 @@ class TrajectoryGenerator:
                 pos = ref_sequence['position'][-1]
                 vel = ref_sequence['velocity'][-1]
             
-            self.robot._set_joints(pos, vel, render=True)
+            self.robot._set_joints(pos, vel)
             
             current_target_idx = 0
             for i, step in enumerate(target_steps):
@@ -806,7 +808,7 @@ class TrajectoryGenerator:
                     current_target_idx = n_targets 
             
             
-            self.robot._set_hand_joints(self.robot.envelop_pose.copy().tolist(), render=True)
+            self.robot._set_hand_joints(self.robot.envelop_pose.copy().tolist())
             
             
             for i in range(n_targets):
@@ -828,6 +830,7 @@ class TrajectoryGenerator:
                     except Exception:
                         pass
 
+            self.robot.step_physics(steps=physics_steps, render=True)
             cur_step += speed_up
             time.sleep(delta_t)
 
@@ -916,6 +919,7 @@ class TrajectoryGenerator:
                                 speed_up=50):
         ROBOT_BASE_HEIGHT = 0.5
         if throw_config_full is not None:
+            # ... (keep existing logic)
             if len(throw_config_full) == 2:
                 box_position_1 = throw_config_full[0][-1].copy()
                 box_position_2 = throw_config_full[1][-1].copy()
@@ -938,11 +942,12 @@ class TrajectoryGenerator:
 
 
         delta_t = 1.0 / self.freq
-        # self.robot.print_simulator_info() # output simulator infos
+        physics_steps = int(speed_up * delta_t / self.robot.model.opt.timestep)
 
         # reset the joint
         q0 = ref_sequence['position'][0].copy()
-        self.robot._set_joints(q0.tolist(), render=True)
+        self.robot._set_joints(q0.tolist())
+        self.robot.step_physics(steps=1, render=True)
 
         plan_time = ref_sequence['timestamp'][-1]
         sim_time = 12.0
@@ -970,11 +975,11 @@ class TrajectoryGenerator:
             if flag:
                 pos = ref_sequence['position'][step_idx].copy()
                 vel = ref_sequence['velocity'][step_idx].copy()
-                self.robot._set_joints(pos, vel, render=True)
+                self.robot._set_joints(pos, vel)
             else:
                 pos = ref_sequence['position'][-1].copy()
                 vel = ref_sequence['velocity'][-1].copy()
-                self.robot._set_joints(pos, vel, render=True)
+                self.robot._set_joints(pos, vel)
 
             # get the state of ee_site in the frame of kuka_base
             object1_id = self.robot.model.body("sphere1").id
@@ -990,19 +995,20 @@ class TrajectoryGenerator:
 
             if control_mode == 'multi_object':
                 if cur_step < intermediate_step:
-                    self.robot._set_hand_joints(self.robot.envelop_pose.copy().tolist(), render=True)
+                    self.robot._set_hand_joints(self.robot.envelop_pose.copy().tolist())
                     self.robot._set_object_position(object1_id, ee_pos['posture1'], ee_vel['posture1'][:3])
                     self.robot._set_object_position(object2_id, ee_pos['posture2'], ee_vel['posture2'][:3])
                 elif cur_step >= intermediate_step and cur_step < final_step:
-                    self.robot._set_hand_joints(self.robot.envelop_pose.copy().tolist(), render=True)
+                    self.robot._set_hand_joints(self.robot.envelop_pose.copy().tolist())
                     self.robot._set_object_position(object2_id, ee_pos['posture2'], ee_vel['posture2'][:3])
             else:
                 if cur_step < final_step:
-                    self.robot._set_hand_joints(self.robot.envelop_pose.copy().tolist(), render=True)
+                    self.robot._set_hand_joints(self.robot.envelop_pose.copy().tolist())
                     self.robot._set_object_position(object1_id, ee_pos[posture], ee_vel[posture][:3])
                 else:
-                    self.robot._set_hand_joints(self.robot.hand_home_pose.copy().tolist(), render=True)
+                    self.robot._set_hand_joints(self.robot.hand_home_pose.copy().tolist())
 
+            self.robot.step_physics(steps=physics_steps, render=True)
             cur_step += speed_up
             if cur_step > final_step:
                 flag = False
@@ -1085,7 +1091,7 @@ if __name__ == "__main__":
                       2.09439510239, 3.05432619099])
     
     current_dir = os.path.dirname(os.path.abspath(__file__))
-    hedgehog_path = os.path.abspath(os.path.join(current_dir, '../hedgehog_revised'))
+    hedgehog_path = os.path.abspath(os.path.join(current_dir, '../hedgehog_data'))
     brt_path = os.path.abspath(os.path.join(current_dir, '../brt_data'))
     robot_path = os.path.abspath(os.path.join(current_dir, '../description/iiwa7_allegro_throwing.xml'))
     
