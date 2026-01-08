@@ -380,13 +380,13 @@ def main(prefix, VelocityHedgehog: VelocityHedgehog, delta_q, Dis, Z, Phi, Gamma
                     vels = np.zeros((len(qzd), num_phi, num_gamma))
                     # check all the joint configuration in the specific z and d
                     # solve specific max velocity using LP
+                    qdmin, qdmax = VelocityHedgehog.q_dot_min, VelocityHedgehog.q_dot_max
                     for k, q in enumerate(qzd):
                         AE = aezd[i][j][k]
                         J = Jzd[i][j][k]
                         # fracyx = AE[1] / AE[0]
                         fracyx = np.arctan2(AE[1], AE[0])
                         Jinv = np.linalg.pinv(J[:3, :]) # pseudo inverse of Jacobian
-                        qdmin, qdmax = VelocityHedgehog.q_dot_min, VelocityHedgehog.q_dot_max
 
                         # fix z, dis, for every gamma and phi
                         vels[k, :, :] = np.array([[LP(phi, gamma, Jinv, fracyx, qdmin, qdmax) for gamma in Gamma] for phi in Phi])
@@ -419,26 +419,28 @@ def construct_quick_search(prefix, Dis, Z, Phi, Gamma, argmax_q, q_ae, posture):
         aes = []
         qid_iter = 0
         q_idxs = np.zeros((num_z, num_dis, num_phi, num_gamma))
-        for i in range(num_z):
-            for j in range(num_dis):
-                for k in range(num_phi):
-                    for l in range(num_gamma):
-                        q = argmax_q[mode_idx, i, j, k, l, :]
-                        ae = q_ae[mode_idx, i, j, k, l, :]
-                        exist = False
-                        for d, qi in enumerate(qs):
-                            if np.allclose(qi, q):
-                                qid = d
-                                exist = True
-                                break
-                        if not exist:
-                            qid = qid_iter
-                            qid_iter += 1
-                            qs.append(q)
-                            aes.append(ae)
-                        # [z, dis, phi, gamma] -> q_id
-                        # q_id -> q, ae
-                        q_idxs[i, j, k, l] = qid
+        with tqdm(total=num_z, desc=f"Posturing {pose_mode}", unit="z") as pbar:
+            for i in range(num_z):
+                for j in range(num_dis):
+                    for k in range(num_phi):
+                        for l in range(num_gamma):
+                            q = argmax_q[mode_idx, i, j, k, l, :]
+                            ae = q_ae[mode_idx, i, j, k, l, :]
+                            exist = False
+                            for d, qi in enumerate(qs):
+                                if np.allclose(qi, q):
+                                    qid = d
+                                    exist = True
+                                    break
+                            if not exist:
+                                qid = qid_iter
+                                qid_iter += 1
+                                qs.append(q)
+                                aes.append(ae)
+                            # [z, dis, phi, gamma] -> q_id
+                            # q_id -> q, ae
+                            q_idxs[i, j, k, l] = qid
+                pbar.update(1)
 
         np.save(f'{prefix}q_idxs_{pose_mode}.npy', q_idxs)
         np.save(f'{prefix}q_idx_qs_{pose_mode}.npy', np.array(qs))
@@ -456,7 +458,7 @@ if __name__ == '__main__':
     q_max = -q_min
 
     # set the q_dot limitation of last joint as 0 because I assume it is pre-defined
-    q_dot_max = np.array([1.71, 1.74, 1.745, 2.269, 2.443, 3.142, 3.142])
+    q_dot_max = np.array([1.71, 1.74, 1.745, 2.269, 2.443, 3.142, 3.142]) * 5.0
     q_dot_min = -q_dot_max
 
     # for iiwa configuration

@@ -50,7 +50,7 @@ class TrajectoryGenerator:
         else:
             self.robot_path = robot_path
 
-        q_dot_max = np.array([1.71, 1.74, 1.745, 2.269, 2.443, 3.142, 3.142])
+        q_dot_max = np.array([1.71, 1.74, 1.745, 2.269, 2.443, 3.142, 3.142]) * 5.0
         q_dot_min = -q_dot_max
 
         self.robot = VelocityHedgehog(self.q_ll, self.q_ul, q_dot_min, q_dot_max, robot_path, model_exist=model_exist)
