@@ -58,7 +58,7 @@ class TrajectoryGenerator:
         self.load_data()
 
     def load_params(self):
-        self.max_velocity = np.array(get_param('/max_velocity'))
+        self.max_velocity = np.array(get_param('/max_velocity')) * 5.0
         # self.max_acceleration = np.array([15, 7.5, 10, 12.5, 15, 20, 20])
         # self.max_jerk = np.array([7500, 3750, 5000, 6250, 7500, 10000, 10000])
         self.max_acceleration = np.array(get_param('/max_acceleration'))
@@ -356,8 +356,8 @@ class TrajectoryGenerator:
 
         if joint_velocity_limits is None:
             joint_velocity_limits = {
-                'max_abs': [1.5, 0.6, None, None, None, 2.0, None],
-                'min_abs': [None, 0.0, None, None, None, 1.0, None]
+                'max_abs': self.max_velocity.tolist(),
+                'min_abs': [None] * 7
             }
 
         joint_limit_counters = {
@@ -368,7 +368,7 @@ class TrajectoryGenerator:
 #######################################################################################################################################
 ################################################ filter trajectory ####################################################################
         # record bad trajectories
-        num_outlimit, num_ruckiger, num_small_deviation = 0, 0, 0
+        num_outlimit, num_ruckiger, num_small_deviation, num_vel_limit = 0, 0, 0, 0
 
         for i in range(n_candidates):
             candidate_idx = i
@@ -401,6 +401,7 @@ class TrajectoryGenerator:
                     skip_candidate = True
 
             if skip_candidate:
+                num_vel_limit += 1
                 continue
 
             # 3. valid trajectory
@@ -426,13 +427,11 @@ class TrajectoryGenerator:
             trajs.append(traj_throw)
             throw_configs.append(throw_config_full)
 
-        # for j in range(7):
-        #     print(f"  Joint {j}:")
-        #     print(f"    Exceed Max Limit: {joint_limit_counters['max'][j]}")
-        #     print(f"    Below Min Limit: {joint_limit_counters['min'][j]}")
-        #
-        # print("\t\t out of joint limit: {}, ruckig error: {}, small deviation:{}".format(
-        #         num_outlimit, num_ruckiger, num_small_deviation))
+        if len(trajs) == 0:
+            print(f"Filter Summary: Total candidates: {n_candidates}, Out of limit: {num_outlimit}, Velocity limit: {num_vel_limit}, Ruckig error: {num_ruckiger}")
+            for j in range(7):
+                if joint_limit_counters['max'][j] > 0 or joint_limit_counters['min'][j] > 0:
+                    print(f"  Joint {j}: Exceed Max: {joint_limit_counters['max'][j]}, Below Min: {joint_limit_counters['min'][j]}")
 
         return trajs, throw_configs
 
@@ -575,9 +574,13 @@ class TrajectoryGenerator:
             return None, None, None
 
         if full_search:
+            # joint_velocity_limits = {
+            #     'max_abs': [1.5, 0.6, None, None, None, 2.0, None],
+            #     'min_abs': [None, 0.0, None, None, None, 1.0, None]
+            # }
             joint_velocity_limits = {
-                'max_abs': [1.5, 0.6, None, None, None, 2.0, None],
-                'min_abs': [None, 0.0, None, None, None, 1.0, None]
+                'max_abs': [None, None, None, None, None, None, None],
+                'min_abs': [None, None, None, None, None, None, None]
             }
 
             trajs_1, throw_configs_1 = self.generate_throw_config(q_candidates_1,
@@ -639,10 +642,6 @@ class TrajectoryGenerator:
         computation_time = time_1 - start
         print(f"Greedy search: computation time:{computation_time}, exe time:{exe_time}")
 
-        # clear data
-        del all_pairs, all_pair_configs
-        gc.collect()
-
         if animate:
             self.throw_simulation_mujoco(final_trajectory, best_throw_config_pair,
                                      intermediate_time=intermediate_time)
@@ -653,6 +652,7 @@ class TrajectoryGenerator:
        
         q0 = q0 if q0 is not None else self.q0
         n_targets = len(box_positions)
+        pos_sort = 30
         if postures is None:
             postures = ['posture1'] * n_targets
             
@@ -666,12 +666,12 @@ class TrajectoryGenerator:
             
             q_c, phi_c, x_c = self.brt_robot_data_matching(posture=posture, box_pos=pos)
             if full_search:
-                q_c, phi_c, x_c = self.filter_candidates(q_c, phi_c, x_c, thres_r_ratio=1.0, thres_phi_ratio=1.0, thres_height=-0.5)
+                q_c, phi_c, x_c = self.filter_candidates(q_c, phi_c, x_c, thres_r_ratio=1.0, thres_phi_ratio=0.5)
             else:
                 q_c, phi_c, x_c = self.filter_candidates(q_c, phi_c, x_c)
                 
             if len(q_c) == 0:
-                print(f"目标 {i} 未找到解集")
+                print(f"target {i} candidates is empty")
                 return None, None, None
                 
             _, throw_configs = self.generate_throw_config(
@@ -681,17 +681,28 @@ class TrajectoryGenerator:
             )
             
             if len(throw_configs) == 0:
-                print(f"目标 {i} 生成合法配置失败")
+                print(f"target {i} config is empty")
                 return None, None, None
             
+            throw_configs.sort(key=lambda cfg: np.linalg.norm(cfg[-1][:2] - base))
+            if len(throw_configs) > pos_sort:
+                throw_configs = throw_configs[:pos_sort]
+                
             all_targets_configs.append(throw_configs)
 
-        all_sequences = list(itertools.product(*all_targets_configs))
+        all_sequences = itertools.product(*all_targets_configs)
+        total_combinations = np.prod([len(configs) for configs in all_targets_configs])
+        print(f"total combinations: {total_combinations}")
 
         best_duration = np.inf
         best_result = None 
+        count = 0
 
         for seq in all_sequences:
+            count += 1
+            if count % 1000 == 0:
+                print(f"progress: {count}/{total_combinations}...", end='\r')
+                
             current_q = q0
             current_q_dot = np.zeros(7)
             current_total_duration = 0
@@ -706,8 +717,10 @@ class TrajectoryGenerator:
                     if t is None or t.duration < 1e-10:
                         valid_seq = False; break
                     current_total_duration += t.duration
+                    
                     if current_total_duration >= best_duration:
                         valid_seq = False; break
+                    
                     temp_trajs.append(t)
                     current_q, current_q_dot = target_q, target_q_dot
                 except:
@@ -718,7 +731,7 @@ class TrajectoryGenerator:
                 best_result = (list(seq), temp_trajs)
 
         if best_result is None:
-            print("未能找到可行的轨迹序列")
+            print("no valid trajectory sequence found")
             return None, None, None
 
         best_configs, best_trajs = best_result
@@ -744,7 +757,7 @@ class TrajectoryGenerator:
             current_offset += t_obj.duration
             intermediate_times.append(current_offset)
 
-        print(f"全排列搜索完成: 最优耗时 {best_duration:.2f}s, 搜索总用时 {time.time()-start_time:.2f}s")
+        print(f"total combinations: {total_combinations}, best duration: {best_duration:.2f}s, search time: {time.time()-start_time:.2f}s")
         
         if animate:
             self.throw_simulation_mujoco_generic(total_traj, best_configs, intermediate_times, postures)
@@ -757,7 +770,7 @@ class TrajectoryGenerator:
                                           throw_configs,
                                             intermediate_times,
                                               postures,
-                                                speed_up=5):
+                                                speed_up=8):
         ROBOT_BASE_HEIGHT = 0.5
         n_targets = len(throw_configs)
         
@@ -786,11 +799,19 @@ class TrajectoryGenerator:
         final_step = int(plan_time * self.freq)
         
         target_steps = [int(t * self.freq) for t in intermediate_times]
+        milestones = sorted(list(set(target_steps + [final_step])))
         
         cur_step = 0
+        prev_sim_step = 0
         while cur_step < max_step:
-            step_idx = min(cur_step, final_step - 1)
-            if cur_step < final_step:
+            execute_step = cur_step
+            for m in milestones:
+                if cur_step < m < cur_step + speed_up:
+                    execute_step = m
+                    break
+            
+            step_idx = min(execute_step, final_step - 1)
+            if execute_step < final_step:
                 pos = ref_sequence['position'][step_idx]
                 vel = ref_sequence['velocity'][step_idx]
             else:
@@ -799,17 +820,13 @@ class TrajectoryGenerator:
             
             self.robot._set_joints(pos, vel)
             
-            current_target_idx = 0
+            current_target_idx = n_targets
             for i, step in enumerate(target_steps):
-                if cur_step < step:
+                if execute_step < step:
                     current_target_idx = i
                     break
-                else:
-                    current_target_idx = n_targets 
-            
             
             self.robot._set_hand_joints(self.robot.envelop_pose.copy().tolist())
-            
             
             for i in range(n_targets):
                 if i >= current_target_idx: 
@@ -830,8 +847,20 @@ class TrajectoryGenerator:
                     except Exception:
                         pass
 
-            self.robot.step_physics(steps=physics_steps, render=True)
-            cur_step += speed_up
+            step_diff = execute_step - prev_sim_step
+            if step_diff > 0:
+                p_steps = int(step_diff * (1.0 / self.freq) / self.robot.model.opt.timestep)
+                if p_steps > 0:
+                    self.robot.step_physics(steps=p_steps, render=True)
+            else:
+                self.robot.step_physics(steps=1, render=True)
+            
+            prev_sim_step = execute_step
+            if execute_step == cur_step:
+                cur_step += speed_up
+            else:
+                cur_step = execute_step
+                
             time.sleep(delta_t)
 
 

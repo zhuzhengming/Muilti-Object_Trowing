@@ -367,7 +367,7 @@ def main(prefix, VelocityHedgehog: VelocityHedgehog, delta_q, Dis, Z, Phi, Gamma
                     qzd = Qzd[i][j]
                     if len(qzd) == 0:
                         # filtered q without result
-                        pbar.update(len(Phi) * len(Gamma))
+                        pbar.update(num_phi * num_gamma)
                         continue
 
                     # print("height: {:.2f}, DIS: {:.2f}, Num(q): {}".format(Z[i], Dis[j], len(qzd)))
@@ -391,7 +391,7 @@ def main(prefix, VelocityHedgehog: VelocityHedgehog, delta_q, Dis, Z, Phi, Gamma
                         # fix z, dis, for every gamma and phi
                         vels[k, :, :] = np.array([[LP(phi, gamma, Jinv, fracyx, qdmin, qdmax) for gamma in Gamma] for phi in Phi])
 
-                        pbar.update(1)
+                        pbar.update(num_phi * num_gamma / len(qzd))
                         pbar.set_postfix_str(group_info)
 
                     # get the only one maximum velocity, and relative configuration, AE position
@@ -400,6 +400,7 @@ def main(prefix, VelocityHedgehog: VelocityHedgehog, delta_q, Dis, Z, Phi, Gamma
                     argmax_q[mode_idx,i,j,:,:] = np.array(qzd)[np.argmax(vels, axis=0), :]
                     q_ae[mode_idx,i,j,:,:] = np.array(aezd[i][j])[np.argmax(vels, axis=0), :]
     # save file
+    os.makedirs(prefix, exist_ok=True)
     np.save(prefix + 'robot_zs.npy', Z)
     np.save(prefix + 'robot_diss.npy', Dis)
     np.save(prefix + 'robot_phis.npy', Phi)

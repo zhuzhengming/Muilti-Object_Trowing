@@ -9,6 +9,7 @@ output:
 """
 
 import sys
+import os
 sys.path.append("../")
 import time
 import numpy as np
@@ -18,7 +19,7 @@ from bisect import bisect_left
 import matplotlib.pyplot as plt
 from scipy.interpolate import griddata
 import matplotlib
-matplotlib.use('Qt5Agg')
+matplotlib.use('Agg')
 from matplotlib.collections import LineCollection
 
 def flying_dynamics(t, s):
@@ -34,9 +35,10 @@ class BRT:
     def __init__(self, r_dot0, z_dot0, prefix=None, robot_path=None):
         self.r_dot0 = r_dot0
         self.z_dot0 = z_dot0
-        self.brt_path = (prefix if prefix else "") + 'brt_data'
-        self.robot_zs_path = robot_path + '/robot_zs.npy'
-        self.robot_gamma_path = robot_path + '/robot_gammas.npy'
+        self.prefix = prefix if prefix else ""
+        self.brt_path = os.path.join(self.prefix, 'brt_data')
+        self.robot_zs_path = os.path.join(robot_path, 'robot_zs.npy')
+        self.robot_gamma_path = os.path.join(robot_path, 'robot_gammas.npy')
 
 
     def BRT_generation(self):
@@ -72,6 +74,7 @@ class BRT:
                             & (brt_data[:, 3] < 10.0)]
 
         if self.brt_path is not None:
+            os.makedirs(os.path.dirname(self.brt_path), exist_ok=True)
             np.save(self.brt_path, brt_data)
 
         return brt_data
@@ -216,8 +219,8 @@ class BRT:
         # (z, dis, phi, gamma, layers, 5):(r, z, r_dot, z_dot, v)
         brt_tensor = np.expand_dims(brt_tensor, axis=(1, 2))
 
-        np.save(prefix + "/brt_tensor.npy", brt_tensor)
-        np.save(prefix+ "/brt_zs.npy", brt_zs)
+        np.save(os.path.join(self.prefix, "brt_tensor.npy"), brt_tensor)
+        np.save(os.path.join(self.prefix, "brt_zs.npy"), brt_zs)
 
     def insert_idx(self, a, x):
         """
@@ -236,14 +239,17 @@ class BRT:
             else:
                 return idx
 
+import os
+current_dir = os.path.dirname(os.path.abspath(__file__))
+
 if __name__ == "__main__":
-    prefix = "../brt_data/"
-    robot_path = "../hedgehog_data/"
-    brt_path = "../brt_data/brt_data.npy"
-    r_dot0 = np.arange(0.0, 3.0, 0.1)
-    z_dot0 = np.arange(-5.0, 0.0, 0.1)
+    prefix = os.path.join(current_dir, "../brt_data/")
+    robot_path = os.path.join(current_dir, "../hedgehog_data/")
+    brt_path = os.path.join(prefix, "brt_data.npy")
+    r_dot0 = np.arange(0.0, 15.0, 0.1)
+    z_dot0 = np.arange(-15.0, 0.0, 0.1)
     BRT_generator = BRT(r_dot0, z_dot0, prefix=prefix, robot_path=robot_path)
-    BRT_generator.visualize_brt(brt_path)
-    # BRT_generator.convert2tensor()
+    # BRT_generator.visualize_brt(brt_path)
+    BRT_generator.convert2tensor()
     print("Done")
 
