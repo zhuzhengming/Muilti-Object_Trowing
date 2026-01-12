@@ -1,0 +1,9 @@
+Metadata-Version: 2.4
+Name: multi_object_throwing
+Version: 0.1.0
+Requires-Python: >=3.6
+Requires-Dist: numpy>=1.19.0
+Requires-Dist: rospkg>=1.4.0
+Requires-Dist: scipy>=1.7.0
+Dynamic: requires-dist
+Dynamic: requires-python

@@ -1,0 +1,4 @@
+cvxpy
+mujoco==2.3.3
+mujoco-python-viewer
+ruckig
