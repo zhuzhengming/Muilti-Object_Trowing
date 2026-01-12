@@ -648,7 +648,7 @@ class TrajectoryGenerator:
         else:
             return final_trajectory, best_throw_config_pair, intermediate_time
 
-    def solve_multi_targets(self, box_positions, postures=None, animate=True, full_search=False, q0=None):
+    def solve_multi_targets(self, box_positions, postures=None, animate=True, full_search=False, q0=None, random_select=False):
        
         q0 = q0 if q0 is not None else self.q0
         n_targets = len(box_positions)
@@ -666,9 +666,13 @@ class TrajectoryGenerator:
             
             q_c, phi_c, x_c = self.brt_robot_data_matching(posture=posture, box_pos=pos)
             if full_search:
-                q_c, phi_c, x_c = self.filter_candidates(q_c, phi_c, x_c, thres_r_ratio=1.0, thres_phi_ratio=0.5)
+                q_c, phi_c, x_c = self.filter_candidates(q_c, phi_c, x_c,
+                                                          thres_r_ratio=1.0,
+                                                            thres_phi_ratio=0.5)
             else:
-                q_c, phi_c, x_c = self.filter_candidates(q_c, phi_c, x_c)
+                q_c, phi_c, x_c = self.filter_candidates(q_c, phi_c, x_c,
+                                                         thres_r_ratio=1.0,
+                                                          thres_phi_ratio=1.0)
                 
             if len(q_c) == 0:
                 print(f"target {i} candidates is empty")
@@ -687,6 +691,9 @@ class TrajectoryGenerator:
             throw_configs.sort(key=lambda cfg: np.linalg.norm(cfg[-1][:2] - base))
             if len(throw_configs) > pos_sort:
                 throw_configs = throw_configs[:pos_sort]
+            
+            if random_select:
+                np.random.shuffle(throw_configs)
                 
             all_targets_configs.append(throw_configs)
 
@@ -718,7 +725,7 @@ class TrajectoryGenerator:
                         valid_seq = False; break
                     current_total_duration += t.duration
                     
-                    if current_total_duration >= best_duration:
+                    if not random_select and current_total_duration >= best_duration:
                         valid_seq = False; break
                     
                     temp_trajs.append(t)
@@ -726,9 +733,14 @@ class TrajectoryGenerator:
                 except:
                     valid_seq = False; break
             
-            if valid_seq and current_total_duration < best_duration:
-                best_duration = current_total_duration
-                best_result = (list(seq), temp_trajs)
+            if valid_seq:
+                if random_select:
+                    best_duration = current_total_duration
+                    best_result = (list(seq), temp_trajs)
+                    break # Found the first valid one in shuffled order
+                elif current_total_duration < best_duration:
+                    best_duration = current_total_duration
+                    best_result = (list(seq), temp_trajs)
 
         if best_result is None:
             print("no valid trajectory sequence found")
@@ -770,7 +782,7 @@ class TrajectoryGenerator:
                                           throw_configs,
                                             intermediate_times,
                                               postures,
-                                                speed_up=8):
+                                                speed_up=5):
         ROBOT_BASE_HEIGHT = 0.5
         n_targets = len(throw_configs)
         
@@ -1085,32 +1097,74 @@ class TrajectoryGenerator:
         self.throw_simulation_mujoco(final_trajectory, config_full,
                                          intermediate_time=intermediate_time)
 
-    def naive_search(self, target_boxes,q0=None,simulation=True):
+    def naive_search(self, target_boxes, q0=None, simulation=True):
+        """
+        Sequential search for multiple targets: solve each target one by one, 
+        starting from the end configuration of the previous one.
+        """
         start = time.time()
-        box_A = target_boxes[0]
-        box_B = target_boxes[1]
         q0 = q0 if q0 is not None else self.q0
-        trajs_A, throw_configs_A = self.solve(posture="posture1", box_pos=box_A, q0=q0)
-        q_A = throw_configs_A[0]
-        q_A_dot = throw_configs_A[3]
-        trajs_B, throw_configs_B = self.solve(posture="posture2", box_pos=box_B, q0=q_A, q0_dot=q_A_dot)
+        current_q = q0
+        current_q_dot = self.q0_dot
+        
+        all_trajs = []
+        all_configs = []
+        intermediate_times = []
+        current_total_time = 0.0
+        
+        n_targets = len(target_boxes)
+        
+        for i in range(n_targets):
+            box_pos = target_boxes[i]
+            # Sequential solving, always using posture1 as requested
+            res = self.solve(animate=False, posture="posture1", box_pos=box_pos, q0=current_q, q0_dot=current_q_dot)
+            if res == 0 or res is None:
+                print(f"NAIVE: No result found for target {i} at {box_pos}")
+                return None, None, None
+            
+            traj, config = res
+            all_trajs.append(traj)
+            all_configs.append(config)
+            
+            # Update current state to the end of the solved trajectory
+            current_q = config[0]
+            current_q_dot = config[3]
+            
+            current_total_time += traj.duration
+            intermediate_times.append(current_total_time)
 
-        config_pairs = (throw_configs_A, throw_configs_B)
+        # Concatenate trajectories into a single dictionary format
+        total_traj = {
+            'timestamp': np.array([]),
+            'position': np.empty((0, 7)),
+            'velocity': np.empty((0, 7)),
+            'acceleration': np.empty((0, 7))
+        }
+        
+        offset = 0.0
+        for t_obj in all_trajs:
+            seg = self.process_trajectory(t_obj, offset)
+            if len(total_traj['timestamp']) > 0:
+                # Avoid duplicating the waypoint point
+                start_idx = 1 if np.isclose(seg['timestamp'][0], total_traj['timestamp'][-1]) else 0
+            else:
+                start_idx = 0
+            
+            total_traj['timestamp'] = np.concatenate([total_traj['timestamp'], seg['timestamp'][start_idx:]])
+            total_traj['position'] = np.concatenate([total_traj['position'], seg['position'][start_idx:]], axis=0)
+            total_traj['velocity'] = np.concatenate([total_traj['velocity'], seg['velocity'][start_idx:]], axis=0)
+            total_traj['acceleration'] = np.concatenate([total_traj['acceleration'], seg['acceleration'][start_idx:]], axis=0)
+            
+            offset += t_obj.duration
 
-        intermediate_time, final_trajectory = (
-            self.concatenate_trajectories(trajs_A, trajs_B))
-
-        exe_time = trajs_A.duration + trajs_B.duration
-        time_1 = time.time()
-        computation_time = time_1 - start
-
-        print(f"NAIVE: computation time:{computation_time}, exe time:{exe_time}")
+        computation_time = time.time() - start
+        print(f"NAIVE: computation time:{computation_time:.4f}s, total exe time:{offset:.4f}s")
 
         if simulation:
-            self.throw_simulation_mujoco(final_trajectory, config_pairs,
-                                         intermediate_time=intermediate_time)
+            postures = ["posture1"] * n_targets
+            self.throw_simulation_mujoco_generic(total_traj, all_configs, intermediate_times, postures)
 
-        return final_trajectory, config_pairs, intermediate_time
+        return total_traj, all_configs, intermediate_times
 
 
 if __name__ == "__main__":

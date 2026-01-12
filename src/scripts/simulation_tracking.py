@@ -64,17 +64,20 @@ class SimulationTracking:
             # Random generation using Polar Coordinates
             def generate_random_box():
                 # Continuous range: 1.2 < r < 2.5
-                r = random.uniform(1.2, 2.5)
+                r = random.uniform(1.2, 2.0)
                 theta = random.uniform(0, 2 * np.pi)
                 x = r * np.cos(theta)
                 y = r * np.sin(theta)
-                # Fixed z absolute value 0.4
-                z = -0.4
+                z = random.uniform(-0.4, 0.4)
                 return np.array([x, y, z])
 
             box1 = generate_random_box()
             box2 = generate_random_box()
             box3 = generate_random_box()
+
+            # box1[2] = -0.3
+            # box2[2] = 0.0
+            # box3[2] = 0.3
             
             print("\n" + "="*60)
             print(f">>> Group {self.sim_group_count + 1} (Auto-generated Random Samples)")
@@ -87,8 +90,8 @@ class SimulationTracking:
         
         if mode == 'greedy':
             self.generator.solve_multi_targets(box_positions, animate=True, full_search=True)
-        elif mode == 'naive':
-            self.generator.naive_search(box_positions, simulation=True)
+        elif mode == 'random':
+            self.generator.solve_multi_targets(box_positions, animate=True, full_search=False, random_select=True)
         
 
     def run_single_throwing_sim(self, posture='posture1'):
@@ -106,6 +109,10 @@ if __name__ == "__main__":
                 sim.run_multi_throwing_sim(mode='greedy', use_config=False)
             elif choice == '2':
                 sim.run_multi_throwing_sim(mode='greedy', use_config=True)
+            elif choice == '3':
+                sim.run_multi_throwing_sim(mode='random', use_config=False)
+            elif choice == '4':
+                sim.run_multi_throwing_sim(mode='random', use_config=True)
 
             time.sleep(1)
                 
